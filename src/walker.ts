@@ -1,10 +1,12 @@
 import type {
   AstNode,
+  ApplyNode,
   BinaryNode,
   BindNode,
   BlockNode,
   ConditionNode,
   FunctionNode,
+  LambdaNode,
   NameNode,
   PathNode,
   UnaryNode,
@@ -16,9 +18,11 @@ import {
   createScope,
   childScope,
   bindVariable,
+  bindLambda,
+  resolveLambda,
   resolveVariable,
 } from "./scope.js";
-import { BUILTIN_FUNCTIONS } from "./builtins.js";
+import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
 
 /**
  * Walk an AST node and extract all data paths as raw strings.
@@ -51,6 +55,10 @@ export function walkNode(
       return walkBind(node as BindNode, scope);
     case "function":
       return walkFunction(node as FunctionNode, scope);
+    case "lambda":
+      return walkLambda(node as LambdaNode, scope);
+    case "apply":
+      return walkApply(node as ApplyNode, scope);
     case "string":
     case "number":
     case "value":
@@ -114,6 +122,7 @@ function walkCondition(node: ConditionNode, scope: ScopeTracker): string[] {
  * Process block expressions sequentially, accumulating scope bindings.
  * Each bind node adds to the running scope before subsequent expressions
  * are processed. Inner blocks use a child scope to prevent leaking.
+ * Lambda RHS nodes are stored in scope for custom function call tracing.
  */
 function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
   const paths: string[] = [];
@@ -129,6 +138,15 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
         bindNode.lhs.value,
         rhsPaths,
       );
+
+      // If the RHS is a lambda, store the lambda node for SCOPE-05 tracing
+      if (bindNode.rhs.type === "lambda") {
+        currentScope = bindLambda(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as LambdaNode,
+        );
+      }
     } else if (expr.type === "block") {
       // Inner block: create a child scope so bindings don't leak
       const innerScope = childScope(currentScope);
@@ -191,10 +209,218 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
 }
 
 /**
- * Extract paths from function arguments (pass-through).
- * For this plan, all function arguments are walked to extract data paths.
- * The function name itself produces no paths.
+ * Handle a lambda node encountered during walking.
+ *
+ * A real lambda definition (user-written `function($x) { ... }`) is just a
+ * value -- it doesn't execute, so no paths are extracted.
+ *
+ * However, JSONata's parser generates "thunk" lambdas (with `thunk: true`
+ * and no arguments) to wrap certain expressions like nested higher-order
+ * function calls. These thunks must be unwrapped: walk their body with
+ * the current scope to extract paths.
+ */
+function walkLambda(node: LambdaNode, scope: ScopeTracker): string[] {
+  // Thunk lambdas are parser-generated wrappers, not user-defined functions
+  if ((node as LambdaNode & { thunk?: boolean }).thunk) {
+    return walkNode(node.body, scope);
+  }
+  return [];
+}
+
+/**
+ * Extract paths from function calls with lambda-aware resolution.
+ *
+ * Handles three cases:
+ * 1. Higher-order built-in ($map, $filter, etc.) -- bind lambda params to data arg paths
+ * 2. Custom function call ($fn bound to lambda in scope) -- trace args into lambda body
+ * 3. Non-higher-order / unknown function -- pass-through all arguments
  */
 function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
-  return node.arguments.flatMap((arg) => walkNode(arg, scope));
+  const funcName = node.procedure.value;
+  const args = node.arguments;
+  const paths: string[] = [];
+
+  // Step 1: Check if this is a known higher-order function
+  const semantics = HIGHER_ORDER_SEMANTICS[funcName];
+  if (semantics) {
+    return walkHigherOrderCall(node, semantics, scope);
+  }
+
+  // Step 2: Check if this is a custom function call (lambda bound in scope)
+  const lambdaNode = resolveLambda(scope, funcName);
+  if (lambdaNode) {
+    return walkCustomFunctionCall(lambdaNode, args, scope);
+  }
+
+  // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
+  for (const arg of args) {
+    if (arg.type === "lambda") {
+      // Walk lambda body with current scope (closure capture)
+      const lambda = arg as LambdaNode;
+      const lambdaScope = childScope(scope);
+      paths.push(...walkNode(lambda.body, lambdaScope));
+    } else {
+      paths.push(...walkNode(arg, scope));
+    }
+  }
+
+  return paths;
+}
+
+/**
+ * Handle calls to higher-order built-in functions ($map, $filter, $reduce, etc.).
+ *
+ * Extracts paths from the data argument, then walks the lambda body with
+ * parameter bindings according to the function's semantic role mapping.
+ */
+function walkHigherOrderCall(
+  node: FunctionNode,
+  semantics: Record<number, string>,
+  scope: ScopeTracker,
+): string[] {
+  const args = node.arguments;
+  const paths: string[] = [];
+
+  // Extract paths from all non-lambda arguments (they're data reads)
+  for (const arg of args) {
+    if (arg.type !== "lambda") {
+      paths.push(...walkNode(arg, scope));
+    }
+  }
+
+  // Find the lambda argument
+  const lambdaArg = args.find((a) => a.type === "lambda") as
+    | LambdaNode
+    | undefined;
+
+  if (lambdaArg) {
+    // Get the data argument (first non-lambda arg) paths for binding
+    const dataArg = args.find((a) => a.type !== "lambda");
+    const dataArgPaths = dataArg ? walkNode(dataArg, scope) : [];
+
+    // Walk lambda body with parameter bindings
+    paths.push(
+      ...walkLambdaWithBindings(lambdaArg, dataArgPaths, semantics, scope),
+    );
+  }
+
+  return paths;
+}
+
+/**
+ * Walk a lambda body in the context of a higher-order function call.
+ * Binds lambda parameters to data argument paths based on semantic roles.
+ *
+ * Roles:
+ * - "element"/"value"/"left"/"right" -> bound to data arg's element paths
+ * - "index"/"key" -> non-data-path (bind to empty)
+ * - "array"/"accumulator" -> bound to full collection paths
+ */
+function walkLambdaWithBindings(
+  lambda: LambdaNode,
+  dataArgPaths: string[],
+  semantics: Record<number, string>,
+  parentScope: ScopeTracker,
+): string[] {
+  let lambdaScope = childScope(parentScope);
+
+  // Bind each lambda parameter based on its semantic role
+  for (let i = 0; i < lambda.arguments.length; i++) {
+    const param = lambda.arguments[i];
+    const role = semantics[i];
+
+    if (!role) continue; // more params than semantics knows about
+
+    switch (role) {
+      case "element":
+      case "value":
+      case "left":
+      case "right":
+        // Bound to element of the data argument
+        lambdaScope = bindVariable(lambdaScope, param.value, dataArgPaths);
+        break;
+      case "index":
+      case "key":
+        // Non-data-path: bind to empty (produces no paths when referenced)
+        lambdaScope = bindVariable(lambdaScope, param.value, []);
+        break;
+      case "array":
+      case "accumulator":
+        // Bound to the full collection/accumulator
+        lambdaScope = bindVariable(lambdaScope, param.value, dataArgPaths);
+        break;
+    }
+  }
+
+  return walkNode(lambda.body, lambdaScope);
+}
+
+/**
+ * Handle custom function calls where the procedure resolves to a lambda in scope.
+ * Binds call-site argument paths to lambda parameters and walks the body.
+ *
+ * Example: `($fn := function($x) { $x.name }; $fn(account))`
+ * -> $x bound to ["account"], body yields ["account.name"]
+ * -> combined with call-site arg paths: ["account", "account.name"]
+ */
+function walkCustomFunctionCall(
+  lambda: LambdaNode,
+  callArgs: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+
+  // Extract paths from all call-site arguments
+  const argPathSets: string[][] = [];
+  for (const arg of callArgs) {
+    const argPaths = walkNode(arg, scope);
+    paths.push(...argPaths);
+    argPathSets.push(argPaths);
+  }
+
+  // Create a scope binding each lambda parameter to its corresponding arg paths
+  let lambdaScope = childScope(scope);
+  for (let i = 0; i < lambda.arguments.length; i++) {
+    const param = lambda.arguments[i];
+    const argPaths = i < argPathSets.length ? argPathSets[i] : [];
+    lambdaScope = bindVariable(lambdaScope, param.value, argPaths);
+  }
+
+  // Walk the lambda body with parameter bindings
+  paths.push(...walkNode(lambda.body, lambdaScope));
+
+  return paths;
+}
+
+/**
+ * Handle the apply operator (~>).
+ * `lhs ~> rhs` where rhs is typically a function call.
+ * The lhs becomes the first argument to the function on the rhs.
+ *
+ * Example: `items ~> $map(function($v) { $v.name })`
+ * is equivalent to `$map(items, function($v) { $v.name })`
+ */
+function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
+  const paths: string[] = [];
+
+  // Extract paths from the lhs (it's a data read)
+  const lhsPaths = walkNode(node.lhs, scope);
+  paths.push(...lhsPaths);
+
+  // The rhs is typically a FunctionNode. Prepend lhs as first argument.
+  if (node.rhs.type === "function") {
+    const funcNode = node.rhs as FunctionNode;
+    // Create a synthetic function node with lhs prepended to arguments
+    const augmentedFunc: FunctionNode = {
+      ...funcNode,
+      arguments: [node.lhs, ...funcNode.arguments],
+    };
+    // walkFunction will re-walk the lhs arg, but dedup in extractPaths handles it
+    paths.push(...walkFunction(augmentedFunc, scope));
+  } else {
+    // Unusual: rhs is not a function node. Walk it normally.
+    paths.push(...walkNode(node.rhs, scope));
+  }
+
+  return paths;
 }
