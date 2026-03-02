@@ -11,8 +11,8 @@ import type {
   VariableNode,
 } from "./types.js";
 import { buildPathString } from "./path-builder.js";
-import type { ScopeTracker } from "./scope.js";
 import {
+  type ScopeTracker,
   createScope,
   childScope,
   bindVariable,
@@ -88,8 +88,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     return [];
   }
 
-  // No variable steps: build the path from name/wildcard/descendant steps
-  // Also handle focus/index on name steps (bind context/positional vars to scope)
+  // No variable steps: build the path from name/wildcard/descendant steps.
+  // Note: focus (@$v) and index (#$i) properties on name steps are recorded
+  // in the AST but only bind variables for downstream use (Phase 3 filters).
+  // The base path is extracted normally here.
   const path = buildPathString(node.steps);
   return path ? [path] : [];
 }
