@@ -21,16 +21,16 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **EXPR-02**: Extract paths from all branches of conditional expressions (condition, then, else)
 - [ ] **EXPR-03**: Extract paths from filter predicates (`items[price > 10]` → `items.price`)
 - [x] **EXPR-04**: Extract paths from all sub-expressions in blocks
-- [ ] **EXPR-05**: Extract paths from function arguments (`$sum(items.price)` → `items.price`)
+- [x] **EXPR-05**: Extract paths from function arguments (`$sum(items.price)` → `items.price`)
 - [ ] **EXPR-06**: Distinguish array index access from filter predicates
 - [ ] **EXPR-07**: Extract paths from sort expressions (`items^(price)` → `items.price`)
 - [ ] **EXPR-08**: Extract paths from transform operator patterns and update expressions
 
 ### Variable & Scope Analysis
 
-- [ ] **SCOPE-01**: Trace variable assignments back to source data paths (`$x := account.name` → `account.name`)
-- [ ] **SCOPE-02**: Track context variable binding (`@$v`) and resolve paths through them
-- [ ] **SCOPE-03**: Recognize positional variables (`#$i`) as non-data-path references
+- [x] **SCOPE-01**: Trace variable assignments back to source data paths (`$x := account.name` → `account.name`)
+- [x] **SCOPE-02**: Track context variable binding (`@$v`) and resolve paths through them
+- [x] **SCOPE-03**: Recognize positional variables (`#$i`) as non-data-path references
 - [ ] **SCOPE-04**: Track lambda/higher-order function context (`$map(items, function($v) { $v.name })` → `items.name`)
 - [ ] **SCOPE-05**: Handle custom function calls by tracing arguments into function body definitions
 
@@ -90,13 +90,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXPR-02 | Phase 1 | Complete |
 | EXPR-03 | Phase 3 | Pending |
 | EXPR-04 | Phase 1 | Complete |
-| EXPR-05 | Phase 2 | Pending |
+| EXPR-05 | Phase 2 | Complete |
 | EXPR-06 | Phase 3 | Pending |
 | EXPR-07 | Phase 3 | Pending |
 | EXPR-08 | Phase 3 | Pending |
-| SCOPE-01 | Phase 2 | Pending |
-| SCOPE-02 | Phase 2 | Pending |
-| SCOPE-03 | Phase 2 | Pending |
+| SCOPE-01 | Phase 2 | Complete |
+| SCOPE-02 | Phase 2 | Complete |
+| SCOPE-03 | Phase 2 | Complete |
 | SCOPE-04 | Phase 2 | Pending |
 | SCOPE-05 | Phase 2 | Pending |
 | ADV-01 | Phase 4 | Pending |
