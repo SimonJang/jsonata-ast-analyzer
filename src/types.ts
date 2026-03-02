@@ -21,6 +21,8 @@ export interface NameNode {
   stages?: AstNode[]; // filter/sort/index stages (Phase 3)
   keepArray?: boolean;
   tuple?: boolean;
+  focus?: string; // context variable name from @$v (without $)
+  index?: string; // positional variable name from #$i (without $)
 }
 
 export interface WildcardNode {
@@ -96,8 +98,40 @@ export interface RegexNode {
   position: number;
 }
 
-// Catch-all for node types not yet handled (bind, lambda, function,
-// apply, filter, sort, transform, parent, partial, error).
+export interface BindNode {
+  type: "bind";
+  value: ":=";
+  position: number;
+  lhs: VariableNode; // the variable being assigned
+  rhs: AstNode; // the value expression
+}
+
+export interface FunctionNode {
+  type: "function";
+  value: "(";
+  position: number;
+  procedure: VariableNode; // function name (without $)
+  arguments: AstNode[]; // call arguments
+}
+
+export interface LambdaNode {
+  type: "lambda";
+  arguments: VariableNode[]; // parameter names (without $)
+  position: number;
+  body: AstNode; // lambda body expression
+  signature?: { definition: string }; // optional type signature
+}
+
+export interface ApplyNode {
+  type: "apply";
+  value: "~>";
+  position: number;
+  lhs: AstNode; // input (becomes first argument)
+  rhs: AstNode; // function call (typically FunctionNode)
+}
+
+// Catch-all for node types not yet handled (filter, sort, transform,
+// parent, partial, error).
 // The walker returns empty paths for these — skip silently per
 // over-approximation principle.
 export interface GenericNode {
@@ -119,4 +153,8 @@ export type AstNode =
   | ValueNode
   | VariableNode
   | RegexNode
+  | BindNode
+  | FunctionNode
+  | LambdaNode
+  | ApplyNode
   | GenericNode;

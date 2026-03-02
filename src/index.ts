@@ -1,5 +1,6 @@
 import { parse } from "./parser.js";
 import { walkNode } from "./walker.js";
+import { createScope } from "./scope.js";
 import type { PathResult } from "./types.js";
 
 export type { PathResult } from "./types.js";
@@ -13,7 +14,8 @@ export type { PathResult } from "./types.js";
  */
 export function extractPaths(expression: string): PathResult[] {
   const ast = parse(expression);
-  const rawPaths = walkNode(ast);
+  const scope = createScope();
+  const rawPaths = walkNode(ast, scope);
   const unique = [...new Set(rawPaths)];
   return unique.map((path) => ({ path }));
 }
