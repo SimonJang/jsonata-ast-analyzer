@@ -13,7 +13,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **PATH-02**: Extract nested multi-step paths (`order.items.price`)
 - [ ] **PATH-03**: Handle wildcard operator (`*`) emitting `order.*` segments
 - [ ] **PATH-04**: Handle descendant operator (`**`) emitting `**.price` segments
-- [ ] **PATH-05**: Handle string, number, boolean, and null literals without producing paths
+- [x] **PATH-05**: Handle string, number, boolean, and null literals without producing paths
 
 ### Expression Analysis
 
@@ -85,7 +85,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PATH-02 | Phase 1 | Pending |
 | PATH-03 | Phase 1 | Pending |
 | PATH-04 | Phase 1 | Pending |
-| PATH-05 | Phase 1 | Pending |
+| PATH-05 | Phase 1 | Complete |
 | EXPR-01 | Phase 1 | Pending |
 | EXPR-02 | Phase 1 | Pending |
 | EXPR-03 | Phase 3 | Pending |
