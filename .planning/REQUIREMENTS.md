@@ -81,35 +81,35 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PATH-01 | — | Pending |
-| PATH-02 | — | Pending |
-| PATH-03 | — | Pending |
-| PATH-04 | — | Pending |
-| PATH-05 | — | Pending |
-| EXPR-01 | — | Pending |
-| EXPR-02 | — | Pending |
-| EXPR-03 | — | Pending |
-| EXPR-04 | — | Pending |
-| EXPR-05 | — | Pending |
-| EXPR-06 | — | Pending |
-| EXPR-07 | — | Pending |
-| EXPR-08 | — | Pending |
-| SCOPE-01 | — | Pending |
-| SCOPE-02 | — | Pending |
-| SCOPE-03 | — | Pending |
-| SCOPE-04 | — | Pending |
-| SCOPE-05 | — | Pending |
-| ADV-01 | — | Pending |
-| ADV-02 | — | Pending |
-| ADV-03 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
+| PATH-01 | Phase 1 | Pending |
+| PATH-02 | Phase 1 | Pending |
+| PATH-03 | Phase 1 | Pending |
+| PATH-04 | Phase 1 | Pending |
+| PATH-05 | Phase 1 | Pending |
+| EXPR-01 | Phase 1 | Pending |
+| EXPR-02 | Phase 1 | Pending |
+| EXPR-03 | Phase 3 | Pending |
+| EXPR-04 | Phase 1 | Pending |
+| EXPR-05 | Phase 2 | Pending |
+| EXPR-06 | Phase 3 | Pending |
+| EXPR-07 | Phase 3 | Pending |
+| EXPR-08 | Phase 3 | Pending |
+| SCOPE-01 | Phase 2 | Pending |
+| SCOPE-02 | Phase 2 | Pending |
+| SCOPE-03 | Phase 2 | Pending |
+| SCOPE-04 | Phase 2 | Pending |
+| SCOPE-05 | Phase 2 | Pending |
+| ADV-01 | Phase 4 | Pending |
+| ADV-02 | Phase 4 | Pending |
+| ADV-03 | Phase 4 | Pending |
+| API-01 | Phase 5 | Pending |
+| API-02 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23 ⚠️
+- Mapped to phases: 23
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after initial definition*
+*Last updated: 2026-03-02 after roadmap creation*
