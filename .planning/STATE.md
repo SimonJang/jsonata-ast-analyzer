@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-03-02T14:56:46Z"
+last_updated: "2026-03-02T15:05:20Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -23,28 +23,28 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 Phase: 2 of 5 (Scope Infrastructure and Variable Tracing)
-Plan: 1 of 2 in current phase
-Status: In Progress
-Last activity: 2026-03-02 -- Completed 02-01-PLAN.md
+Plan: 2 of 2 in current phase
+Status: Phase Complete
+Last activity: 2026-03-02 -- Completed 02-02-PLAN.md
 
-Progress: [██████░░░░] 30%
+Progress: [████████░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 3min
-- Total execution time: 0.17 hours
+- Total plans completed: 4
+- Average duration: 4min
+- Total execution time: 0.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 2 | 6min | 3min |
-| 02 | 1 | 4min | 4min |
+| 02 | 2 | 9min | 4.5min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 3min, 4min
+- Last 5 plans: 3min, 3min, 4min, 5min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -70,6 +70,10 @@ Recent decisions affecting current work:
 - [02-01]: Inner blocks create child scope to prevent binding leakage (matches JSONata lexical scoping)
 - [02-01]: Function argument pass-through for all functions -- lambda resolution deferred to Plan 02-02
 - [02-01]: Check scope before builtins so user bindings shadow built-in names
+- [02-02]: Extend ScopeTracker with lambdas Map for custom function node storage alongside paths
+- [02-02]: Thunk lambdas (parser-generated) unwrapped by walking body, not treated as definitions
+- [02-02]: Apply operator creates synthetic FunctionNode with lhs prepended for uniform handling
+- [02-02]: Higher-order semantic roles consolidated into data-bound and non-data binding categories
 
 ### Pending Todos
 
@@ -83,5 +87,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 02-01-PLAN.md
+Stopped at: Completed 02-02-PLAN.md (Phase 2 complete)
 Resume file: None

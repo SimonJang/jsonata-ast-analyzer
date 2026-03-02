@@ -31,8 +31,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **SCOPE-01**: Trace variable assignments back to source data paths (`$x := account.name` → `account.name`)
 - [x] **SCOPE-02**: Track context variable binding (`@$v`) and resolve paths through them
 - [x] **SCOPE-03**: Recognize positional variables (`#$i`) as non-data-path references
-- [ ] **SCOPE-04**: Track lambda/higher-order function context (`$map(items, function($v) { $v.name })` → `items.name`)
-- [ ] **SCOPE-05**: Handle custom function calls by tracing arguments into function body definitions
+- [x] **SCOPE-04**: Track lambda/higher-order function context (`$map(items, function($v) { $v.name })` → `items.name`)
+- [x] **SCOPE-05**: Handle custom function calls by tracing arguments into function body definitions
 
 ### Advanced Operators
 
@@ -97,8 +97,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCOPE-01 | Phase 2 | Complete |
 | SCOPE-02 | Phase 2 | Complete |
 | SCOPE-03 | Phase 2 | Complete |
-| SCOPE-04 | Phase 2 | Pending |
-| SCOPE-05 | Phase 2 | Pending |
+| SCOPE-04 | Phase 2 | Complete |
+| SCOPE-05 | Phase 2 | Complete |
 | ADV-01 | Phase 4 | Pending |
 | ADV-02 | Phase 4 | Pending |
 | ADV-03 | Phase 4 | Pending |
