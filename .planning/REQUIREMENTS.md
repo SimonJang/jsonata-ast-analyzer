@@ -9,18 +9,18 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Core Path Extraction
 
-- [ ] **PATH-01**: Extract simple dot-path references (`account.name` → `["account.name"]`)
-- [ ] **PATH-02**: Extract nested multi-step paths (`order.items.price`)
-- [ ] **PATH-03**: Handle wildcard operator (`*`) emitting `order.*` segments
-- [ ] **PATH-04**: Handle descendant operator (`**`) emitting `**.price` segments
+- [x] **PATH-01**: Extract simple dot-path references (`account.name` → `["account.name"]`)
+- [x] **PATH-02**: Extract nested multi-step paths (`order.items.price`)
+- [x] **PATH-03**: Handle wildcard operator (`*`) emitting `order.*` segments
+- [x] **PATH-04**: Handle descendant operator (`**`) emitting `**.price` segments
 - [x] **PATH-05**: Handle string, number, boolean, and null literals without producing paths
 
 ### Expression Analysis
 
-- [ ] **EXPR-01**: Extract paths from both operands of binary operators (`price * quantity` → both)
-- [ ] **EXPR-02**: Extract paths from all branches of conditional expressions (condition, then, else)
+- [x] **EXPR-01**: Extract paths from both operands of binary operators (`price * quantity` → both)
+- [x] **EXPR-02**: Extract paths from all branches of conditional expressions (condition, then, else)
 - [ ] **EXPR-03**: Extract paths from filter predicates (`items[price > 10]` → `items.price`)
-- [ ] **EXPR-04**: Extract paths from all sub-expressions in blocks
+- [x] **EXPR-04**: Extract paths from all sub-expressions in blocks
 - [ ] **EXPR-05**: Extract paths from function arguments (`$sum(items.price)` → `items.price`)
 - [ ] **EXPR-06**: Distinguish array index access from filter predicates
 - [ ] **EXPR-07**: Extract paths from sort expressions (`items^(price)` → `items.price`)
@@ -81,15 +81,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PATH-01 | Phase 1 | Pending |
-| PATH-02 | Phase 1 | Pending |
-| PATH-03 | Phase 1 | Pending |
-| PATH-04 | Phase 1 | Pending |
+| PATH-01 | Phase 1 | Complete |
+| PATH-02 | Phase 1 | Complete |
+| PATH-03 | Phase 1 | Complete |
+| PATH-04 | Phase 1 | Complete |
 | PATH-05 | Phase 1 | Complete |
-| EXPR-01 | Phase 1 | Pending |
-| EXPR-02 | Phase 1 | Pending |
+| EXPR-01 | Phase 1 | Complete |
+| EXPR-02 | Phase 1 | Complete |
 | EXPR-03 | Phase 3 | Pending |
-| EXPR-04 | Phase 1 | Pending |
+| EXPR-04 | Phase 1 | Complete |
 | EXPR-05 | Phase 2 | Pending |
 | EXPR-06 | Phase 3 | Pending |
 | EXPR-07 | Phase 3 | Pending |

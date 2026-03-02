@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-02)
 ## Current Position
 
 Phase: 1 of 5 (Foundation and Basic Walker)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-03-02 -- Completed 01-01-PLAN.md
+Plan: 2 of 2 in current phase (PHASE COMPLETE)
+Status: Phase 1 Complete
+Last activity: 2026-03-02 -- Completed 01-02-PLAN.md
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 3min
-- Total execution time: 0.05 hours
+- Total execution time: 0.10 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01 | 1 | 3min | 3min |
+| 01 | 2 | 6min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 3min
-- Trend: baseline
+- Last 5 plans: 3min, 3min
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 - [01-01]: Package name jsonata-ast-analyzer chosen for broader scope
 - [01-01]: Single cast boundary in parse() -- all downstream code uses discriminated unions
 - [01-01]: GenericNode catch-all for forward compatibility with unhandled AST node types
+- [01-02]: Walker uses switch dispatch with explicit type casts due to GenericNode index signature
+- [01-02]: Deduplication in extractPaths() not walker -- walker stays composable for future phases
+- [01-02]: Helper functions extracted (walkBinary, walkCondition, walkUnary) for readability
 
 ### Pending Todos
 
@@ -61,5 +64,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Completed 01-01-PLAN.md
+Stopped at: Completed 01-02-PLAN.md (Phase 1 complete)
 Resume file: None
