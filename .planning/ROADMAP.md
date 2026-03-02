@@ -46,11 +46,11 @@ Plans:
   3. Function arguments in expressions like `$sum(items.price)` extract `["items.price"]` as a data path
   4. Lambda/higher-order patterns like `$map(items, function($v) { $v.name })` resolve to `["items.name"]`
   5. Positional variables (`#$i`) are recognized as non-data-path references and produce no paths
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
+- [ ] 02-01-PLAN.md -- Scope infrastructure + basic variable resolution + function argument extraction (TDD)
+- [ ] 02-02-PLAN.md -- Lambda resolution + higher-order functions + apply operator + custom function tracing (TDD)
 
 ### Phase 3: Context-Relative Operators
 **Goal**: Users can extract accurate data paths from filter predicates, sort expressions, transform operators, and array indexing -- all of which resolve sub-expression paths relative to their parent context
@@ -100,8 +100,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Basic Walker | 1/2 | In Progress | - |
-| 2. Scope Infrastructure and Variable Tracing | 0/? | Not started | - |
+| 1. Foundation and Basic Walker | 2/2 | Complete | 2026-03-02 |
+| 2. Scope Infrastructure and Variable Tracing | 0/2 | Planned | - |
 | 3. Context-Relative Operators | 0/? | Not started | - |
 | 4. Advanced Analysis | 0/? | Not started | - |
 | 5. Public API and CLI | 0/? | Not started | - |
