@@ -320,4 +320,157 @@ describe("extractPaths", () => {
       ]);
     });
   });
+
+  // ============================================================
+  // Phase 2 Plan 02: Lambda, Higher-Order, Apply, Custom Functions
+  // ============================================================
+
+  // ---------- SCOPE-04: $map -- element binding ----------
+  describe("SCOPE-04: $map element binding", () => {
+    it('resolves $map element: "$map(items, function($v) { $v.name })"', () => {
+      expect(extractPaths("$map(items, function($v) { $v.name })")).toEqual([
+        { path: "items" },
+        { path: "items.name" },
+      ]);
+    });
+
+    it('resolves $map element + index: "$map(orders.items, function($v, $i) { $v.price })"', () => {
+      expect(
+        extractPaths("$map(orders.items, function($v, $i) { $v.price })"),
+      ).toEqual([
+        { path: "orders.items" },
+        { path: "orders.items.price" },
+      ]);
+    });
+
+    it('resolves $map element + index + array: "$map(data, function($v, $i, $a) { $v.x + $a })"', () => {
+      const result = extractPaths(
+        "$map(data, function($v, $i, $a) { $v.x + $a })",
+      );
+      expect(result).toEqual(
+        expect.arrayContaining([{ path: "data" }, { path: "data.x" }]),
+      );
+    });
+  });
+
+  // ---------- SCOPE-04: $filter -- element binding ----------
+  describe("SCOPE-04: $filter element binding", () => {
+    it('resolves $filter element: "$filter(orders, function($v) { $v.total > 100 })"', () => {
+      expect(
+        extractPaths("$filter(orders, function($v) { $v.total > 100 })"),
+      ).toEqual([{ path: "orders" }, { path: "orders.total" }]);
+    });
+  });
+
+  // ---------- SCOPE-04: $reduce -- accumulator + element ----------
+  describe("SCOPE-04: $reduce accumulator + element", () => {
+    it('resolves $reduce: "$reduce(values, function($prev, $curr) { $prev + $curr })"', () => {
+      expect(
+        extractPaths(
+          "$reduce(values, function($prev, $curr) { $prev + $curr })",
+        ),
+      ).toEqual([{ path: "values" }]);
+    });
+  });
+
+  // ---------- SCOPE-04: $each -- value/key ----------
+  describe("SCOPE-04: $each value/key", () => {
+    it('resolves $each value: "$each(data, function($v, $k) { $v })"', () => {
+      expect(extractPaths("$each(data, function($v, $k) { $v })")).toEqual([
+        { path: "data" },
+      ]);
+    });
+  });
+
+  // ---------- SCOPE-04: $sift -- value/key ----------
+  describe("SCOPE-04: $sift value/key", () => {
+    it('resolves $sift value: "$sift(record, function($v, $k) { $v > 10 })"', () => {
+      expect(
+        extractPaths("$sift(record, function($v, $k) { $v > 10 })"),
+      ).toEqual([{ path: "record" }]);
+    });
+  });
+
+  // ---------- SCOPE-04: Lambda closure capture ----------
+  describe("SCOPE-04: Lambda closure capture", () => {
+    it('captures enclosing scope variable: "($prefix := a.b; $map(items, function($v) { $prefix }))"', () => {
+      expect(
+        extractPaths(
+          "($prefix := a.b; $map(items, function($v) { $prefix }))",
+        ),
+      ).toEqual([{ path: "a.b" }, { path: "items" }]);
+    });
+  });
+
+  // ---------- SCOPE-04: Lambda parameter shadowing built-in ----------
+  describe("SCOPE-04: Lambda parameter shadowing built-in", () => {
+    it('lambda param $sum shadows built-in: "$map(items, function($sum) { $sum.x })"', () => {
+      expect(
+        extractPaths("$map(items, function($sum) { $sum.x })"),
+      ).toEqual([{ path: "items" }, { path: "items.x" }]);
+    });
+  });
+
+  // ---------- SCOPE-04: Apply operator (~>) ----------
+  describe("SCOPE-04: Apply operator (~>)", () => {
+    it('apply with $map: "items ~> $map(function($v) { $v.name })"', () => {
+      expect(
+        extractPaths("items ~> $map(function($v) { $v.name })"),
+      ).toEqual([{ path: "items" }, { path: "items.name" }]);
+    });
+
+    it('apply with $filter: "data ~> $filter(function($v) { $v.active })"', () => {
+      expect(
+        extractPaths("data ~> $filter(function($v) { $v.active })"),
+      ).toEqual([{ path: "data" }, { path: "data.active" }]);
+    });
+
+    it('apply with non-higher-order built-in: "items ~> $sum()"', () => {
+      expect(extractPaths("items ~> $sum()")).toEqual([{ path: "items" }]);
+    });
+  });
+
+  // ---------- SCOPE-05: Custom function calls ----------
+  describe("SCOPE-05: Custom function calls", () => {
+    it('traces custom function call: "($fn := function($x) { $x.name }; $fn(account))"', () => {
+      expect(
+        extractPaths("($fn := function($x) { $x.name }; $fn(account))"),
+      ).toEqual([{ path: "account" }, { path: "account.name" }]);
+    });
+
+    it('traces multi-param custom function: "($fn := function($a, $b) { $a.x + $b.y }; $fn(data1, data2))"', () => {
+      expect(
+        extractPaths(
+          "($fn := function($a, $b) { $a.x + $b.y }; $fn(data1, data2))",
+        ),
+      ).toEqual([
+        { path: "data1" },
+        { path: "data2" },
+        { path: "data1.x" },
+        { path: "data2.y" },
+      ]);
+    });
+
+    it('unknown function passes through args: "$unknownFunc(a.b, c.d)"', () => {
+      expect(extractPaths("$unknownFunc(a.b, c.d)")).toEqual([
+        { path: "a.b" },
+        { path: "c.d" },
+      ]);
+    });
+  });
+
+  // ---------- Edge cases: Nested higher-order ----------
+  describe("Edge cases: Nested higher-order functions", () => {
+    it('resolves nested $map: "$map(items, function($v) { $map($v.children, function($c) { $c.name }) })"', () => {
+      expect(
+        extractPaths(
+          "$map(items, function($v) { $map($v.children, function($c) { $c.name }) })",
+        ),
+      ).toEqual([
+        { path: "items" },
+        { path: "items.children" },
+        { path: "items.children.name" },
+      ]);
+    });
+  });
 });
