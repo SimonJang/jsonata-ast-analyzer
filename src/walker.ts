@@ -1,4 +1,12 @@
-import type { AstNode, PathNode, UnaryNode } from "./types.js";
+import type {
+  AstNode,
+  BinaryNode,
+  BlockNode,
+  ConditionNode,
+  NameNode,
+  PathNode,
+  UnaryNode,
+} from "./types.js";
 import { buildPathString } from "./path-builder.js";
 
 /**
@@ -11,28 +19,17 @@ export function walkNode(node: AstNode): string[] {
     case "path":
       return walkPath(node as PathNode);
     case "name":
-      return [node.value as string]; // standalone name = single-step path
+      return [(node as NameNode).value];
     case "wildcard":
       return ["*"];
     case "descendant":
       return ["**"];
     case "binary":
-      return [
-        ...walkNode((node as { lhs: AstNode }).lhs),
-        ...walkNode((node as { rhs: AstNode }).rhs),
-      ];
+      return walkBinary(node as BinaryNode);
     case "condition":
-      return [
-        ...walkNode((node as { condition: AstNode }).condition),
-        ...walkNode((node as { then: AstNode }).then),
-        ...((node as { else?: AstNode }).else
-          ? walkNode((node as { else: AstNode }).else)
-          : []),
-      ];
+      return walkCondition(node as ConditionNode);
     case "block":
-      return (node as { expressions: AstNode[] }).expressions.flatMap(
-        (expr: AstNode) => walkNode(expr),
-      );
+      return (node as BlockNode).expressions.flatMap(walkNode);
     case "unary":
       return walkUnary(node as UnaryNode);
     case "string":
@@ -48,11 +45,27 @@ export function walkNode(node: AstNode): string[] {
   }
 }
 
+/** Extract the single dot-notation path from a path node's steps. */
 function walkPath(node: PathNode): string[] {
   const path = buildPathString(node.steps);
   return path ? [path] : [];
 }
 
+/** Extract paths from both sides of a binary operator. */
+function walkBinary(node: BinaryNode): string[] {
+  return [...walkNode(node.lhs), ...walkNode(node.rhs)];
+}
+
+/** Extract paths from condition, then-branch, and optional else-branch. */
+function walkCondition(node: ConditionNode): string[] {
+  return [
+    ...walkNode(node.condition),
+    ...walkNode(node.then),
+    ...(node.else ? walkNode(node.else) : []),
+  ];
+}
+
+/** Extract paths from unary expressions (negation, array/object constructors). */
 function walkUnary(node: UnaryNode): string[] {
   switch (node.value) {
     case "-":
@@ -60,14 +73,10 @@ function walkUnary(node: UnaryNode): string[] {
       return node.expression ? walkNode(node.expression) : [];
     case "[":
       // Array constructor: [a, b, c] -> walk all expressions
-      return (node.expressions ?? []).flatMap((expr: AstNode) =>
-        walkNode(expr),
-      );
+      return (node.expressions ?? []).flatMap(walkNode);
     case "{":
-      // Object constructor: {"key": value} -> walk values (keys are string literals)
-      return (node.lhs ?? []).flatMap(([_key, val]: [AstNode, AstNode]) =>
-        walkNode(val),
-      );
+      // Object constructor: {"key": value} -> walk values only
+      return (node.lhs ?? []).flatMap(([_key, val]) => walkNode(val));
     default:
       return [];
   }

@@ -1,4 +1,4 @@
-import type { AstNode } from "./types.js";
+import type { AstNode, NameNode } from "./types.js";
 
 /**
  * Build a dot-notation path string from an array of AST step nodes.
@@ -12,7 +12,7 @@ export function buildPathString(steps: AstNode[]): string | null {
   for (const step of steps) {
     switch (step.type) {
       case "name":
-        segments.push(step.value as string);
+        segments.push((step as NameNode).value);
         break;
       case "wildcard":
         segments.push("*");
