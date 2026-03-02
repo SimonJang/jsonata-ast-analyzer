@@ -120,6 +120,7 @@ export interface LambdaNode {
   position: number;
   body: AstNode; // lambda body expression
   signature?: { definition: string }; // optional type signature
+  thunk?: boolean; // parser-generated wrapper lambda (no args, wraps nested calls)
 }
 
 export interface ApplyNode {

@@ -221,7 +221,7 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
  */
 function walkLambda(node: LambdaNode, scope: ScopeTracker): string[] {
   // Thunk lambdas are parser-generated wrappers, not user-defined functions
-  if ((node as LambdaNode & { thunk?: boolean }).thunk) {
+  if (node.thunk) {
     return walkNode(node.body, scope);
   }
   return [];
