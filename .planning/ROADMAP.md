@@ -12,8 +12,8 @@ This roadmap delivers a static analysis library that extracts every data path a 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation and Basic Walker** - Custom AST types, parser adapter, and exhaustive walker handling simple paths, literals, binary/conditional/block expressions
-- [ ] **Phase 2: Scope Infrastructure and Variable Tracing** - Scope tracker, variable binding resolution, function argument paths, and multi-hop variable chain resolution
+- [x] **Phase 1: Foundation and Basic Walker** - Custom AST types, parser adapter, and exhaustive walker handling simple paths, literals, binary/conditional/block expressions
+- [x] **Phase 2: Scope Infrastructure and Variable Tracing** - Scope tracker, variable binding resolution, function argument paths, and multi-hop variable chain resolution
 - [ ] **Phase 3: Context-Relative Operators** - Filter predicates, sort expressions, transform operators, and array index vs. filter distinction with context-relative path resolution
 - [ ] **Phase 4: Advanced Analysis** - Parent operator resolution, dynamic path wildcarding, and confidence annotations on extracted paths
 - [ ] **Phase 5: Public API and CLI** - TypeScript programmatic API and command-line tool wrapping the analysis pipeline
@@ -101,7 +101,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation and Basic Walker | 2/2 | Complete | 2026-03-02 |
-| 2. Scope Infrastructure and Variable Tracing | 0/2 | Planned | - |
+| 2. Scope Infrastructure and Variable Tracing | 2/2 | Complete | 2026-03-02 |
 | 3. Context-Relative Operators | 0/? | Not started | - |
 | 4. Advanced Analysis | 0/? | Not started | - |
 | 5. Public API and CLI | 0/? | Not started | - |
