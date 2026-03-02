@@ -30,11 +30,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Binary expressions like `price * quantity` extract paths from both operands
   4. Conditional expressions extract paths from condition, then-branch, and else-branch
   5. Literal expressions (strings, numbers, booleans, null) produce no paths and never crash the walker
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md -- Project scaffold + custom AST types + parser adapter
+- [ ] 01-02-PLAN.md -- Walker, path builder, and extractPaths (TDD)
 
 ### Phase 2: Scope Infrastructure and Variable Tracing
 **Goal**: Users can extract accurate data paths from expressions that use variable assignments, function arguments, lambdas, context bindings, and positional variables
@@ -100,7 +100,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Basic Walker | 0/? | Not started | - |
+| 1. Foundation and Basic Walker | 0/2 | Planned | - |
 | 2. Scope Infrastructure and Variable Tracing | 0/? | Not started | - |
 | 3. Context-Relative Operators | 0/? | Not started | - |
 | 4. Advanced Analysis | 0/? | Not started | - |
