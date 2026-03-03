@@ -36,8 +36,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Advanced Operators
 
-- [ ] **ADV-01**: Resolve parent operator (`%`) with symbolic markers or path backtracking
-- [ ] **ADV-02**: Mark dynamically computed paths with wildcards (`item[fieldName]` → `item[*]`)
+- [x] **ADV-01**: Resolve parent operator (`%`) with symbolic markers or path backtracking
+- [x] **ADV-02**: Mark dynamically computed paths with wildcards (`item[fieldName]` → `item[*]`)
 - [ ] **ADV-03**: Annotate extracted paths with confidence level (static vs dynamic/partial)
 
 ### Delivery
@@ -99,8 +99,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCOPE-03 | Phase 2 | Complete |
 | SCOPE-04 | Phase 2 | Complete |
 | SCOPE-05 | Phase 2 | Complete |
-| ADV-01 | Phase 4 | Pending |
-| ADV-02 | Phase 4 | Pending |
+| ADV-01 | Phase 4 | Complete |
+| ADV-02 | Phase 4 | Complete |
 | ADV-03 | Phase 4 | Pending |
 | API-01 | Phase 5 | Pending |
 | API-02 | Phase 5 | Pending |
