@@ -19,10 +19,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **EXPR-01**: Extract paths from both operands of binary operators (`price * quantity` → both)
 - [x] **EXPR-02**: Extract paths from all branches of conditional expressions (condition, then, else)
-- [ ] **EXPR-03**: Extract paths from filter predicates (`items[price > 10]` → `items.price`)
+- [x] **EXPR-03**: Extract paths from filter predicates (`items[price > 10]` → `items.price`)
 - [x] **EXPR-04**: Extract paths from all sub-expressions in blocks
 - [x] **EXPR-05**: Extract paths from function arguments (`$sum(items.price)` → `items.price`)
-- [ ] **EXPR-06**: Distinguish array index access from filter predicates
+- [x] **EXPR-06**: Distinguish array index access from filter predicates
 - [ ] **EXPR-07**: Extract paths from sort expressions (`items^(price)` → `items.price`)
 - [ ] **EXPR-08**: Extract paths from transform operator patterns and update expressions
 
@@ -88,10 +88,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PATH-05 | Phase 1 | Complete |
 | EXPR-01 | Phase 1 | Complete |
 | EXPR-02 | Phase 1 | Complete |
-| EXPR-03 | Phase 3 | Pending |
+| EXPR-03 | Phase 3 | Complete |
 | EXPR-04 | Phase 1 | Complete |
 | EXPR-05 | Phase 2 | Complete |
-| EXPR-06 | Phase 3 | Pending |
+| EXPR-06 | Phase 3 | Complete |
 | EXPR-07 | Phase 3 | Pending |
 | EXPR-08 | Phase 3 | Pending |
 | SCOPE-01 | Phase 2 | Complete |
