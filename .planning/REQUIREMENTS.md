@@ -42,8 +42,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Delivery
 
-- [ ] **API-01**: Expose TypeScript/JS programmatic API (`extractPaths(expression): PathResult[]`)
-- [ ] **API-02**: Provide CLI tool for command-line usage with stdin and argument input
+- [x] **API-01**: Expose TypeScript/JS programmatic API (`extractPaths(expression): PathResult[]`)
+- [x] **API-02**: Provide CLI tool for command-line usage with stdin and argument input
 
 ## v2 Requirements
 
@@ -102,8 +102,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADV-01 | Phase 4 | Complete |
 | ADV-02 | Phase 4 | Complete |
 | ADV-03 | Phase 4 | Complete |
-| API-01 | Phase 5 | Pending |
-| API-02 | Phase 5 | Pending |
+| API-01 | Phase 5 | Complete |
+| API-02 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 23 total

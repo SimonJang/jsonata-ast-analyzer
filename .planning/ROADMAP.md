@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Scope Infrastructure and Variable Tracing** - Scope tracker, variable binding resolution, function argument paths, and multi-hop variable chain resolution
 - [x] **Phase 3: Context-Relative Operators** - Filter predicates, sort expressions, transform operators, and array index vs. filter distinction with context-relative path resolution
 - [x] **Phase 4: Advanced Analysis** - Parent operator resolution, dynamic path wildcarding, and confidence annotations on extracted paths (completed 2026-03-03)
-- [ ] **Phase 5: Public API and CLI** - TypeScript programmatic API and command-line tool wrapping the analysis pipeline
+- [x] **Phase 5: Public API and CLI** - TypeScript programmatic API and command-line tool wrapping the analysis pipeline (completed 2026-03-03)
 
 ## Phase Details
 
@@ -104,4 +104,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Scope Infrastructure and Variable Tracing | 2/2 | Complete | 2026-03-02 |
 | 3. Context-Relative Operators | 2/2 | Complete | 2026-03-03 |
 | 4. Advanced Analysis | 2/2 | Complete   | 2026-03-03 |
-| 5. Public API and CLI | 0/? | Not started | - |
+| 5. Public API and CLI | 1/1 | Complete   | 2026-03-03 |
