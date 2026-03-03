@@ -17,7 +17,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Context-Relative Operators** - Filter predicates, sort expressions, transform operators, and array index vs. filter distinction with context-relative path resolution
 - [x] **Phase 4: Advanced Analysis** - Parent operator resolution, dynamic path wildcarding, and confidence annotations on extracted paths (completed 2026-03-03)
 - [x] **Phase 5: Public API and CLI** - TypeScript programmatic API and command-line tool wrapping the analysis pipeline (completed 2026-03-03)
-- [ ] **Phase 6: ADV-02 Edge Case Fix** - Close the untested ADV-02 gap where walkPath's variable-resolution branch skips filter predicate inspection for resolved VariableNodes
+- [x] **Phase 6: ADV-02 Edge Case Fix** - Close the untested ADV-02 gap where walkPath's variable-resolution branch skips filter predicate inspection for resolved VariableNodes (completed 2026-03-03)
+- [ ] **Phase 7: Integration Polish** - Close remaining integration gaps: walkVariable standalone predicate inspection and CLI error message formatting
 
 ## Phase Details
 
@@ -108,10 +109,25 @@ Plans:
 Plans:
 - [ ] 06-01-PLAN.md -- Fix walkPath variable-resolution branch + add composed variable-filter test
 
+### Phase 7: Integration Polish
+**Goal:** Close remaining v1.0 integration gaps — fix walkVariable standalone predicate inspection for function arguments, and fix CLI error message formatting for jsonata parse errors
+**Depends on:** Phase 6
+**Requirements:** EXPR-03, ADV-02, API-02 (gap closure)
+**Gap Closure:** Closes `walkVariable-predicate-gap` and `CLI-error-message` integration gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. `$map($data[status], fn)` where `$data` resolves to a path — the `[status]` filter predicate is inspected and its paths extracted
+  2. All existing tests continue to pass
+  3. CLI produces the actual error message (not `[object Object]`) for jsonata parse errors
+  4. New tests cover standalone VariableNode predicate and CLI error formatting
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01-PLAN.md -- TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -120,4 +136,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Context-Relative Operators | 2/2 | Complete | 2026-03-03 |
 | 4. Advanced Analysis | 2/2 | Complete   | 2026-03-03 |
 | 5. Public API and CLI | 1/1 | Complete   | 2026-03-03 |
-| 6. ADV-02 Edge Case Fix | 0/1 | Pending | — |
+| 6. ADV-02 Edge Case Fix | 1/1 | Complete | 2026-03-03 |
+| 7. Integration Polish | 0/1 | Pending | — |

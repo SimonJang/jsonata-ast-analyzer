@@ -88,7 +88,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PATH-05 | Phase 1 | Complete |
 | EXPR-01 | Phase 1 | Complete |
 | EXPR-02 | Phase 1 | Complete |
-| EXPR-03 | Phase 3 | Complete |
+| EXPR-03 | Phase 3 + Phase 7 | Complete |
 | EXPR-04 | Phase 1 | Complete |
 | EXPR-05 | Phase 2 | Complete |
 | EXPR-06 | Phase 3 | Complete |
@@ -100,10 +100,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCOPE-04 | Phase 2 | Complete |
 | SCOPE-05 | Phase 2 | Complete |
 | ADV-01 | Phase 4 | Complete |
-| ADV-02 | Phase 4 | Complete |
+| ADV-02 | Phase 4 + Phase 6 + Phase 7 | Complete |
 | ADV-03 | Phase 4 | Complete |
 | API-01 | Phase 5 | Complete |
-| API-02 | Phase 5 | Complete |
+| API-02 | Phase 5 + Phase 7 | Complete |
 
 **Coverage:**
 - v1 requirements: 23 total
@@ -112,4 +112,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-02*
-*Last updated: 2026-03-02 after roadmap creation*
+*Last updated: 2026-03-03 after gap closure phase creation*
