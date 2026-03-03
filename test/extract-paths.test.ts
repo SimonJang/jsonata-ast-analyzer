@@ -711,17 +711,15 @@ describe("extractPaths", () => {
   // ============================================================
 
   // ---------- ADV-01: Parent operator ----------
+  // Note: standalone "%" and "%.name" are parse errors in JSONata (S0217).
+  // The parent operator is only valid within a multi-step path or filter context.
   describe("ADV-01: Parent operator", () => {
-    it('standalone parent: "%"', () => {
-      expect(extractPaths("%")).toEqual([{ path: "%" }]);
-    });
-
-    it('parent in path: "%.name"', () => {
-      expect(extractPaths("%.name")).toEqual([{ path: "%.name" }]);
-    });
-
-    it('parent mid-path: "items.%.name"', () => {
+    it('parent mid-path: "items.%.name" -> includes "items.%.name"', () => {
       expect(extractPaths("items.%.name")).toContainEqual({ path: "items.%.name" });
+    });
+
+    it('parent at end of path: "items.%" -> includes "items.%"', () => {
+      expect(extractPaths("items.%")).toContainEqual({ path: "items.%" });
     });
 
     it('parent in filter predicate: "products[%]"', () => {

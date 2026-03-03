@@ -10,6 +10,7 @@ import type {
   GroupByNode,
   LambdaNode,
   NameNode,
+  ParentNode,
   PathNode,
   SortNode,
   TransformNode,
@@ -70,6 +71,9 @@ export function walkNode(
       return []; // literals produce no paths
     case "variable":
       return walkVariable(node as VariableNode, scope);
+    case "parent":
+      // ADV-01: parent operator produces "%" as a literal path segment
+      return ["%"];
     case "transform":
       return walkTransform(node as TransformNode, scope);
     default:
@@ -215,6 +219,16 @@ function walkFilterStages(
 
     // EXPR-06: Numeric index guard -- skip array indexing
     if (isNumericIndex(filterStage.expr)) continue;
+
+    // ADV-02: pure $variable in bracket position with no resolved data paths -> dynamic wildcard
+    if (filterStage.expr.type === "variable") {
+      const varNode = filterStage.expr as VariableNode;
+      const resolved = resolveVariable(filterScope, varNode.value);
+      if (!resolved || resolved.length === 0) {
+        paths.push(`${contextPrefix}[*]`);
+        continue; // [*] replaces predicate walk -- do not also walk the predicate
+      }
+    }
 
     // Filter predicate -- walk expression and prefix results
     const filterPaths = walkNode(filterStage.expr, filterScope);
