@@ -5,6 +5,7 @@ import type {
   BindNode,
   BlockNode,
   ConditionNode,
+  FilterStage,
   FunctionNode,
   LambdaNode,
   NameNode,
@@ -73,8 +74,18 @@ export function walkNode(
 }
 
 /**
- * Extract paths from a path node's steps, handling variable steps
- * and focus/index properties on name steps.
+ * Prefix each path with a context string.
+ * Used by context-relative operators (filter, sort, group-by, transform).
+ * Empty prefix or empty paths are handled gracefully.
+ */
+function prefixPaths(prefix: string, paths: string[]): string[] {
+  if (!prefix) return paths;
+  return paths.map((p) => (p ? `${prefix}.${p}` : prefix));
+}
+
+/**
+ * Extract paths from a path node's steps, handling variable steps,
+ * filter stages on name steps, and focus/index variable binding.
  */
 function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   // Check if any step is a variable (e.g., $x.name)
@@ -96,12 +107,61 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     return [];
   }
 
-  // No variable steps: build the path from name/wildcard/descendant steps.
-  // Note: focus (@$v) and index (#$i) properties on name steps are recorded
-  // in the AST but only bind variables for downstream use (Phase 3 filters).
-  // The base path is extracted normally here.
-  const path = buildPathString(node.steps);
-  return path ? [path] : [];
+  // Build the base path first (existing behavior)
+  const paths: string[] = [];
+  const basePath = buildPathString(node.steps);
+  if (basePath) {
+    paths.push(basePath);
+  }
+
+  // Iterate steps and handle filter stages on name steps
+  for (let i = 0; i < node.steps.length; i++) {
+    const step = node.steps[i];
+
+    if (step.type === "name") {
+      const nameStep = step as NameNode;
+      if (nameStep.stages && nameStep.stages.length > 0) {
+        // Compute context prefix: steps[0..i] inclusive
+        const prefixSteps = node.steps.slice(0, i + 1);
+        const contextPrefix = buildPathString(prefixSteps) ?? "";
+
+        // Create child scope for filter context
+        let filterScope = childScope(scope);
+
+        // Bind focus variable if present (@$v)
+        if (nameStep.focus) {
+          filterScope = bindVariable(
+            filterScope,
+            nameStep.focus,
+            contextPrefix ? [contextPrefix] : [],
+          );
+        }
+
+        for (const stage of nameStep.stages) {
+          if (stage.type === "filter") {
+            const filterStage = stage as unknown as FilterStage;
+            // EXPR-06: Numeric index guard
+            if (filterStage.expr.type === "number") {
+              continue; // Array indexing -- no paths extracted
+            }
+            // Also handle unary negation wrapping a number (e.g., items[-1])
+            if (
+              filterStage.expr.type === "unary" &&
+              (filterStage.expr as UnaryNode).value === "-" &&
+              (filterStage.expr as UnaryNode).expression?.type === "number"
+            ) {
+              continue; // Negative array index -- no paths extracted
+            }
+            // Filter predicate -- walk and prefix
+            const filterPaths = walkNode(filterStage.expr, filterScope);
+            paths.push(...prefixPaths(contextPrefix, filterPaths));
+          }
+        }
+      }
+    }
+  }
+
+  return paths;
 }
 
 /** Extract paths from both sides of a binary operator. */

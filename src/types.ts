@@ -131,7 +131,14 @@ export interface ApplyNode {
   rhs: AstNode; // function call (typically FunctionNode)
 }
 
-// Catch-all for node types not yet handled (filter, sort, transform,
+/** Filter stage on a NameNode -- appears in NameNode.stages array. */
+export interface FilterStage {
+  type: "filter";
+  expr: AstNode;
+  position?: number;
+}
+
+// Catch-all for node types not yet handled (sort, transform,
 // parent, partial, error).
 // The walker returns empty paths for these — skip silently per
 // over-approximation principle.
