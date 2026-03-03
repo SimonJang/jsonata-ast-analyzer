@@ -25,7 +25,15 @@ Given any JSONata expression, accurately identify every data path read from the 
 
 ### Active
 
-(None — next milestone requirements TBD via `/gsd:new-milestone`)
+- [ ] Exhaustive real-world integration tests (50+) covering multi-line expressions with complex objects
+- [ ] Data transformation pipeline scenarios (filter → map → reshape)
+- [ ] Business rule expression scenarios (conditionals, lookups, cross-field calculations)
+- [ ] API response reshaping scenarios (nested payload extraction/flattening)
+- [ ] Data export/format conversion scenarios
+- [ ] Deeply nested variable chain coverage (3+ levels)
+- [ ] Mixed context expressions (filter predicates referencing outer scope, parent ops inside transforms)
+- [ ] Complex object constructor coverage (computed keys, conditional fields)
+- [ ] Combination of exact path assertions and snapshot-style validation
 
 ### Out of Scope
 
@@ -74,5 +82,18 @@ Known tech debt (non-critical):
 | Post-processing confidence | Derive confidence after dedup, not during walk | ✓ Good — no walker refactor needed, clean separation |
 | Parent operator as `%` segment | Over-approximate rather than silent drop | ✓ Good — consumers can detect and handle |
 
+## Current Milestone: v1.1 Real-World Integration Tests
+
+**Goal:** Validate the path analyzer against exhaustive real-world JSONata scenarios — multi-line expressions, complex nested objects, variable chains, mixed contexts — to build confidence the library handles production-grade expressions correctly.
+
+**Target features:**
+- 50+ integration tests across 4 scenario categories
+- Data transformation pipelines (filter → map → reshape nested objects)
+- Business rule expressions (conditionals, lookups, calculations across multiple fields)
+- API response reshaping (complex payloads, nested extraction/flattening)
+- Data export/format conversion (one structure to another)
+- Deeply nested variable chains, mixed context expressions, complex object constructors
+- Combination of exact path assertions and snapshot-style baseline validation
+
 ---
-*Last updated: 2026-03-03 after v1.0 milestone*
+*Last updated: 2026-03-03 after v1.1 milestone start*
