@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Context-Relative Operators** - Filter predicates, sort expressions, transform operators, and array index vs. filter distinction with context-relative path resolution
 - [x] **Phase 4: Advanced Analysis** - Parent operator resolution, dynamic path wildcarding, and confidence annotations on extracted paths (completed 2026-03-03)
 - [x] **Phase 5: Public API and CLI** - TypeScript programmatic API and command-line tool wrapping the analysis pipeline (completed 2026-03-03)
+- [ ] **Phase 6: ADV-02 Edge Case Fix** - Close the untested ADV-02 gap where walkPath's variable-resolution branch skips filter predicate inspection for resolved VariableNodes
 
 ## Phase Details
 
@@ -93,10 +94,24 @@ Plans:
 Plans:
 - [ ] 05-01: TBD
 
+### Phase 6: ADV-02 Edge Case Fix
+**Goal:** Close the ADV-02 integration gap identified in the v1.0 milestone audit — when `walkPath` resolves a variable step and returns early, filter predicates on the resolved `VariableNode` are not inspected for unresolvable `$variable` expressions, so `($data := orders; $data[$field].price)` silently fails to emit `orders[*]`
+**Depends on:** Phase 4
+**Requirements:** ADV-02 (gap closure)
+**Gap Closure:** Closes `ADV-02-edge-case` integration gap from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. `($data := orders; $data[$field].price)` emits `{path: "orders[*]", confidence: "dynamic"}`
+  2. All existing 101 tests continue to pass
+  3. New test is added covering the composed variable-filter scenario
+**Plans**: 1 plan
+
+Plans:
+- [ ] 06-01-PLAN.md -- Fix walkPath variable-resolution branch + add composed variable-filter test
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -105,3 +120,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Context-Relative Operators | 2/2 | Complete | 2026-03-03 |
 | 4. Advanced Analysis | 2/2 | Complete   | 2026-03-03 |
 | 5. Public API and CLI | 1/1 | Complete   | 2026-03-03 |
+| 6. ADV-02 Edge Case Fix | 0/1 | Pending | — |
