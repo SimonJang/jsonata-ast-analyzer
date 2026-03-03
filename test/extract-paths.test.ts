@@ -473,4 +473,94 @@ describe("extractPaths", () => {
       ]);
     });
   });
+
+  // ============================================================
+  // Phase 3 Plan 01: Filter Predicates and Array Index Distinction
+  // ============================================================
+
+  // ---------- EXPR-03: Filter predicate path extraction ----------
+  describe("EXPR-03: Filter predicate path extraction", () => {
+    it('extracts filter predicate paths: "items[price > 10]"', () => {
+      expect(extractPaths("items[price > 10]")).toEqual([
+        { path: "items" },
+        { path: "items.price" },
+      ]);
+    });
+
+    it('filter with literal comparison does not produce path for literal: "items[price > 10]"', () => {
+      const result = extractPaths("items[price > 10]");
+      expect(result).toContainEqual({ path: "items.price" });
+      // Should NOT contain a path for the literal 10
+      expect(result).not.toContainEqual({ path: "items.10" });
+    });
+
+    it('extracts filter in middle of multi-step path: "account.orders[total > 100].items"', () => {
+      const result = extractPaths("account.orders[total > 100].items");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "account.orders.items" },
+          { path: "account.orders.total" },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it('extracts boolean coercion filter (bare name): "items[active]"', () => {
+      expect(extractPaths("items[active]")).toEqual([
+        { path: "items" },
+        { path: "items.active" },
+      ]);
+    });
+
+    it('extracts nested filter paths: "orders[items[price > 10]]"', () => {
+      const result = extractPaths("orders[items[price > 10]]");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "orders" },
+          { path: "orders.items" },
+          { path: "orders.items.price" },
+        ]),
+      );
+      expect(result).toHaveLength(3);
+    });
+
+    it('filter with external variable -- no leakage: "($threshold := 50; items[price > $threshold])"', () => {
+      const result = extractPaths(
+        "($threshold := 50; items[price > $threshold])",
+      );
+      expect(result).toContainEqual({ path: "items" });
+      expect(result).toContainEqual({ path: "items.price" });
+      // $threshold resolves to [] (literal 50) -- no spurious paths
+      expect(result).not.toContainEqual({ path: "items.50" });
+    });
+
+    it('focus variable binding: "items@$v[type = \\"A\\"]"', () => {
+      const result = extractPaths('items@$v[type = "A"]');
+      expect(result).toContainEqual({ path: "items" });
+      expect(result).toContainEqual({ path: "items.type" });
+    });
+  });
+
+  // ---------- EXPR-06: Array index vs filter distinction ----------
+  describe("EXPR-06: Array index vs filter distinction", () => {
+    it('numeric index (positive) produces no filter path: "items[0]"', () => {
+      expect(extractPaths("items[0]")).toEqual([{ path: "items" }]);
+    });
+
+    it('numeric index (negative) produces no filter path: "items[-1]"', () => {
+      expect(extractPaths("items[-1]")).toEqual([{ path: "items" }]);
+    });
+
+    it('variable as index (over-approximate as filter): "($i := 0; items[$i])"', () => {
+      const result = extractPaths("($i := 0; items[$i])");
+      expect(result).toContainEqual({ path: "items" });
+      // $i resolves to [] (literal 0), so no additional paths beyond "items"
+    });
+
+    it('multiple stages on one step: "items[price > 10][0]"', () => {
+      const result = extractPaths("items[price > 10][0]");
+      expect(result).toContainEqual({ path: "items" });
+      expect(result).toContainEqual({ path: "items.price" });
+    });
+  });
 });
