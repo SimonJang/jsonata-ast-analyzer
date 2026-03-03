@@ -11,6 +11,9 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "bin": {
+    "jsonata-paths": "./dist/cli.js"
+  },
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
