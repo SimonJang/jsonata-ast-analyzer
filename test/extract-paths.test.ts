@@ -563,4 +563,146 @@ describe("extractPaths", () => {
       expect(result).toContainEqual({ path: "items.price" });
     });
   });
+
+  // ============================================================
+  // Phase 3 Plan 02: Sort, Group-By, and Transform Operators
+  // ============================================================
+
+  // ---------- EXPR-07: Sort expression extraction ----------
+  describe("EXPR-07: Sort expression extraction", () => {
+    it('extracts sort key path: "items^(price)"', () => {
+      expect(extractPaths("items^(price)")).toEqual([
+        { path: "items" },
+        { path: "items.price" },
+      ]);
+    });
+
+    it('extracts multi-key sort paths: "items^(>price, <date)"', () => {
+      const result = extractPaths("items^(>price, <date)");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "items" },
+          { path: "items.price" },
+          { path: "items.date" },
+        ]),
+      );
+      expect(result).toHaveLength(3);
+    });
+
+    it('extracts sort with path continuation: "items^(price).name"', () => {
+      const result = extractPaths("items^(price).name");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "items.name" },
+          { path: "items.price" },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it('extracts multi-step path with sort: "account.items^(price)"', () => {
+      const result = extractPaths("account.items^(price)");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "account.items" },
+          { path: "account.items.price" },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it('extracts sort with complex sort key expression: "items^(price * quantity)"', () => {
+      const result = extractPaths("items^(price * quantity)");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "items" },
+          { path: "items.price" },
+          { path: "items.quantity" },
+        ]),
+      );
+      expect(result).toHaveLength(3);
+    });
+  });
+
+  // ---------- EXPR-08: Transform operator ----------
+  describe("EXPR-08: Transform operator", () => {
+    it('extracts transform pattern and update paths: | Account | {"name": FirstName} |', () => {
+      const result = extractPaths('| Account | {"name": FirstName} |');
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "Account" },
+          { path: "Account.FirstName" },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it('transform with delete clause -- no paths from delete: | Account | {"name": FirstName}, ["oldField"] |', () => {
+      const result = extractPaths(
+        '| Account | {"name": FirstName}, ["oldField"] |',
+      );
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "Account" },
+          { path: "Account.FirstName" },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+      // "oldField" is a string literal in delete clause, NOT a path
+      expect(result).not.toContainEqual({ path: "oldField" });
+      expect(result).not.toContainEqual({ path: "Account.oldField" });
+    });
+
+    it('transform with multi-step pattern: | data.Account | {"name": FirstName} |', () => {
+      const result = extractPaths('| data.Account | {"name": FirstName} |');
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "data.Account" },
+          { path: "data.Account.FirstName" },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it('transform with multiple update values: | Account | {"first": FirstName, "last": LastName} |', () => {
+      const result = extractPaths(
+        '| Account | {"first": FirstName, "last": LastName} |',
+      );
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "Account" },
+          { path: "Account.FirstName" },
+          { path: "Account.LastName" },
+        ]),
+      );
+      expect(result).toHaveLength(3);
+    });
+  });
+
+  // ---------- Group-by (supplementary to EXPR-07) ----------
+  describe("Group-by: context-relative key/value extraction", () => {
+    it('extracts group-by key and value paths: "items{category: price}"', () => {
+      const result = extractPaths("items{category: price}");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "items" },
+          { path: "items.category" },
+          { path: "items.price" },
+        ]),
+      );
+      expect(result).toHaveLength(3);
+    });
+
+    it('extracts group-by with multi-step path: "account.items{category: price}"', () => {
+      const result = extractPaths("account.items{category: price}");
+      expect(result).toEqual(
+        expect.arrayContaining([
+          { path: "account.items" },
+          { path: "account.items.category" },
+          { path: "account.items.price" },
+        ]),
+      );
+      expect(result).toHaveLength(3);
+    });
+  });
 });
