@@ -107,7 +107,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 06-01-PLAN.md -- Fix walkPath variable-resolution branch + add composed variable-filter test
+- [x] 06-01-PLAN.md -- Fix walkPath variable-resolution branch + add composed variable-filter test
 
 ### Phase 7: Integration Polish
 **Goal:** Close remaining v1.0 integration gaps — fix walkVariable standalone predicate inspection for function arguments, and fix CLI error message formatting for jsonata parse errors

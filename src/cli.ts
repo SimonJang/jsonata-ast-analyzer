@@ -29,7 +29,12 @@ async function main(): Promise<void> {
     const paths = extractPaths(expression);
     process.stdout.write(JSON.stringify(paths) + "\n");
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err
+          ? (err as { message: string }).message
+          : String(err);
     process.stderr.write(`Error: ${message}\n`);
     process.exitCode = 1;
   }

@@ -826,4 +826,23 @@ describe("extractPaths", () => {
       expect(result).toContainEqual({ path: "orders[*]", confidence: "dynamic" });
     });
   });
+
+  // ---------- Phase 7: CLI error formatting ----------
+  describe("Phase 7: CLI error formatting", () => {
+    it('CLI displays actual error message for jsonata parse errors, not [object Object]', () => {
+      const { execFileSync } = require("node:child_process");
+      try {
+        execFileSync("node", ["dist/cli.js", "}{invalid"], {
+          encoding: "utf8",
+          cwd: process.cwd(),
+        });
+        // Should not reach here -- parse error expected
+        expect.unreachable("CLI should have exited with error");
+      } catch (e: any) {
+        const stderr = e.stderr as string;
+        expect(stderr).toContain("Error:");
+        expect(stderr).not.toContain("[object Object]");
+      }
+    });
+  });
 });
