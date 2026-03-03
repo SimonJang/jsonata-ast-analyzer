@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T09:57:16.537Z"
+last_updated: "2026-03-03T10:42:00Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
-**Current focus:** Phase 5 complete -- public API cleanup, CLI binary, tsup array build -- all phases done
+**Current focus:** Phase 6 complete -- ADV-02 edge case fix for composed variable-filter expressions
 
 ## Current Position
 
-Phase: 5 of 5 (Public API and CLI) -- COMPLETE
+Phase: 6 of 6 (ADV-02 Edge Case Fix) -- COMPLETE
 Plan: 1 of 1 in current phase (1 complete)
 Status: ALL PHASES COMPLETE
-Last activity: 2026-03-03 -- Completed 05-01-PLAN.md
+Last activity: 2026-03-03 -- Completed 06-01-PLAN.md
 
 Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 4min
-- Total execution time: 0.47 hours
+- Total plans completed: 10
+- Average duration: 3.7min
+- Total execution time: 0.50 hours
 
 **By Phase:**
 
@@ -45,9 +45,10 @@ Progress: [████████████████████] 100%
 | 03 | 2 | 7min | 3.5min |
 | 04 | 2 | 7min | 3.5min |
 | 05 | 1 | 2min | 2min |
+| 06 | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 3min, 3min, 4min, 2min
+- Last 5 plans: 3min, 3min, 4min, 2min, 2min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 05-public-api-and-cli]: deriveConfidence removed from export surface — internal utility stays in src/index.ts but not accessible to library consumers
 - [Phase 05-public-api-and-cli]: @types/node added to devDependencies and tsconfig types array (tsconfig had explicit types array excluding Node.js globals)
 - [Phase 05-public-api-and-cli]: tsup array config: clean:true on library entry only to avoid wiping CLI output
+- [Phase 06-adv02-edge-case-fix]: Refactored walkFilterStages to accept generic stages array + focus parameter (Strategy A) -- reusable for NameNode.stages and VariableNode.predicate
+- [Phase 06-adv02-edge-case-fix]: VariableNode interface extended with predicate and focus properties for type safety (matches NameNode pattern)
 
 ### Pending Todos
 
@@ -107,5 +110,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 05-01-PLAN.md (Phase 5, Plan 1 complete -- public API cleanup and CLI binary)
+Stopped at: Completed 06-01-PLAN.md (Phase 6, Plan 1 complete -- ADV-02 edge case fix for composed variable-filter expressions)
 Resume file: None
