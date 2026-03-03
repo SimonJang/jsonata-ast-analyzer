@@ -121,47 +121,69 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     if (step.type === "name") {
       const nameStep = step as NameNode;
       if (nameStep.stages && nameStep.stages.length > 0) {
-        // Compute context prefix: steps[0..i] inclusive
-        const prefixSteps = node.steps.slice(0, i + 1);
-        const contextPrefix = buildPathString(prefixSteps) ?? "";
-
-        // Create child scope for filter context
-        let filterScope = childScope(scope);
-
-        // Bind focus variable if present (@$v)
-        if (nameStep.focus) {
-          filterScope = bindVariable(
-            filterScope,
-            nameStep.focus,
-            contextPrefix ? [contextPrefix] : [],
-          );
-        }
-
-        for (const stage of nameStep.stages) {
-          if (stage.type === "filter") {
-            const filterStage = stage as unknown as FilterStage;
-            // EXPR-06: Numeric index guard
-            if (filterStage.expr.type === "number") {
-              continue; // Array indexing -- no paths extracted
-            }
-            // Also handle unary negation wrapping a number (e.g., items[-1])
-            if (
-              filterStage.expr.type === "unary" &&
-              (filterStage.expr as UnaryNode).value === "-" &&
-              (filterStage.expr as UnaryNode).expression?.type === "number"
-            ) {
-              continue; // Negative array index -- no paths extracted
-            }
-            // Filter predicate -- walk and prefix
-            const filterPaths = walkNode(filterStage.expr, filterScope);
-            paths.push(...prefixPaths(contextPrefix, filterPaths));
-          }
-        }
+        const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
+        paths.push(...walkFilterStages(nameStep, contextPrefix, scope));
       }
     }
   }
 
   return paths;
+}
+
+/**
+ * Walk filter stages on a name step, extracting and context-prefixing paths.
+ * Numeric index stages are skipped (EXPR-06). Focus variables (@$v) are
+ * bound in a child scope before walking filter expressions.
+ */
+function walkFilterStages(
+  nameStep: NameNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+
+  // Create child scope for filter context
+  let filterScope = childScope(scope);
+
+  // Bind focus variable if present (@$v)
+  if (nameStep.focus) {
+    filterScope = bindVariable(
+      filterScope,
+      nameStep.focus,
+      contextPrefix ? [contextPrefix] : [],
+    );
+  }
+
+  for (const stage of nameStep.stages!) {
+    if (stage.type !== "filter") continue;
+
+    const filterStage = stage as unknown as FilterStage;
+
+    // EXPR-06: Numeric index guard -- skip array indexing
+    if (isNumericIndex(filterStage.expr)) continue;
+
+    // Filter predicate -- walk expression and prefix results
+    const filterPaths = walkNode(filterStage.expr, filterScope);
+    paths.push(...prefixPaths(contextPrefix, filterPaths));
+  }
+
+  return paths;
+}
+
+/**
+ * Check if an expression represents a numeric array index.
+ * Handles both positive (items[0]) and negative (items[-1]) literals.
+ */
+function isNumericIndex(expr: AstNode): boolean {
+  if (expr.type === "number") return true;
+  if (
+    expr.type === "unary" &&
+    (expr as UnaryNode).value === "-" &&
+    (expr as UnaryNode).expression?.type === "number"
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /** Extract paths from both sides of a binary operator. */
