@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T09:04:39.201Z"
+last_updated: "2026-03-03T09:11:29.623Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
-**Current focus:** Phase 4 in progress -- completed 04-01 (ADV-01/ADV-02 parent operator and dynamic bracket wildcard)
+**Current focus:** Phase 4 complete -- ADV-01/ADV-02/ADV-03 all implemented; proceeding to Phase 5
 
 ## Current Position
 
-Phase: 4 of 5 (Advanced Analysis) -- IN PROGRESS
-Plan: 1 of 2 in current phase (1 complete)
-Status: Phase 4 Plan 1 Complete
-Last activity: 2026-03-03 -- Completed 04-01-PLAN.md
+Phase: 4 of 5 (Advanced Analysis) -- COMPLETE
+Plan: 2 of 2 in current phase (2 complete)
+Status: Phase 4 Complete
+Last activity: 2026-03-03 -- Completed 04-02-PLAN.md
 
-Progress: [██████████████] 70%
+Progress: [████████████████] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 4min
-- Total execution time: 0.40 hours
+- Total execution time: 0.43 hours
 
 **By Phase:**
 
@@ -43,10 +43,10 @@ Progress: [██████████████] 70%
 | 01 | 2 | 6min | 3min |
 | 02 | 2 | 9min | 4.5min |
 | 03 | 2 | 7min | 3.5min |
-| 04 | 1 (so far) | 3min | 3min |
+| 04 | 2 | 7min | 3.5min |
 
 **Recent Trend:**
-- Last 5 plans: 4min, 5min, 4min, 3min, 3min
+- Last 5 plans: 5min, 4min, 3min, 3min, 4min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -87,6 +87,9 @@ Recent decisions affecting current work:
 - [Phase 04-advanced-analysis]: ADV-01: Parent operator (%) produces literal '%' as path segment -- over-approximate rather than silent drop
 - [Phase 04-advanced-analysis]: ADV-02: Unresolvable $variable in bracket filter position emits contextPrefix + '[*]' with continue -- replaces predicate walk entirely
 - [Phase 04-advanced-analysis]: Standalone '%' and '%.name' are JSONata parse errors (S0217) -- only valid inside multi-step path or filter context
+- [Phase 04]: Export deriveConfidence from src/index.ts for direct testability of priority logic
+- [Phase 04]: ADV-03: Confidence derivation is post-processing pass after dedup — no walker refactor needed
+- [Phase 04]: ADV-03: Standalone '%' is S0217 parse error in JSONata — not a valid extractPaths input
 
 ### Pending Todos
 
@@ -100,5 +103,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 04-01-PLAN.md (Phase 4, Plan 1 complete -- ADV-01/ADV-02)
+Stopped at: Completed 04-02-PLAN.md (Phase 4, Plan 2 complete -- ADV-03 confidence annotation)
 Resume file: None
