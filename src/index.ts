@@ -21,7 +21,7 @@ export type { Confidence } from "./types.js";
  * produce a false "partial" classification. This is accepted per project precedent for
  * pragmatic tradeoffs on vanishingly rare inputs.
  */
-export function deriveConfidence(path: string): Confidence {
+function deriveConfidence(path: string): Confidence {
   // Split on "." to check for "%" as a WHOLE segment (not substring of a field name)
   const segments = path.split(".");
   if (segments.includes("%")) return "partial";

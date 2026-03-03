@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractPaths, deriveConfidence } from "../src/index.js";
+import { extractPaths } from "../src/index.js";
 
 describe("extractPaths", () => {
   // ---------- PATH-01: Simple dot-path references ----------
@@ -798,9 +798,5 @@ describe("extractPaths", () => {
       expect(basePath!.confidence).toBe("static");
     });
 
-    it('partial confidence takes priority over dynamic (hypothetical mixed path)', () => {
-      // "%" segment wins over "[*]" — deriveConfidence returns "partial"
-      expect(deriveConfidence("%.item[*]")).toBe("partial");
-    });
   });
 });
