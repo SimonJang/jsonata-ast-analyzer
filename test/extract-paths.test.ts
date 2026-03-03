@@ -753,4 +753,54 @@ describe("extractPaths", () => {
       expect(result).toContainEqual({ path: "item[*]", confidence: "dynamic" });
     });
   });
+
+  // ---------- ADV-03: Confidence annotation ----------
+  describe("ADV-03: Confidence annotation", () => {
+    it('plain path has static confidence: "account.name"', () => {
+      expect(extractPaths("account.name")).toEqual([
+        { path: "account.name", confidence: "static" },
+      ]);
+    });
+
+    it('explicit dot-wildcard has static confidence: "item.*"', () => {
+      expect(extractPaths("item.*")).toEqual([
+        { path: "item.*", confidence: "static" },
+      ]);
+    });
+
+    it('descendant wildcard has static confidence: "**.price"', () => {
+      expect(extractPaths("**.price")).toEqual([
+        { path: "**.price", confidence: "static" },
+      ]);
+    });
+
+    it('parent segment has partial confidence: "items.%.name"', () => {
+      const result = extractPaths("items.%.name");
+      expect(result).toContainEqual({ path: "items.%.name", confidence: "partial" });
+    });
+
+    it('standalone parent "%" is a JSONata parse error (S0217) -- only valid in multi-step path', () => {
+      // JSONata rejects "%" as a standalone expression; it is only valid inside a path or filter
+      expect(() => extractPaths("%")).toThrow();
+    });
+
+    it('bracket wildcard has dynamic confidence: "item[$field]" -> item[*]', () => {
+      const result = extractPaths("item[$field]");
+      const dynPath = result.find(r => r.path === "item[*]");
+      expect(dynPath).toBeDefined();
+      expect(dynPath!.confidence).toBe("dynamic");
+    });
+
+    it('static base path alongside dynamic bracket: "item[$field]" -> item is static', () => {
+      const result = extractPaths("item[$field]");
+      const basePath = result.find(r => r.path === "item");
+      expect(basePath).toBeDefined();
+      expect(basePath!.confidence).toBe("static");
+    });
+
+    it('partial confidence takes priority over dynamic (hypothetical mixed path)', () => {
+      // "%" segment wins over "[*]" — deriveConfidence returns "partial"
+      expect(deriveConfidence("%.item[*]")).toBe("partial");
+    });
+  });
 });
