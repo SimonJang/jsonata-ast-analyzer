@@ -105,12 +105,24 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const resolved = resolveVariable(scope, varStep.value);
 
     if (resolved && resolved.length > 0) {
+      const paths: string[] = [];
+
+      // Inspect predicates on the resolved VariableNode for ADV-02 wildcard emission
+      const predicates = varStep.predicate;
+      if (predicates && predicates.length > 0) {
+        for (const resolvedPath of resolved) {
+          paths.push(...walkFilterStages(predicates, resolvedPath, scope, varStep.focus));
+        }
+      }
+
       // Build suffix from remaining steps after the variable
       const suffixSteps = node.steps.slice(varStepIndex + 1);
       const suffix = buildPathString(suffixSteps);
 
       // Concatenate resolved paths with suffix
-      return resolved.map((p) => (suffix ? `${p}.${suffix}` : p));
+      paths.push(...resolved.map((p) => (suffix ? `${p}.${suffix}` : p)));
+
+      return paths;
     }
     // Unresolvable variable in path: drop the entire path (silent skip)
     return [];
@@ -131,7 +143,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const nameStep = step as NameNode;
       if (nameStep.stages && nameStep.stages.length > 0) {
         const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
-        paths.push(...walkFilterStages(nameStep, contextPrefix, scope));
+        paths.push(...walkFilterStages(nameStep.stages!, contextPrefix, scope, nameStep.focus));
       }
     } else if (step.type === "sort") {
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
@@ -194,9 +206,10 @@ function walkGroupBy(node: PathNode, scope: ScopeTracker): string[] {
  * bound in a child scope before walking filter expressions.
  */
 function walkFilterStages(
-  nameStep: NameNode,
+  stages: AstNode[],
   contextPrefix: string,
   scope: ScopeTracker,
+  focus?: string,
 ): string[] {
   const paths: string[] = [];
 
@@ -204,15 +217,15 @@ function walkFilterStages(
   let filterScope = childScope(scope);
 
   // Bind focus variable if present (@$v)
-  if (nameStep.focus) {
+  if (focus) {
     filterScope = bindVariable(
       filterScope,
-      nameStep.focus,
+      focus,
       contextPrefix ? [contextPrefix] : [],
     );
   }
 
-  for (const stage of nameStep.stages!) {
+  for (const stage of stages) {
     if (stage.type !== "filter") continue;
 
     const filterStage = stage as unknown as FilterStage;
