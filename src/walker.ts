@@ -10,7 +10,6 @@ import type {
   GroupByNode,
   LambdaNode,
   NameNode,
-  ParentNode,
   PathNode,
   SortNode,
   TransformNode,
@@ -386,7 +385,17 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
   // Check scope first (scope bindings shadow built-ins)
   const resolved = resolveVariable(scope, node.value);
   if (resolved) {
-    return [...resolved];
+    const paths = [...resolved];
+
+    // Inspect predicates on the standalone VariableNode (mirrors walkPath variable branch)
+    const predicates = node.predicate;
+    if (predicates && predicates.length > 0) {
+      for (const resolvedPath of resolved) {
+        paths.push(...walkFilterStages(predicates, resolvedPath, scope, node.focus));
+      }
+    }
+
+    return paths;
   }
 
   // Built-in function names produce no paths

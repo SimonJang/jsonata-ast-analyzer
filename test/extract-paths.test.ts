@@ -805,4 +805,25 @@ describe("extractPaths", () => {
     });
 
   });
+
+  // ============================================================
+  // Phase 7: Integration Polish
+  // ============================================================
+
+  // ---------- Phase 7: walkVariable standalone predicate ----------
+  describe("Phase 7: walkVariable standalone predicate", () => {
+    it('resolves filter predicate on standalone VariableNode: "$map($data[status], fn)" extracts orders.status', () => {
+      const result = extractPaths(
+        "($data := orders; $map($data[status], function($v) { $v.name }))",
+      );
+      expect(result).toContainEqual({ path: "orders.status", confidence: "static" });
+    });
+
+    it('emits dynamic wildcard for unresolvable predicate on standalone VariableNode: "$map($data[$field], fn)"', () => {
+      const result = extractPaths(
+        "($data := orders; $map($data[$field], function($v) { $v.name }))",
+      );
+      expect(result).toContainEqual({ path: "orders[*]", confidence: "dynamic" });
+    });
+  });
 });
