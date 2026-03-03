@@ -1,7 +1,7 @@
-# Requirements: JSONata AST Path Analyzer — v1.1
+# Requirements: JSONata AST Path Analyzer -- v1.1
 
 **Defined:** 2026-03-03
-**Core Value:** Validate that the path analyzer correctly handles real-world, multi-feature JSONata expressions — not just isolated patterns
+**Core Value:** Validate that the path analyzer correctly handles real-world, multi-feature JSONata expressions -- not just isolated patterns
 
 ## v1.1 Requirements
 
@@ -15,7 +15,7 @@
 
 ### Data Transformations
 
-- [ ] **TRFM-01**: User can verify path extraction from filter → sort → map → reshape pipeline chains
+- [ ] **TRFM-01**: User can verify path extraction from filter -> sort -> map -> reshape pipeline chains
 - [ ] **TRFM-02**: User can verify path extraction from chained `~>` apply operator pipelines with lambda threading
 - [ ] **TRFM-03**: User can verify path extraction from array dot-notation mapping with context-relative paths
 - [ ] **TRFM-04**: User can verify path extraction from string concatenation/formatting with path operands
@@ -65,54 +65,54 @@
 
 | Feature | Reason |
 |---------|--------|
-| Platform-specific function testing | Extension functions are opaque by design — 1-2 smoke tests sufficient |
-| Expression evaluation correctness | Not the analyzer's job — static analysis only |
+| Platform-specific function testing | Extension functions are opaque by design -- 1-2 smoke tests sufficient |
+| Expression evaluation correctness | Not the analyzer's job -- static analysis only |
 | Performance benchmarks | Expressions are short strings, not a concern |
 | Unicode/i18n field name matrix | 1 smoke test is sufficient |
 | Equivalent syntax variations | Pick the natural syntax per scenario |
-| Bug fixes for tech debt | v1.1 is testing only — document bugs as v1.2 items, use `it.skip` |
+| Bug fixes for tech debt | v1.1 is testing only -- document bugs as v1.2 items, use `it.skip` |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFR-01 | — | Pending |
-| INFR-02 | — | Pending |
-| INFR-03 | — | Pending |
-| INFR-04 | — | Pending |
-| INFR-05 | — | Pending |
-| TRFM-01 | — | Pending |
-| TRFM-02 | — | Pending |
-| TRFM-03 | — | Pending |
-| TRFM-04 | — | Pending |
-| TRFM-05 | — | Pending |
-| BIZR-01 | — | Pending |
-| BIZR-02 | — | Pending |
-| BIZR-03 | — | Pending |
-| BIZR-04 | — | Pending |
-| BIZR-05 | — | Pending |
-| APIR-01 | — | Pending |
-| APIR-02 | — | Pending |
-| APIR-03 | — | Pending |
-| APIR-04 | — | Pending |
-| APIR-05 | — | Pending |
-| DEXP-01 | — | Pending |
-| DEXP-02 | — | Pending |
-| DEXP-03 | — | Pending |
-| DEXP-04 | — | Pending |
-| EDGE-01 | — | Pending |
-| EDGE-02 | — | Pending |
-| EDGE-03 | — | Pending |
-| EDGE-04 | — | Pending |
-| EDGE-05 | — | Pending |
-| EDGE-06 | — | Pending |
-| EDGE-07 | — | Pending |
+| INFR-01 | Phase 8 | Pending |
+| INFR-02 | Phase 8 | Pending |
+| INFR-03 | Phase 8 | Pending |
+| INFR-04 | Phase 8 | Pending |
+| INFR-05 | Phase 8 | Pending |
+| TRFM-01 | Phase 9 | Pending |
+| TRFM-02 | Phase 9 | Pending |
+| TRFM-03 | Phase 9 | Pending |
+| TRFM-04 | Phase 9 | Pending |
+| TRFM-05 | Phase 9 | Pending |
+| BIZR-01 | Phase 10 | Pending |
+| BIZR-02 | Phase 10 | Pending |
+| BIZR-03 | Phase 10 | Pending |
+| BIZR-04 | Phase 10 | Pending |
+| BIZR-05 | Phase 10 | Pending |
+| APIR-01 | Phase 11 | Pending |
+| APIR-02 | Phase 11 | Pending |
+| APIR-03 | Phase 11 | Pending |
+| APIR-04 | Phase 11 | Pending |
+| APIR-05 | Phase 11 | Pending |
+| DEXP-01 | Phase 12 | Pending |
+| DEXP-02 | Phase 12 | Pending |
+| DEXP-03 | Phase 12 | Pending |
+| DEXP-04 | Phase 12 | Pending |
+| EDGE-01 | Phase 13 | Pending |
+| EDGE-02 | Phase 13 | Pending |
+| EDGE-03 | Phase 13 | Pending |
+| EDGE-04 | Phase 13 | Pending |
+| EDGE-05 | Phase 13 | Pending |
+| EDGE-06 | Phase 13 | Pending |
+| EDGE-07 | Phase 13 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 31 total
-- Mapped to phases: 0
-- Unmapped: 31 ⚠️
+- Mapped to phases: 31/31
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-03-03 after initial definition*
+*Last updated: 2026-03-03 after roadmap phase mapping*
