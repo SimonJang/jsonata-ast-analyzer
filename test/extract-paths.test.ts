@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { extractPaths } from "../src/index.js";
+import { extractPaths, deriveConfidence } from "../src/index.js";
 
 describe("extractPaths", () => {
   // ---------- PATH-01: Simple dot-path references ----------
   describe("PATH-01: Simple dot-path references", () => {
     it('extracts single field name: "name"', () => {
-      expect(extractPaths("name")).toEqual([{ path: "name" }]);
+      expect(extractPaths("name")).toEqual([{ path: "name", confidence: "static" }]);
     });
 
     it('extracts two-step dot-path: "account.name"', () => {
-      expect(extractPaths("account.name")).toEqual([{ path: "account.name" }]);
+      expect(extractPaths("account.name")).toEqual([{ path: "account.name", confidence: "static" }]);
     });
   });
 
@@ -17,39 +17,39 @@ describe("extractPaths", () => {
   describe("PATH-02: Nested multi-step paths", () => {
     it('extracts three-step path: "order.items.price"', () => {
       expect(extractPaths("order.items.price")).toEqual([
-        { path: "order.items.price" },
+        { path: "order.items.price", confidence: "static" },
       ]);
     });
 
     it('extracts five-step path: "a.b.c.d.e"', () => {
-      expect(extractPaths("a.b.c.d.e")).toEqual([{ path: "a.b.c.d.e" }]);
+      expect(extractPaths("a.b.c.d.e")).toEqual([{ path: "a.b.c.d.e", confidence: "static" }]);
     });
   });
 
   // ---------- PATH-03: Wildcard operator ----------
   describe("PATH-03: Wildcard operator", () => {
     it('extracts wildcard in path: "order.*"', () => {
-      expect(extractPaths("order.*")).toEqual([{ path: "order.*" }]);
+      expect(extractPaths("order.*")).toEqual([{ path: "order.*", confidence: "static" }]);
     });
 
     it('extracts standalone wildcard: "*"', () => {
-      expect(extractPaths("*")).toEqual([{ path: "*" }]);
+      expect(extractPaths("*")).toEqual([{ path: "*", confidence: "static" }]);
     });
 
     it('extracts wildcard in middle of path: "a.*.b"', () => {
-      expect(extractPaths("a.*.b")).toEqual([{ path: "a.*.b" }]);
+      expect(extractPaths("a.*.b")).toEqual([{ path: "a.*.b", confidence: "static" }]);
     });
   });
 
   // ---------- PATH-04: Descendant operator ----------
   describe("PATH-04: Descendant operator", () => {
     it('extracts descendant operator: "**.price"', () => {
-      expect(extractPaths("**.price")).toEqual([{ path: "**.price" }]);
+      expect(extractPaths("**.price")).toEqual([{ path: "**.price", confidence: "static" }]);
     });
 
     it('extracts descendant in middle of path: "account.**.price"', () => {
       expect(extractPaths("account.**.price")).toEqual([
-        { path: "account.**.price" },
+        { path: "account.**.price", confidence: "static" },
       ]);
     });
   });
@@ -81,33 +81,33 @@ describe("extractPaths", () => {
   describe("EXPR-01: Binary operator paths", () => {
     it('extracts both operands: "price * quantity"', () => {
       expect(extractPaths("price * quantity")).toEqual([
-        { path: "price" },
-        { path: "quantity" },
+        { path: "price", confidence: "static" },
+        { path: "quantity", confidence: "static" },
       ]);
     });
 
     it('extracts both operands: "a + b"', () => {
       expect(extractPaths("a + b")).toEqual([
-        { path: "a" },
-        { path: "b" },
+        { path: "a", confidence: "static" },
+        { path: "b", confidence: "static" },
       ]);
     });
 
     it('extracts only path operand when other is literal: "a > 1"', () => {
-      expect(extractPaths("a > 1")).toEqual([{ path: "a" }]);
+      expect(extractPaths("a > 1")).toEqual([{ path: "a", confidence: "static" }]);
     });
 
     it('extracts only path operand when other is string literal: name & " suffix"', () => {
-      expect(extractPaths('name & " suffix"')).toEqual([{ path: "name" }]);
+      expect(extractPaths('name & " suffix"')).toEqual([{ path: "name", confidence: "static" }]);
     });
 
     it('extracts paths from nested binary: "a + b * c"', () => {
       const result = extractPaths("a + b * c");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "a" },
-          { path: "b" },
-          { path: "c" },
+          { path: "a", confidence: "static" },
+          { path: "b", confidence: "static" },
+          { path: "c", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(3);
@@ -118,24 +118,24 @@ describe("extractPaths", () => {
   describe("EXPR-02: Conditional expression paths", () => {
     it('extracts all three branches: "a ? b : c"', () => {
       expect(extractPaths("a ? b : c")).toEqual([
-        { path: "a" },
-        { path: "b" },
-        { path: "c" },
+        { path: "a", confidence: "static" },
+        { path: "b", confidence: "static" },
+        { path: "c", confidence: "static" },
       ]);
     });
 
     it('extracts condition and then without else: "condition ? thenBranch"', () => {
       expect(extractPaths("condition ? thenBranch")).toEqual([
-        { path: "condition" },
-        { path: "thenBranch" },
+        { path: "condition", confidence: "static" },
+        { path: "thenBranch", confidence: "static" },
       ]);
     });
 
     it('extracts dot-paths from all branches: "x.y ? a.b : c.d"', () => {
       expect(extractPaths("x.y ? a.b : c.d")).toEqual([
-        { path: "x.y" },
-        { path: "a.b" },
-        { path: "c.d" },
+        { path: "x.y", confidence: "static" },
+        { path: "a.b", confidence: "static" },
+        { path: "c.d", confidence: "static" },
       ]);
     });
   });
@@ -144,16 +144,16 @@ describe("extractPaths", () => {
   describe("EXPR-04: Block expression paths", () => {
     it('extracts paths from all block sub-expressions: "(a; b; c)"', () => {
       expect(extractPaths("(a; b; c)")).toEqual([
-        { path: "a" },
-        { path: "b" },
-        { path: "c" },
+        { path: "a", confidence: "static" },
+        { path: "b", confidence: "static" },
+        { path: "c", confidence: "static" },
       ]);
     });
 
     it('extracts paths from block with dot-paths: "(x.y; z)"', () => {
       expect(extractPaths("(x.y; z)")).toEqual([
-        { path: "x.y" },
-        { path: "z" },
+        { path: "x.y", confidence: "static" },
+        { path: "z", confidence: "static" },
       ]);
     });
   });
@@ -161,13 +161,13 @@ describe("extractPaths", () => {
   // ---------- Deduplication ----------
   describe("Deduplication", () => {
     it('deduplicates identical paths: "a + a"', () => {
-      expect(extractPaths("a + a")).toEqual([{ path: "a" }]);
+      expect(extractPaths("a + a")).toEqual([{ path: "a", confidence: "static" }]);
     });
 
     it('deduplicates within block: "(x; x; y)"', () => {
       expect(extractPaths("(x; x; y)")).toEqual([
-        { path: "x" },
-        { path: "y" },
+        { path: "x", confidence: "static" },
+        { path: "y", confidence: "static" },
       ]);
     });
   });
@@ -179,19 +179,19 @@ describe("extractPaths", () => {
     });
 
     it('extracts path from unary negation: "-price"', () => {
-      expect(extractPaths("-price")).toEqual([{ path: "price" }]);
+      expect(extractPaths("-price")).toEqual([{ path: "price", confidence: "static" }]);
     });
 
     it('extracts paths from array constructor: "[a, b, c]"', () => {
       expect(extractPaths("[a, b, c]")).toEqual([
-        { path: "a" },
-        { path: "b" },
-        { path: "c" },
+        { path: "a", confidence: "static" },
+        { path: "b", confidence: "static" },
+        { path: "c", confidence: "static" },
       ]);
     });
 
     it('extracts value path from object constructor: {"key": value}', () => {
-      expect(extractPaths('{"key": value}')).toEqual([{ path: "value" }]);
+      expect(extractPaths('{"key": value}')).toEqual([{ path: "value", confidence: "static" }]);
     });
   });
 
@@ -214,35 +214,35 @@ describe("extractPaths", () => {
   describe("SCOPE-01: Variable assignment tracing", () => {
     it('resolves simple variable assignment: "($x := account.name; $x)"', () => {
       expect(extractPaths("($x := account.name; $x)")).toEqual([
-        { path: "account.name" },
+        { path: "account.name", confidence: "static" },
       ]);
     });
 
     it('extracts RHS paths even when reassigned: "($x := a; $x := b; $x)"', () => {
       expect(extractPaths("($x := a; $x := b; $x)")).toEqual([
-        { path: "a" },
-        { path: "b" },
+        { path: "a", confidence: "static" },
+        { path: "b", confidence: "static" },
       ]);
     });
 
     it('resolves multi-hop variable chain: "($a := x.y; $b := $a.z; $b)"', () => {
       expect(extractPaths("($a := x.y; $b := $a.z; $b)")).toEqual([
-        { path: "x.y" },
-        { path: "x.y.z" },
+        { path: "x.y", confidence: "static" },
+        { path: "x.y.z", confidence: "static" },
       ]);
     });
 
     it('inner block does not leak scope: "($x := a; ($x := b; $x); $x)"', () => {
       expect(extractPaths("($x := a; ($x := b; $x); $x)")).toEqual([
-        { path: "a" },
-        { path: "b" },
+        { path: "a", confidence: "static" },
+        { path: "b", confidence: "static" },
       ]);
     });
 
     it('resolves variable in path context: "($x := account; $x.name)"', () => {
       expect(extractPaths("($x := account; $x.name)")).toEqual([
-        { path: "account" },
-        { path: "account.name" },
+        { path: "account", confidence: "static" },
+        { path: "account.name", confidence: "static" },
       ]);
     });
   });
@@ -261,14 +261,14 @@ describe("extractPaths", () => {
   // ---------- SCOPE-02: Context variable binding (@$v) ----------
   describe("SCOPE-02: Context variable binding (@$v)", () => {
     it('extracts base path from context binding: "items@$v"', () => {
-      expect(extractPaths("items@$v")).toEqual([{ path: "items" }]);
+      expect(extractPaths("items@$v")).toEqual([{ path: "items", confidence: "static" }]);
     });
   });
 
   // ---------- SCOPE-03: Positional variables (#$i) ----------
   describe("SCOPE-03: Positional variables (#$i)", () => {
     it('extracts base path, positional var produces no extra paths: "items#$i"', () => {
-      expect(extractPaths("items#$i")).toEqual([{ path: "items" }]);
+      expect(extractPaths("items#$i")).toEqual([{ path: "items", confidence: "static" }]);
     });
   });
 
@@ -276,28 +276,28 @@ describe("extractPaths", () => {
   describe("EXPR-05: Function argument extraction", () => {
     it('extracts argument path from $sum: "$sum(items.price)"', () => {
       expect(extractPaths("$sum(items.price)")).toEqual([
-        { path: "items.price" },
+        { path: "items.price", confidence: "static" },
       ]);
     });
 
     it('extracts argument path from $count: "$count(orders)"', () => {
-      expect(extractPaths("$count(orders)")).toEqual([{ path: "orders" }]);
+      expect(extractPaths("$count(orders)")).toEqual([{ path: "orders", confidence: "static" }]);
     });
 
     it('extracts path args, ignores literal args: "$substring(name, 0, 5)"', () => {
       expect(extractPaths("$substring(name, 0, 5)")).toEqual([
-        { path: "name" },
+        { path: "name", confidence: "static" },
       ]);
     });
 
     it('extracts argument paths from unknown function: "$unknownFunc(a.b)"', () => {
-      expect(extractPaths("$unknownFunc(a.b)")).toEqual([{ path: "a.b" }]);
+      expect(extractPaths("$unknownFunc(a.b)")).toEqual([{ path: "a.b", confidence: "static" }]);
     });
 
     it('extracts arguments from multiple function calls: "$sum(items.price) + $count(orders)"', () => {
       expect(extractPaths("$sum(items.price) + $count(orders)")).toEqual([
-        { path: "items.price" },
-        { path: "orders" },
+        { path: "items.price", confidence: "static" },
+        { path: "orders", confidence: "static" },
       ]);
     });
   });
@@ -314,9 +314,9 @@ describe("extractPaths", () => {
 
     it('resolves variable bound to conditional RHS: "($x := a > 0 ? b.c : d.e; $x)"', () => {
       expect(extractPaths("($x := a > 0 ? b.c : d.e; $x)")).toEqual([
-        { path: "a" },
-        { path: "b.c" },
-        { path: "d.e" },
+        { path: "a", confidence: "static" },
+        { path: "b.c", confidence: "static" },
+        { path: "d.e", confidence: "static" },
       ]);
     });
   });
@@ -329,8 +329,8 @@ describe("extractPaths", () => {
   describe("SCOPE-04: $map element binding", () => {
     it('resolves $map element: "$map(items, function($v) { $v.name })"', () => {
       expect(extractPaths("$map(items, function($v) { $v.name })")).toEqual([
-        { path: "items" },
-        { path: "items.name" },
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
       ]);
     });
 
@@ -338,8 +338,8 @@ describe("extractPaths", () => {
       expect(
         extractPaths("$map(orders.items, function($v, $i) { $v.price })"),
       ).toEqual([
-        { path: "orders.items" },
-        { path: "orders.items.price" },
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
       ]);
     });
 
@@ -348,7 +348,7 @@ describe("extractPaths", () => {
         "$map(data, function($v, $i, $a) { $v.x + $a })",
       );
       expect(result).toEqual(
-        expect.arrayContaining([{ path: "data" }, { path: "data.x" }]),
+        expect.arrayContaining([{ path: "data", confidence: "static" }, { path: "data.x", confidence: "static" }]),
       );
     });
   });
@@ -358,7 +358,7 @@ describe("extractPaths", () => {
     it('resolves $filter element: "$filter(orders, function($v) { $v.total > 100 })"', () => {
       expect(
         extractPaths("$filter(orders, function($v) { $v.total > 100 })"),
-      ).toEqual([{ path: "orders" }, { path: "orders.total" }]);
+      ).toEqual([{ path: "orders", confidence: "static" }, { path: "orders.total", confidence: "static" }]);
     });
   });
 
@@ -369,7 +369,7 @@ describe("extractPaths", () => {
         extractPaths(
           "$reduce(values, function($prev, $curr) { $prev + $curr })",
         ),
-      ).toEqual([{ path: "values" }]);
+      ).toEqual([{ path: "values", confidence: "static" }]);
     });
   });
 
@@ -377,7 +377,7 @@ describe("extractPaths", () => {
   describe("SCOPE-04: $each value/key", () => {
     it('resolves $each value: "$each(data, function($v, $k) { $v })"', () => {
       expect(extractPaths("$each(data, function($v, $k) { $v })")).toEqual([
-        { path: "data" },
+        { path: "data", confidence: "static" },
       ]);
     });
   });
@@ -387,7 +387,7 @@ describe("extractPaths", () => {
     it('resolves $sift value: "$sift(record, function($v, $k) { $v > 10 })"', () => {
       expect(
         extractPaths("$sift(record, function($v, $k) { $v > 10 })"),
-      ).toEqual([{ path: "record" }]);
+      ).toEqual([{ path: "record", confidence: "static" }]);
     });
   });
 
@@ -398,7 +398,7 @@ describe("extractPaths", () => {
         extractPaths(
           "($prefix := a.b; $map(items, function($v) { $prefix }))",
         ),
-      ).toEqual([{ path: "a.b" }, { path: "items" }]);
+      ).toEqual([{ path: "a.b", confidence: "static" }, { path: "items", confidence: "static" }]);
     });
   });
 
@@ -407,7 +407,7 @@ describe("extractPaths", () => {
     it('lambda param $sum shadows built-in: "$map(items, function($sum) { $sum.x })"', () => {
       expect(
         extractPaths("$map(items, function($sum) { $sum.x })"),
-      ).toEqual([{ path: "items" }, { path: "items.x" }]);
+      ).toEqual([{ path: "items", confidence: "static" }, { path: "items.x", confidence: "static" }]);
     });
   });
 
@@ -416,17 +416,17 @@ describe("extractPaths", () => {
     it('apply with $map: "items ~> $map(function($v) { $v.name })"', () => {
       expect(
         extractPaths("items ~> $map(function($v) { $v.name })"),
-      ).toEqual([{ path: "items" }, { path: "items.name" }]);
+      ).toEqual([{ path: "items", confidence: "static" }, { path: "items.name", confidence: "static" }]);
     });
 
     it('apply with $filter: "data ~> $filter(function($v) { $v.active })"', () => {
       expect(
         extractPaths("data ~> $filter(function($v) { $v.active })"),
-      ).toEqual([{ path: "data" }, { path: "data.active" }]);
+      ).toEqual([{ path: "data", confidence: "static" }, { path: "data.active", confidence: "static" }]);
     });
 
     it('apply with non-higher-order built-in: "items ~> $sum()"', () => {
-      expect(extractPaths("items ~> $sum()")).toEqual([{ path: "items" }]);
+      expect(extractPaths("items ~> $sum()")).toEqual([{ path: "items", confidence: "static" }]);
     });
   });
 
@@ -435,7 +435,7 @@ describe("extractPaths", () => {
     it('traces custom function call: "($fn := function($x) { $x.name }; $fn(account))"', () => {
       expect(
         extractPaths("($fn := function($x) { $x.name }; $fn(account))"),
-      ).toEqual([{ path: "account" }, { path: "account.name" }]);
+      ).toEqual([{ path: "account", confidence: "static" }, { path: "account.name", confidence: "static" }]);
     });
 
     it('traces multi-param custom function: "($fn := function($a, $b) { $a.x + $b.y }; $fn(data1, data2))"', () => {
@@ -444,17 +444,17 @@ describe("extractPaths", () => {
           "($fn := function($a, $b) { $a.x + $b.y }; $fn(data1, data2))",
         ),
       ).toEqual([
-        { path: "data1" },
-        { path: "data2" },
-        { path: "data1.x" },
-        { path: "data2.y" },
+        { path: "data1", confidence: "static" },
+        { path: "data2", confidence: "static" },
+        { path: "data1.x", confidence: "static" },
+        { path: "data2.y", confidence: "static" },
       ]);
     });
 
     it('unknown function passes through args: "$unknownFunc(a.b, c.d)"', () => {
       expect(extractPaths("$unknownFunc(a.b, c.d)")).toEqual([
-        { path: "a.b" },
-        { path: "c.d" },
+        { path: "a.b", confidence: "static" },
+        { path: "c.d", confidence: "static" },
       ]);
     });
   });
@@ -467,9 +467,9 @@ describe("extractPaths", () => {
           "$map(items, function($v) { $map($v.children, function($c) { $c.name }) })",
         ),
       ).toEqual([
-        { path: "items" },
-        { path: "items.children" },
-        { path: "items.children.name" },
+        { path: "items", confidence: "static" },
+        { path: "items.children", confidence: "static" },
+        { path: "items.children.name", confidence: "static" },
       ]);
     });
   });
@@ -482,24 +482,24 @@ describe("extractPaths", () => {
   describe("EXPR-03: Filter predicate path extraction", () => {
     it('extracts filter predicate paths: "items[price > 10]"', () => {
       expect(extractPaths("items[price > 10]")).toEqual([
-        { path: "items" },
-        { path: "items.price" },
+        { path: "items", confidence: "static" },
+        { path: "items.price", confidence: "static" },
       ]);
     });
 
     it('filter with literal comparison does not produce path for literal: "items[price > 10]"', () => {
       const result = extractPaths("items[price > 10]");
-      expect(result).toContainEqual({ path: "items.price" });
+      expect(result).toContainEqual({ path: "items.price", confidence: "static" });
       // Should NOT contain a path for the literal 10
-      expect(result).not.toContainEqual({ path: "items.10" });
+      expect(result).not.toContainEqual({ path: "items.10", confidence: "static" });
     });
 
     it('extracts filter in middle of multi-step path: "account.orders[total > 100].items"', () => {
       const result = extractPaths("account.orders[total > 100].items");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "account.orders.items" },
-          { path: "account.orders.total" },
+          { path: "account.orders.items", confidence: "static" },
+          { path: "account.orders.total", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(2);
@@ -507,8 +507,8 @@ describe("extractPaths", () => {
 
     it('extracts boolean coercion filter (bare name): "items[active]"', () => {
       expect(extractPaths("items[active]")).toEqual([
-        { path: "items" },
-        { path: "items.active" },
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
       ]);
     });
 
@@ -516,9 +516,9 @@ describe("extractPaths", () => {
       const result = extractPaths("orders[items[price > 10]]");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "orders" },
-          { path: "orders.items" },
-          { path: "orders.items.price" },
+          { path: "orders", confidence: "static" },
+          { path: "orders.items", confidence: "static" },
+          { path: "orders.items.price", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(3);
@@ -528,39 +528,39 @@ describe("extractPaths", () => {
       const result = extractPaths(
         "($threshold := 50; items[price > $threshold])",
       );
-      expect(result).toContainEqual({ path: "items" });
-      expect(result).toContainEqual({ path: "items.price" });
+      expect(result).toContainEqual({ path: "items", confidence: "static" });
+      expect(result).toContainEqual({ path: "items.price", confidence: "static" });
       // $threshold resolves to [] (literal 50) -- no spurious paths
-      expect(result).not.toContainEqual({ path: "items.50" });
+      expect(result).not.toContainEqual({ path: "items.50", confidence: "static" });
     });
 
     it('focus variable binding: "items@$v[type = \\"A\\"]"', () => {
       const result = extractPaths('items@$v[type = "A"]');
-      expect(result).toContainEqual({ path: "items" });
-      expect(result).toContainEqual({ path: "items.type" });
+      expect(result).toContainEqual({ path: "items", confidence: "static" });
+      expect(result).toContainEqual({ path: "items.type", confidence: "static" });
     });
   });
 
   // ---------- EXPR-06: Array index vs filter distinction ----------
   describe("EXPR-06: Array index vs filter distinction", () => {
     it('numeric index (positive) produces no filter path: "items[0]"', () => {
-      expect(extractPaths("items[0]")).toEqual([{ path: "items" }]);
+      expect(extractPaths("items[0]")).toEqual([{ path: "items", confidence: "static" }]);
     });
 
     it('numeric index (negative) produces no filter path: "items[-1]"', () => {
-      expect(extractPaths("items[-1]")).toEqual([{ path: "items" }]);
+      expect(extractPaths("items[-1]")).toEqual([{ path: "items", confidence: "static" }]);
     });
 
     it('variable as index (over-approximate as filter): "($i := 0; items[$i])"', () => {
       const result = extractPaths("($i := 0; items[$i])");
-      expect(result).toContainEqual({ path: "items" });
+      expect(result).toContainEqual({ path: "items", confidence: "static" });
       // $i resolves to [] (literal 0), so no additional paths beyond "items"
     });
 
     it('multiple stages on one step: "items[price > 10][0]"', () => {
       const result = extractPaths("items[price > 10][0]");
-      expect(result).toContainEqual({ path: "items" });
-      expect(result).toContainEqual({ path: "items.price" });
+      expect(result).toContainEqual({ path: "items", confidence: "static" });
+      expect(result).toContainEqual({ path: "items.price", confidence: "static" });
     });
   });
 
@@ -572,8 +572,8 @@ describe("extractPaths", () => {
   describe("EXPR-07: Sort expression extraction", () => {
     it('extracts sort key path: "items^(price)"', () => {
       expect(extractPaths("items^(price)")).toEqual([
-        { path: "items" },
-        { path: "items.price" },
+        { path: "items", confidence: "static" },
+        { path: "items.price", confidence: "static" },
       ]);
     });
 
@@ -581,9 +581,9 @@ describe("extractPaths", () => {
       const result = extractPaths("items^(>price, <date)");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "items" },
-          { path: "items.price" },
-          { path: "items.date" },
+          { path: "items", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+          { path: "items.date", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(3);
@@ -593,8 +593,8 @@ describe("extractPaths", () => {
       const result = extractPaths("items^(price).name");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "items.name" },
-          { path: "items.price" },
+          { path: "items.name", confidence: "static" },
+          { path: "items.price", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(2);
@@ -604,8 +604,8 @@ describe("extractPaths", () => {
       const result = extractPaths("account.items^(price)");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "account.items" },
-          { path: "account.items.price" },
+          { path: "account.items", confidence: "static" },
+          { path: "account.items.price", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(2);
@@ -615,9 +615,9 @@ describe("extractPaths", () => {
       const result = extractPaths("items^(price * quantity)");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "items" },
-          { path: "items.price" },
-          { path: "items.quantity" },
+          { path: "items", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+          { path: "items.quantity", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(3);
@@ -630,8 +630,8 @@ describe("extractPaths", () => {
       const result = extractPaths('| Account | {"name": FirstName} |');
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "Account" },
-          { path: "Account.FirstName" },
+          { path: "Account", confidence: "static" },
+          { path: "Account.FirstName", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(2);
@@ -643,22 +643,22 @@ describe("extractPaths", () => {
       );
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "Account" },
-          { path: "Account.FirstName" },
+          { path: "Account", confidence: "static" },
+          { path: "Account.FirstName", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(2);
       // "oldField" is a string literal in delete clause, NOT a path
-      expect(result).not.toContainEqual({ path: "oldField" });
-      expect(result).not.toContainEqual({ path: "Account.oldField" });
+      expect(result).not.toContainEqual({ path: "oldField", confidence: "static" });
+      expect(result).not.toContainEqual({ path: "Account.oldField", confidence: "static" });
     });
 
     it('transform with multi-step pattern: | data.Account | {"name": FirstName} |', () => {
       const result = extractPaths('| data.Account | {"name": FirstName} |');
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "data.Account" },
-          { path: "data.Account.FirstName" },
+          { path: "data.Account", confidence: "static" },
+          { path: "data.Account.FirstName", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(2);
@@ -670,9 +670,9 @@ describe("extractPaths", () => {
       );
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "Account" },
-          { path: "Account.FirstName" },
-          { path: "Account.LastName" },
+          { path: "Account", confidence: "static" },
+          { path: "Account.FirstName", confidence: "static" },
+          { path: "Account.LastName", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(3);
@@ -685,9 +685,9 @@ describe("extractPaths", () => {
       const result = extractPaths("items{category: price}");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "items" },
-          { path: "items.category" },
-          { path: "items.price" },
+          { path: "items", confidence: "static" },
+          { path: "items.category", confidence: "static" },
+          { path: "items.price", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(3);
@@ -697,9 +697,9 @@ describe("extractPaths", () => {
       const result = extractPaths("account.items{category: price}");
       expect(result).toEqual(
         expect.arrayContaining([
-          { path: "account.items" },
-          { path: "account.items.category" },
-          { path: "account.items.price" },
+          { path: "account.items", confidence: "static" },
+          { path: "account.items.category", confidence: "static" },
+          { path: "account.items.price", confidence: "static" },
         ]),
       );
       expect(result).toHaveLength(3);
@@ -715,16 +715,16 @@ describe("extractPaths", () => {
   // The parent operator is only valid within a multi-step path or filter context.
   describe("ADV-01: Parent operator", () => {
     it('parent mid-path: "items.%.name" -> includes "items.%.name"', () => {
-      expect(extractPaths("items.%.name")).toContainEqual({ path: "items.%.name" });
+      expect(extractPaths("items.%.name")).toContainEqual({ path: "items.%.name", confidence: "partial" });
     });
 
     it('parent at end of path: "items.%" -> includes "items.%"', () => {
-      expect(extractPaths("items.%")).toContainEqual({ path: "items.%" });
+      expect(extractPaths("items.%")).toContainEqual({ path: "items.%", confidence: "partial" });
     });
 
     it('parent in filter predicate: "products[%]"', () => {
       const result = extractPaths("products[%]");
-      expect(result).toContainEqual({ path: "products.%" });
+      expect(result).toContainEqual({ path: "products.%", confidence: "partial" });
     });
   });
 
@@ -732,25 +732,25 @@ describe("extractPaths", () => {
   describe("ADV-02: Dynamic bracket wildcard", () => {
     it('unbound variable in bracket: "item[$field]" -> item[*]', () => {
       const result = extractPaths("item[$field]");
-      expect(result).toContainEqual({ path: "item[*]" });
-      expect(result).toContainEqual({ path: "item" });
+      expect(result).toContainEqual({ path: "item[*]", confidence: "dynamic" });
+      expect(result).toContainEqual({ path: "item", confidence: "static" });
     });
 
     it('unbound variable with suffix: "item[$field].name" -> item.name + item[*]', () => {
       const result = extractPaths("item[$field].name");
-      expect(result).toContainEqual({ path: "item.name" });
-      expect(result).toContainEqual({ path: "item[*]" });
+      expect(result).toContainEqual({ path: "item.name", confidence: "static" });
+      expect(result).toContainEqual({ path: "item[*]", confidence: "dynamic" });
     });
 
     it('bare name in filter is NOT dynamic: "item[fieldName]" has no [*]', () => {
       const result = extractPaths("item[fieldName]");
       expect(result.some(r => r.path.includes("[*]"))).toBe(false);
-      expect(result).toContainEqual({ path: "item.fieldName" });
+      expect(result).toContainEqual({ path: "item.fieldName", confidence: "static" });
     });
 
     it('variable bound to literal resolves to [] -> emits [*]: "($f := \\"price\\"; item[$f])"', () => {
       const result = extractPaths('($f := "price"; item[$f])');
-      expect(result).toContainEqual({ path: "item[*]" });
+      expect(result).toContainEqual({ path: "item[*]", confidence: "dynamic" });
     });
   });
 });
