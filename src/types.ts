@@ -138,8 +138,36 @@ export interface FilterStage {
   position?: number;
 }
 
-// Catch-all for node types not yet handled (sort, transform,
-// parent, partial, error).
+/** Sort term within a SortNode -- has direction flag and expression. */
+export interface SortTerm {
+  descending: boolean;
+  expression: AstNode;
+}
+
+/** Sort step in PathNode.steps -- appears as a separate step (NOT a stage on NameNode). */
+export interface SortNode {
+  type: "sort";
+  terms: SortTerm[];
+  position?: number;
+}
+
+/** Transform node -- top-level node type for the JSONata transform operator (|...|...|). */
+export interface TransformNode {
+  type: "transform";
+  pattern: AstNode;
+  update: AstNode;
+  delete?: AstNode;
+  position?: number;
+}
+
+/** Group-by structure on PathNode.group. Contains array of [key, value] expression pairs. */
+export interface GroupByNode {
+  type: string;
+  lhs: [AstNode, AstNode][];
+  position?: number;
+}
+
+// Catch-all for node types not yet handled (parent, partial, error).
 // The walker returns empty paths for these — skip silently per
 // over-approximation principle.
 export interface GenericNode {
@@ -165,4 +193,6 @@ export type AstNode =
   | FunctionNode
   | LambdaNode
   | ApplyNode
+  | SortNode
+  | TransformNode
   | GenericNode;

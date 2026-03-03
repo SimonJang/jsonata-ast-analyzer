@@ -7,9 +7,12 @@ import type {
   ConditionNode,
   FilterStage,
   FunctionNode,
+  GroupByNode,
   LambdaNode,
   NameNode,
   PathNode,
+  SortNode,
+  TransformNode,
   UnaryNode,
   VariableNode,
 } from "./types.js";
@@ -67,6 +70,8 @@ export function walkNode(
       return []; // literals produce no paths
     case "variable":
       return walkVariable(node as VariableNode, scope);
+    case "transform":
+      return walkTransform(node as TransformNode, scope);
     default:
       // Unknown node type -- skip silently (over-approximate: don't crash)
       return [];
@@ -114,7 +119,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     paths.push(basePath);
   }
 
-  // Iterate steps and handle filter stages on name steps
+  // Iterate steps and handle filter stages on name steps, sort steps
   for (let i = 0; i < node.steps.length; i++) {
     const step = node.steps[i];
 
@@ -123,6 +128,34 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       if (nameStep.stages && nameStep.stages.length > 0) {
         const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
         paths.push(...walkFilterStages(nameStep, contextPrefix, scope));
+      }
+    } else if (step.type === "sort") {
+      const sortNode = step as SortNode;
+      // Context prefix: steps BEFORE the sort step (NOT including it)
+      // Sort step itself is not a path segment -- buildPathString already skips it
+      const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      for (const term of sortNode.terms) {
+        const termPaths = walkNode(term.expression, scope);
+        paths.push(...prefixPaths(contextPrefix, termPaths));
+      }
+    }
+  }
+
+  // Handle group-by on the PathNode (node.group)
+  if (node.group) {
+    const basePath = buildPathString(node.steps) ?? "";
+    const groupNode = node.group as unknown as GroupByNode;
+    if (groupNode.lhs) {
+      for (const pair of groupNode.lhs) {
+        const [keyExpr, valExpr] = pair;
+        if (keyExpr) {
+          const keyPaths = walkNode(keyExpr, scope);
+          paths.push(...prefixPaths(basePath, keyPaths));
+        }
+        if (valExpr) {
+          const valPaths = walkNode(valExpr, scope);
+          paths.push(...prefixPaths(basePath, valPaths));
+        }
       }
     }
   }
@@ -184,6 +217,33 @@ function isNumericIndex(expr: AstNode): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Handle transform operator: | pattern | update, delete |
+ * Pattern is walked for base paths.
+ * Update values are walked via walkNode (reusing walkUnary for "{" nodes)
+ * and prefixed with the pattern path.
+ * Delete clause contains string literals only -- no paths extracted.
+ */
+function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
+  const paths: string[] = [];
+
+  // Walk pattern for base paths
+  const patternPaths = walkNode(node.pattern, scope);
+  paths.push(...patternPaths);
+
+  // Walk update and prefix results with pattern path
+  if (node.update) {
+    const patternPrefix = patternPaths.length > 0 ? patternPaths[0] : "";
+    const updatePaths = walkNode(node.update, scope);
+    paths.push(...prefixPaths(patternPrefix, updatePaths));
+  }
+
+  // Delete clause: string literals only, no paths extracted
+  // (intentionally not walked)
+
+  return paths;
 }
 
 /** Extract paths from both sides of a binary operator. */
