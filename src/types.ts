@@ -94,6 +94,8 @@ export interface VariableNode {
   type: "variable";
   value: string; // variable name WITHOUT $ prefix
   position: number;
+  predicate?: AstNode[]; // filter stages (same structure as NameNode.stages but different property name)
+  focus?: string; // context variable name from @$v (without $)
 }
 
 export interface RegexNode {

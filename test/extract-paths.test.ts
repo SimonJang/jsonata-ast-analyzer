@@ -752,6 +752,12 @@ describe("extractPaths", () => {
       const result = extractPaths('($f := "price"; item[$f])');
       expect(result).toContainEqual({ path: "item[*]", confidence: "dynamic" });
     });
+
+    it('resolved variable with unbound filter: "($data := orders; $data[$field].price)" emits dynamic wildcard', () => {
+      const result = extractPaths("($data := orders; $data[$field].price)");
+      expect(result).toContainEqual({ path: "orders[*]", confidence: "dynamic" });
+      expect(result).toContainEqual({ path: "orders.price", confidence: "static" });
+    });
   });
 
   // ---------- ADV-03: Confidence annotation ----------
