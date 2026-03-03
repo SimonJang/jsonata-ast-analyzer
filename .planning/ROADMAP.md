@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Advanced Analysis** - Parent operator resolution, dynamic path wildcarding, and confidence annotations on extracted paths (completed 2026-03-03)
 - [x] **Phase 5: Public API and CLI** - TypeScript programmatic API and command-line tool wrapping the analysis pipeline (completed 2026-03-03)
 - [x] **Phase 6: ADV-02 Edge Case Fix** - Close the untested ADV-02 gap where walkPath's variable-resolution branch skips filter predicate inspection for resolved VariableNodes (completed 2026-03-03)
-- [ ] **Phase 7: Integration Polish** - Close remaining integration gaps: walkVariable standalone predicate inspection and CLI error message formatting
+- [x] **Phase 7: Integration Polish** - Close remaining integration gaps: walkVariable standalone predicate inspection and CLI error message formatting (completed 2026-03-03)
 
 ## Phase Details
 
@@ -122,7 +122,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 07-01-PLAN.md -- Fix walkVariable predicate + CLI error message + cosmetic cleanup
+- [x] 07-01-PLAN.md -- Fix walkVariable predicate + CLI error message + cosmetic cleanup
 
 ## Progress
 
@@ -137,4 +137,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Advanced Analysis | 2/2 | Complete   | 2026-03-03 |
 | 5. Public API and CLI | 1/1 | Complete   | 2026-03-03 |
 | 6. ADV-02 Edge Case Fix | 1/1 | Complete | 2026-03-03 |
-| 7. Integration Polish | 0/1 | Pending | — |
+| 7. Integration Polish | 1/1 | Complete | 2026-03-03 |

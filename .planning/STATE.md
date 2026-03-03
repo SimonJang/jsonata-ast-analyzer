@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-03T10:46:10.089Z"
+last_updated: "2026-03-03T15:04:03.572Z"
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 10
-  completed_plans: 10
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 11
+  completed_plans: 11
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
-**Current focus:** Phase 6 complete -- ADV-02 edge case fix for composed variable-filter expressions
+**Current focus:** Phase 7 complete -- integration polish closing walkVariable predicate gap and CLI error message formatting
 
 ## Current Position
 
-Phase: 6 of 6 (ADV-02 Edge Case Fix) -- COMPLETE
+Phase: 7 of 7 (Integration Polish) -- COMPLETE
 Plan: 1 of 1 in current phase (1 complete)
 Status: ALL PHASES COMPLETE
-Last activity: 2026-03-03 -- Completed 06-01-PLAN.md
+Last activity: 2026-03-03 -- Completed 07-01-PLAN.md
 
 Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 3.7min
-- Total execution time: 0.50 hours
+- Total plans completed: 11
+- Average duration: 3.5min
+- Total execution time: 0.53 hours
 
 **By Phase:**
 
@@ -46,9 +46,10 @@ Progress: [████████████████████] 100%
 | 04 | 2 | 7min | 3.5min |
 | 05 | 1 | 2min | 2min |
 | 06 | 1 | 2min | 2min |
+| 07 | 1 | 2min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 3min, 3min, 4min, 2min, 2min
+- Last 5 plans: 3min, 4min, 2min, 2min, 2min
 - Trend: stable
 
 *Updated after each plan completion*
@@ -97,6 +98,9 @@ Recent decisions affecting current work:
 - [Phase 05-public-api-and-cli]: tsup array config: clean:true on library entry only to avoid wiping CLI output
 - [Phase 06-adv02-edge-case-fix]: Refactored walkFilterStages to accept generic stages array + focus parameter (Strategy A) -- reusable for NameNode.stages and VariableNode.predicate
 - [Phase 06-adv02-edge-case-fix]: VariableNode interface extended with predicate and focus properties for type safety (matches NameNode pattern)
+- [Phase 07-integration-polish]: walkVariable predicate inspection mirrors walkPath variable branch pattern -- same walkFilterStages call
+- [Phase 07-integration-polish]: Three-tier CLI error check: instanceof Error > object with .message > String() fallback
+- [Phase 07-integration-polish]: Show just err.message for CLI errors -- jsonata messages already include context
 
 ### Pending Todos
 
@@ -110,5 +114,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-03
-Stopped at: Completed 06-01-PLAN.md (Phase 6, Plan 1 complete -- ADV-02 edge case fix for composed variable-filter expressions)
+Stopped at: Completed 07-01-PLAN.md (Phase 7, Plan 1 complete -- integration polish closing all v1.0 gaps)
 Resume file: None
