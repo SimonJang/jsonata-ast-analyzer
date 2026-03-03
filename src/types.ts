@@ -1,6 +1,11 @@
+// Confidence — how certain the path is at analysis time.
+// Priority order: "partial" > "dynamic" > "static"
+export type Confidence = "static" | "dynamic" | "partial";
+
 // PathResult — the public output type.
 export interface PathResult {
   path: string;
+  confidence: Confidence;
 }
 
 // --- AST Node Types (discriminated union on `type` field) ---
