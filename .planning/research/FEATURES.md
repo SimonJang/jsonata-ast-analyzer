@@ -1,134 +1,132 @@
-# Feature Landscape
+# Feature Landscape: v1.1 Real-World Integration Test Categories
 
-**Domain:** Static analysis / AST path extraction for JSONata expressions
-**Researched:** 2026-03-02
-**Confidence:** MEDIUM-HIGH (JSONata AST structure verified via official parser source and Rust implementation; feature landscape synthesized from GraphQL analyzers, ESLint scope analysis, XPath static analysis, and field-level lineage tooling)
+**Domain:** Integration test coverage for a JSONata AST path analyzer
+**Researched:** 2026-03-03
+**Confidence:** HIGH (patterns sourced from official JSONata docs, Stedi production mappings, AWS Step Functions usage, Node-RED cookbook, and GitHub issue patterns; cross-referenced with analyzer's existing 105-test unit suite)
 
 ## Table Stakes
 
-Features users expect. Missing = product feels incomplete or untrustworthy.
+Test categories that any production JSONata use involves. Gaps here mean the analyzer is untested against the most common real-world patterns.
 
-| Feature | Why Expected | Complexity | Notes |
+| Test Category | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Simple dot-path extraction | This is the core promise. `account.name` must produce `["account.name"]`. If this fails, nothing else matters. | Low | The happy path -- `path` nodes containing `name` children. Straightforward recursive walk. |
-| Nested path extraction | Users will immediately try `order.items.price`. Multi-step paths are the bread and butter of JSONata. | Low | `path` node with multiple `name` steps. Concatenate step names with dots. |
-| Wildcard operator (`*`) | JSONata's `*` selects all properties of an object. Path result should include a wildcard segment like `order.*` or `order[*]`. | Low | `wildcard` AST node type. Emit a `*` segment in the extracted path. |
-| Descendant operator (`**`) | `**` recursively descends the hierarchy. Users writing `**.price` expect to see it reflected in extracted paths. | Low | `descendant` AST node type. Emit a `**` segment. Cannot resolve to concrete paths statically. |
-| Filter predicate path extraction | `items[price > 10]` reads `items` AND `items.price`. The predicate accesses data that must be reported. | Medium | `filter` nodes contain an expression that references paths. Must walk into the filter's condition expression and resolve paths relative to the filter's context. |
-| Array index access | `items[0]` is a positional access, not a field read. Must distinguish from filter predicates that read data. | Low-Med | Numeric literal inside `filter` vs boolean expression. Positional access means the parent array path (`items`) is needed but not a sub-field. |
-| Variable binding tracing (`$x := expr`) | `$x := account.name; $x` -- variable `$x` is an alias. Must trace back to `account.name`. Without this, analysis is incomplete for any non-trivial expression. | High | `bind` nodes associate a `variable` with an expression. Requires building a scope/environment that maps variable names to their source paths. Must handle shadowing and nested scopes. |
-| Binary operator operand extraction | `price * quantity` reads both `price` and `quantity`. All binary operations (`+`, `-`, `*`, `/`, `&`, comparisons, `in`, `and`, `or`) have LHS and RHS that may reference data. | Low | `binary` node with `lhs` and `rhs` children. Recursively extract from both sides. |
-| Conditional expression paths | `condition ? trueExpr : falseExpr` -- all three branches may read data. Must extract paths from all branches. | Low-Med | `condition` node with `condition`, `then`, `else` children. Extract from all three. Cannot know statically which branch executes, so report all paths. |
-| Function argument paths | `$sum(items.price)` reads `items.price`. Built-in function arguments reference data that must be extracted. | Medium | `function` nodes contain `arguments` array. Walk each argument. Challenge: some functions transform context (like `$map`, `$filter`, `$reduce`) and their lambda arguments operate on different contexts. |
-| Block expression support | Parenthesized expressions `(expr1; expr2; expr3)` create blocks. Must extract paths from all sub-expressions. | Low | `block` node with `expressions` array. Walk each expression. Blocks also create variable scope boundaries. |
-| String/number/boolean literal handling | Literals produce no paths. Must not crash or produce spurious results on `"hello"`, `42`, `true`, `null`. | Low | `string`, `number`, `value` node types. Return empty path set. |
-| Programmatic TypeScript/JS API | Users consume this as a library. Must export a function like `extractPaths(expression: string): string[]` or similar. | Low | Standard npm package with TypeScript types. This is the primary interface. |
-| CLI tool | Command-line usage for scripting, CI pipelines, and quick exploration. `jsonata-paths "Account.Order.Product"` should just work. | Low | Thin wrapper over the library API. Read from stdin or argument. Output as JSON or newline-delimited. |
+| **API response reshaping** (nested extraction + flattening) | The single most common JSONata use case: take an API response, extract nested fields, flatten into a new shape. Every Stedi mapping, every Node-RED flow, every Step Functions transform does this. | Medium | Multi-step paths into nested objects, object constructors with mixed literal keys and data-path values, array mapping via dot operator. Tests should use 3-5 levels of nesting. |
+| **Data transformation pipelines** (filter -> sort -> map -> reshape) | Production JSONata chains operations: filter an array, sort results, map to new objects. Stedi docs, Node-RED recipes, and AWS examples all demonstrate this. | Medium-High | Combines filter predicates, sort expressions, object constructors, and variable bindings in a single multi-line expression. The analyzer must track context through each stage. |
+| **Conditional field selection** (ternary + default operators) | `condition ? fieldA : fieldB` and `field ?: default` are ubiquitous in production. Stedi's common expressions page lists conditional omission as a primary pattern. Zendesk AI agent examples use conditionals heavily. | Medium | All branches of conditionals reference different paths. The analyzer must report paths from ALL branches (over-approximate). Also tests the `?:` (elvis) and `??` (coalescing) operators which the parser models as condition nodes. |
+| **String concatenation and formatting** | `FirstName & " " & LastName` and `Address.(Street & ", " & City)` are in virtually every data mapping scenario. Stedi, Node-RED, and the official docs all show this. | Low-Med | Binary `&` operator with path operands on both sides. Tests that string literals do not produce spurious paths while field references do. |
+| **Aggregation over nested arrays** | `$sum(orders.items.price)`, `$count(products)`, `$average(scores)` -- standard analytics patterns. Every IoT, e-commerce, and reporting use case. | Low-Med | Built-in function calls with nested path arguments. The analyzer already handles this in unit tests, but integration tests should combine aggregation with filtering and variable binding. |
+| **Lookup and cross-reference patterns** | `$lookup($$, key)`, `products[id = orderId]`, referencing one array filtered by a value from another context. Stedi uses `$lookupTable`. Node-RED uses `$lookup($$, ...)` for message introspection. | Medium-High | Combines filter predicates with variable references, the `$$` root context, and potentially the `in` operator. Tests the analyzer's ability to handle cross-referencing between different data structures in one expression. |
+| **Variable-driven object construction** | `($items := data.products; {"count": $count($items), "total": $sum($items.price)})` -- bind a sub-tree to a variable, then reference it multiple times in an object constructor. This is the standard pattern for reusable sub-expressions. | Medium | Variable binding + object constructor + function calls using the same bound variable. Tests deduplication (same underlying path referenced multiple times) and variable-to-path resolution in constructor values. |
+| **Array mapping via dot operator** | `Account.Order.Product.(Price * Quantity)` -- JSONata's dot operator IS the map operation. This is not a higher-order function; it is the core language mechanic for iterating arrays. Official docs emphasize this distinction. | Medium | PathNode with an embedded binary expression evaluated per-element. The analyzer must recognize that `Price` and `Quantity` are relative to `Account.Order.Product`, not root-level fields. |
+| **Multi-field filter predicates** | `orders[status = "active" and total > threshold]` -- filter with compound boolean logic referencing multiple fields. Common in every data filtering scenario. | Medium | Filter expression with `and`/`or` binary operators. Each operand references a different field. The analyzer must extract all referenced fields from within the predicate and prefix them with the filter context. |
+| **Nested object output with mixed sources** | `{"customer": customer.name, "items": orders.items.({"sku": sku, "qty": quantity, "total": price * quantity}), "orderDate": metadata.created}` -- constructing output objects that pull from multiple root-level paths. This is the canonical "reshape" pattern. | Medium-High | Object constructor at the top level with values sourced from different root paths. Nested object constructor inside array mapping. Tests that the analyzer correctly identifies root-level vs context-relative paths. |
 
 ## Differentiators
 
-Features that set product apart. Not expected (no competing tool exists in this space), but valued by power users.
+Complex patterns that prove the analyzer handles edge cases. Not every JSONata expression uses these, but they appear in production and failure to handle them would undermine trust.
 
-| Feature | Value Proposition | Complexity | Notes |
+| Test Category | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Lambda/higher-order function context tracking | `$map(items, function($v) { $v.name })` -- the lambda's `$v` is bound to elements of `items`. Resolving `$v.name` to `items.name` requires understanding higher-order function semantics. This is where most naive AST walkers give up. | High | Must recognize built-in higher-order functions (`$map`, `$filter`, `$reduce`, `$each`, `$sift`, `$sort`) and understand how they bind their callback parameters. Map `$v` to `items[*]` contextually. |
-| Sort expression path extraction | `items^(price)` sorts by `price`, which means `items.price` is read. The sort key is a data dependency. | Medium | `sort` nodes contain sort terms that reference fields. Must resolve sort expressions relative to the array being sorted. |
-| Transform operator analysis | `\| items \| {"discounted": price * 0.9} \|` reads `items` and `items.price`. The transform pattern and update expressions reference data. | Medium | `transform` node with pattern, update, and optionally delete expressions. Walk all three and resolve relative paths. |
-| Parent operator (`%`) resolution | `items.%.orderId` navigates to the parent object. Must produce something meaningful -- either a wildcard parent path or flag as "accesses parent context". | Medium-High | `parent` AST node. Statically resolving what `%` points to requires knowing the data shape, which we don't have. Best approach: emit a symbolic marker like `<parent>` or track relative to the current path and go one level up. |
-| Context variable binding (`@$v`) tracking | `items@$item.subItems{ "parent": $item.name }` binds the current context to `$item`. Must trace these bindings like regular variable assignments. | Medium | `@` binding creates a variable in scope for the remainder of the path. Similar to `bind` but scoped to the path expression. |
-| Positional variable (`#$i`) recognition | `items#$i` binds position index. This variable is numeric, not a data reference. Should NOT produce a path but must not confuse the variable tracker. | Low-Med | `#` binding creates a numeric variable. Must recognize it produces no data path while still tracking it in the scope to avoid false positives when `$i` appears later. |
-| Dynamic path detection with wildcards | `item[fieldName]` where `fieldName` is a variable that can't be statically resolved. Must flag this as `item[*]` rather than silently dropping it. | Medium | When a filter/index expression is a variable reference that doesn't trace back to a string literal, emit a wildcard. Communicates "something is accessed here, but we can't determine what." |
-| Recursive descent path representation | For `**.price`, represent this as a path that says "price at any depth". Useful for understanding which fields are accessed regardless of nesting. | Low | Already handled by descendant node type, but the representation in output matters. Consider outputting `**.price` rather than trying to enumerate. |
-| Confidence/completeness annotation | Mark each extracted path with whether it was fully statically resolved (HIGH confidence) or involved dynamic/unknown components (LOW confidence). | Medium | Return structured results instead of just strings: `{ path: "items.price", confidence: "static" }` vs `{ path: "items[*]", confidence: "dynamic" }`. Helps consumers prioritize. |
-| Regex literal handling | `$match(name, /pattern/)` -- regex is not a data path. Must not produce spurious paths from regex nodes. | Low | `regex` AST node. Return empty. But note the first argument to `$match` IS a data path. |
-| Custom function call handling | User-defined functions via `$myFunc := function($x) { ... }`. When `$myFunc(data.field)` is called, must trace argument into the function body. | High | Requires resolving `function` nodes where the procedure is a variable reference, looking up the lambda in scope, and binding arguments to parameters. Full interprocedural analysis. |
-| Multiple expression batch analysis | Analyze many expressions at once against the same data contract. Return union of all accessed paths. | Low | Wrapper that calls the core extractor in a loop and deduplicates. But valuable for the "which fields can I safely remove?" use case. |
-| Output format options | JSON, newline-delimited, tree structure, dot-notation, bracket-notation. Different consumers want different formats. | Low-Med | Formatting layer on top of core extraction. Tree output (showing hierarchy) is more complex but valuable for visualization. |
+| **Chained apply operator pipelines** | `data ~> $filter(fn) ~> $map(fn) ~> $reduce(fn)` -- the `~>` operator chains multiple transforms. Used in Node-RED, Stedi, and AWS Step Functions for readable multi-stage processing. | High | Each `~>` stage implicitly threads the LHS as the first argument. The analyzer must resolve lambda parameter bindings at each stage and carry context forward. |
+| **Context variable binding (`@$v`) with cross-reference** | `library.loans@$l.books@$b[$l.isbn=$b.isbn].{"title": $b.title, "customer": $l.customer}` -- the official docs' canonical example of context binding. Binds iteration context to named variables for cross-referencing across nested arrays. | High | Two simultaneous context bindings (`@$l` and `@$b`) with a filter predicate that cross-references them. The analyzer must maintain separate context scopes and resolve `$l.isbn` against the `loans` context and `$b.isbn` against the `books` context. |
+| **Parent operator in nested context** | `Account.Order.Product.{"Product": $.ProductName, "Order": %.OrderID, "Account": %.%.'Account Name'}` -- navigating to parent and grandparent objects from within a mapped context. From official JSONata path operators docs. | High | Multiple levels of `%` chaining. The analyzer already emits `%` as a path segment with `partial` confidence. Integration tests should verify multi-level `%` chains in realistic object constructor contexts. |
+| **Positional variable with conditional** | `items#$i.($i = 0 ? "first" : $i = $count(items)-1 ? "last" : "middle")` -- using positional index in complex conditional logic. Node-RED documentation shows this pattern. | Medium | Positional `#$i` binding plus conditional expressions that reference `$i`. The analyzer must recognize `$i` as non-data-path (bound to empty) and not produce spurious paths, while still extracting `items` as a data path. |
+| **Recursive/nested higher-order functions** | `$map(departments, function($dept) { $map($dept.employees, function($emp) { $emp.name & " (" & $dept.name & ")" }) })` -- nested `$map` with inner lambda capturing outer lambda's parameter. | High | Two-level lambda nesting with closure capture. The inner lambda's `$dept.name` must resolve through the outer lambda's binding back to `departments.name`. The existing unit test covers nested `$map`, but integration tests should add closure capture across levels. |
+| **Custom function definition and multi-call** | `($format := function($item) { $item.name & ": $" & $string($item.price) }; orders.items.($format($)))` -- define a function, then call it from within a mapped context. | High | Custom function binding + invocation from within a dot-mapped context where `$` is the current item. Tests the analyzer's interprocedural analysis when the call site's context differs from the definition site. |
+| **Transform operator with variable and delete** | `$ ~> \|Account.Order.Product\|{"Total": Price * Quantity, "Discounted": Price * 0.9}, ["UnitPrice"]\|` -- the full transform syntax with computed update fields and a delete clause. From official docs. | Medium-High | Transform pattern, update with multiple computed fields (accessing data paths relative to pattern), and delete clause (string literals, not paths). Tests that the analyzer correctly extracts paths from the update expression but not from the delete clause. |
+| **Group-by with aggregation** | `Account.Order.Product{`Supplier`.$sum(Price * Quantity)}` -- group by supplier, aggregate each group. The official JSONata reduce operator documentation shows this. | Medium | Group-by key and value expressions are both context-relative to the grouped array. Tests that the analyzer correctly prefixes both key and value paths. |
+| **Range operator and sequence expressions** | `[1..10].$string()` or `$map([0..$count(items)-1], function($i) { items[$i] })` -- sequence generation with range operator, often used in index-driven patterns. | Medium | The `..` range operator produces a binary node. When used with data paths (e.g., `[0..$count(items)]`), the `$count(items)` argument references data. Tests that the analyzer extracts paths from range bounds. |
+| **Regex match with path arguments** | `$match(product.description, /sale|discount/i).match` -- regex matching where the first argument is a data path and the result is navigated. | Low-Med | `$match` is a standard function; first arg is a path, second is a regex literal (no path). Integration test should verify regex literal produces no path while the data argument does. |
+| **Deeply nested variable chains (3+ levels)** | `($root := data; $orders := $root.orders; $items := $orders[status="active"].items; $prices := $items.price; $sum($prices))` -- 4-hop variable chain where each step adds more specificity. | High | Each variable references the previous one. The analyzer must resolve the full chain: `$prices` -> `$items.price` -> `$orders[status="active"].items.price` -> `$root.orders[status="active"].items.price` -> `data.orders.items.price` (plus `data.orders.status` from the filter). |
+| **Mixed static/dynamic paths in one expression** | `(data[knownField > 10][$dynamicVar].nested.path)` -- one filter uses a static field reference, the next uses an unresolvable variable producing `[*]`. | Medium | The same expression produces both `static` and `dynamic` confidence paths. Tests that the analyzer correctly annotates each path segment independently. |
+| **Function composition via `~>`** | `($uppertrim := $trim ~> $uppercase; $uppertrim(name))` -- composing two functions into a new one. From official docs. | Medium | `~>` used for function composition (not data piping). The analyzer should handle the case where `~>` connects two function references rather than a data expression and a function call. |
+| **Singleton array operator `[]`** | `Phone.number[]` -- forces result to always be an array. Common in production for defensive programming against single-element arrays. | Low | The `[]` operator adds `keepArray` flag to the AST node. Should not affect path extraction -- same paths should be produced with or without `[]`. Validates that the analyzer ignores this flag. |
+| **Computed object keys** | `data.{name: value}` vs `data.{"literal-key": value}` -- when object keys are data references vs string literals. | Medium | When the key expression in an object constructor is a path (not a string literal), it reads data. The standard `{key: value}` pair syntax treats the key as a path expression. Tests that the analyzer extracts paths from both key and value positions appropriately. |
+| **Spread and merge operations** | `$merge([$spread(base), {"override": newValue}])` -- spreading an object and merging with overrides. Node-RED cookbook shows `$spread($)` as a common pattern. | Medium | `$spread` and `$merge` are built-in functions. Arguments are data paths. Tests that the analyzer extracts from function arguments even for less common built-in functions. |
 
 ## Anti-Features
 
-Features to explicitly NOT build. These are tempting but wrong for this project.
+Test patterns NOT worth investing in, and why.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Custom JSONata parser | The official `jsonata` package has a battle-tested parser. Writing a custom parser is months of work, will have bugs, and will drift from the language spec. | Use `jsonata(expr).ast()` from the official package. This is explicitly stated in PROJECT.md constraints. |
-| Expression evaluation/execution | This is a static analysis tool. Evaluating expressions requires input data and a runtime -- totally different problem with different complexity. | Return the AST paths, let consumers evaluate separately with the official `jsonata` package. |
-| Expression modification/rewriting | Tempting to offer "rename field X to Y in all expressions", but code modification is an order of magnitude harder than analysis. Different error modes, different testing needs. | Report what paths are accessed. Let a separate tool (or future project) handle rewriting. |
-| Runtime type inference | Knowing the actual types of data at each path requires sample data or a schema. Static analysis operates without data. | Report paths as strings. If consumers have a JSON Schema, they can cross-reference externally. |
-| JSON Schema validation | Checking if extracted paths match a known schema is a downstream concern, not a core analysis feature. | Output paths in a format that's easy to compare against schema tools. |
-| Visual AST explorer / GUI | A web-based AST visualization tool is a separate product. JSONata Studio already has an AST explorer. | Focus on the programmatic API and CLI. Let users pipe output to existing visualization tools. |
-| Language server protocol (LSP) | An LSP for JSONata (autocomplete, hover info, go-to-definition) is a massive undertaking and a different product category. | The path extraction API could feed INTO an LSP, but building the LSP is out of scope. |
-| Supporting non-standard JSONata extensions | Some platforms (Node-RED, AWS Step Functions) add custom functions. Trying to support all extensions leads to an ever-growing surface area. | Handle unknown functions gracefully: extract paths from arguments, flag the function call as opaque. Don't try to model what custom functions do to data. |
-| Performance optimization via caching | Premature. JSONata expressions are typically short. The parser and walker will be fast enough without caching layers. | Profile first. If analysis of a single expression ever takes >10ms, then investigate. |
-| Incremental/streaming analysis | Analyzing expressions one node at a time as they're typed. This is LSP territory. | Batch analysis: give it a complete expression, get back complete results. |
+| **Platform-specific function testing** (Node-RED `$globalContext`, `$flowContext`; AWS Step Functions `$states.input`; Stedi `$lookupTable`, `$omitField`) | These are runtime extensions, not part of the JSONata language. The analyzer correctly treats unknown functions as opaque (extract argument paths, skip function body). Testing each platform's extensions would be an unbounded surface area. | Write 1-2 tests confirming "unknown function passthrough" behavior. That covers all platform extensions by design. |
+| **Expression evaluation correctness** | Testing whether `$sum(items.price)` produces the correct numeric result is evaluator testing, not path analyzer testing. The analyzer only cares about which paths are read, not what values they produce. | Keep tests focused on extracted paths and confidence annotations. Never assert on computed values. |
+| **Parser error handling exhaustive coverage** | Testing every possible malformed JSONata expression to ensure graceful error messages. The parser (official `jsonata` package) handles this. The analyzer just propagates parser errors. | Keep the existing single CLI error formatting test. Add at most 2-3 more for common typos (missing closing bracket, unmatched quotes). |
+| **Performance benchmark tests** | Testing that analysis completes in under N milliseconds. JSONata expressions are typically short (under 500 chars). Performance is not a concern at this scale. | If a specific expression is suspiciously slow, investigate ad hoc. Do not maintain a benchmark suite. |
+| **Unicode/i18n field name testing** | Testing expressions with Unicode field names like `donnees.nom` or emoji field names. The JSONata parser handles this; the analyzer just concatenates string segments. | Add 1 smoke test with a non-ASCII field name. Do not build a matrix of Unicode edge cases. |
+| **Equivalent expression variations** | Testing that `$filter(items, function($v) { $v.active })` and `items[active]` produce the same paths. The analyzer already has unit tests for both patterns individually. Integration tests should focus on novel combinations, not proving equivalence between syntax alternatives. | Use whichever syntax variant is most natural for the scenario being tested. Do not duplicate tests to cover both. |
+| **Whitespace/formatting variations** | Testing that reformatted expressions (different indentation, line breaks, semicolons vs newlines) produce identical results. The parser normalizes whitespace. | Use readable multi-line formatting in integration tests for clarity. Do not test formatting variations. |
 
 ## Feature Dependencies
 
 ```
-Simple dot-path extraction (foundation)
-  --> Nested path extraction (extends foundation with multi-step)
-  --> Wildcard operator (new node type in path)
-  --> Descendant operator (new node type in path)
-  --> Binary operator operand extraction (recursive walk pattern)
-    --> Conditional expression paths (same recursive pattern)
-    --> Filter predicate path extraction (recursive + context scoping)
-  --> Block expression support (walk children pattern)
-  --> String/number/boolean literal handling (base case for recursion)
+API Response Reshaping (foundation scenarios)
+  --> Data Transformation Pipelines (builds on reshaping + adds filter/sort/map chains)
+  --> Conditional Field Selection (adds branching to reshaping patterns)
+  --> Nested Object Output with Mixed Sources (complex reshaping)
 
-Variable binding tracing (scope infrastructure)
-  --> Context variable binding tracking (extends scope to @ operator)
-  --> Positional variable recognition (extends scope to # operator)
-  --> Lambda/higher-order function context tracking (scope + function semantics)
-    --> Custom function call handling (extends lambda tracking to user functions)
+Variable-Driven Object Construction (scope + constructor interaction)
+  --> Deeply Nested Variable Chains (extends to 3-4 hop resolution)
+  --> Custom Function Definition and Multi-Call (extends to interprocedural tracing)
 
-Filter predicate path extraction
-  --> Sort expression path extraction (similar relative-path resolution)
-  --> Transform operator analysis (similar pattern + update/delete expressions)
+Array Mapping via Dot Operator (context-relative path resolution)
+  --> Group-By with Aggregation (same context-relative pattern)
+  --> Chained Apply Operator Pipelines (extends to multi-stage context threading)
 
-Dynamic path detection with wildcards
-  --> Confidence/completeness annotation (extends dynamic detection to structured output)
+Filter Predicates (already unit-tested in isolation)
+  --> Multi-Field Filter Predicates (compound boolean filters)
+  --> Lookup and Cross-Reference Patterns (filters with cross-context references)
+  --> Mixed Static/Dynamic Paths (filters producing different confidence levels)
 
-Programmatic TypeScript/JS API (core interface)
-  --> CLI tool (wraps API)
-  --> Multiple expression batch analysis (wraps API in loop)
-  --> Output format options (formatting layer on API results)
+Higher-Order Functions (already unit-tested in isolation)
+  --> Recursive/Nested Higher-Order Functions (multi-level lambda nesting)
+  --> Context Variable Binding with Cross-Reference (@ binding + filter cross-ref)
+  --> Parent Operator in Nested Context (% in mapped object constructors)
 ```
 
-## MVP Recommendation
+## Integration Test Suite Structure Recommendation
 
-Prioritize:
-1. **Simple and nested dot-path extraction** -- the core value proposition. If this doesn't work perfectly, nothing else matters.
-2. **All literal/operator node handling** (binary, unary, conditional, block, string, number, boolean) -- completes the basic AST walk so no expression crashes the tool.
-3. **Filter predicate path extraction** -- this is where JSONata paths get interesting. `items[price > 10]` reading `items.price` is a key insight users need.
-4. **Wildcard and descendant operators** -- straightforward to implement, rounds out path support.
-5. **Variable binding tracing** -- the single most important differentiator. Without it, analysis of real-world expressions is incomplete. This is also the highest-complexity table-stakes feature.
-6. **Programmatic API + CLI** -- the two delivery mechanisms.
+Prioritize by production frequency and analyzer risk:
 
-Defer:
-- **Lambda/higher-order function context tracking**: High complexity, requires understanding built-in function semantics. Ship a version that extracts the lambda body paths but doesn't resolve parameter bindings. Flag as "partial analysis" and improve later.
-- **Custom function call handling**: Requires interprocedural analysis. Handle gracefully by extracting argument paths but treating the function body as opaque if the definition isn't in the same expression.
-- **Parent operator resolution**: Hard to resolve without data shape knowledge. Emit a marker and document the limitation.
-- **Transform operator analysis**: Medium complexity but less commonly used in practice. Add after core path extraction is solid.
-- **Output format options**: Start with JSON array output. Add tree/hierarchical output later based on user feedback.
-- **Confidence annotations**: Valuable but adds API complexity. Start with simple path strings, evolve to structured results.
-- **Multiple expression batch analysis**: Trivial to implement but design the API first based on single-expression usage patterns.
+### Phase 1: Core Production Patterns (20-25 tests)
+1. **API response reshaping** -- 5-6 tests with varying nesting depth and mixed extraction patterns
+2. **Data transformation pipelines** -- 4-5 tests with filter/sort/map chains of increasing complexity
+3. **Conditional field selection** -- 3-4 tests covering ternary, elvis, coalescing with nested paths
+4. **String concatenation and formatting** -- 2-3 tests with multi-path concatenation in mapped contexts
+5. **Aggregation over nested arrays** -- 2-3 tests combining aggregation with filtering and variables
+6. **Variable-driven object construction** -- 3-4 tests with reused variables in constructors
+
+### Phase 2: Advanced Production Patterns (15-20 tests)
+1. **Chained apply operator pipelines** -- 3-4 tests with 2-4 stage pipelines
+2. **Lookup and cross-reference patterns** -- 2-3 tests with cross-array filtering
+3. **Nested higher-order functions** -- 2-3 tests with closure capture across levels
+4. **Custom function definition** -- 2-3 tests with multi-call and mapped context invocation
+5. **Deeply nested variable chains** -- 2-3 tests with 3-4 hop chains
+6. **Array mapping via dot operator** -- 2-3 tests with complex per-element expressions
+
+### Phase 3: Edge Case Patterns (10-15 tests)
+1. **Context variable binding** -- 2-3 tests with `@$v` cross-referencing
+2. **Parent operator chains** -- 2-3 tests with multi-level `%` in constructors
+3. **Transform operator** -- 2-3 tests with update + delete
+4. **Mixed static/dynamic paths** -- 2 tests confirming mixed confidence output
+5. **Group-by with aggregation** -- 2 tests with key + value extraction
+6. **Remaining differentiators** -- 1-2 tests each for range, regex, singleton array, computed keys, spread/merge
 
 ## Sources
 
-- [JSONata official documentation - Path Operators](https://docs.jsonata.org/path-operators) - HIGH confidence, authoritative source for JSONata path operator semantics
-- [JSONata GitHub repository](https://github.com/jsonata-js/jsonata) - HIGH confidence, reference implementation
-- [JSONata parser source (AST node types)](https://raw.githubusercontent.com/jsonata-js/jsonata/master/src/parser.js) - HIGH confidence, 22 distinct node types verified via raw source
-- [Rust JSONata AstKind enum](https://docs.rs/jsonata/latest/jsonata/ast/enum.AstKind.html) - MEDIUM confidence (v0.0.0 incomplete impl), but confirms 23 node type variants matching JS parser
-- [Stedi prettier-plugin-jsonata](https://github.com/Stedi/prettier-plugin-jsonata) - MEDIUM confidence, confirms all node types must be handled for complete AST traversal; provides `serializeJsonata()` for AST-to-string
-- [Internal structures of JSONata expressions (Varsha Jain)](https://medium.com/@varshajainm.1121/internal-structures-of-jsonata-expressions-053540af937f) - LOW confidence (single blog source), but helpful walkthrough of AST structure
-- [ESLint scope-manager](https://eslint.org/docs/latest/extend/scope-manager-interface) - HIGH confidence, established pattern for variable/scope tracking in AST analysis
-- [eslint-scope on npm](https://www.npmjs.com/package/eslint-scope) - HIGH confidence, reference implementation of scope analysis as a separate concern
-- [GraphQL static query analysis](https://www.graphql.de/blog/static-query-analysis/) - MEDIUM confidence, analogous domain: extracting field dependencies from query ASTs
-- [Orbeon XForms expression analysis](https://doc.orbeon.com/xforms/xpath/expression-analysis) - MEDIUM confidence, closest precedent: static XPath dependency extraction for optimization
-- [Field-level lineage at InfoQ](https://www.infoq.com/articles/field-level-lineage-modern-data-systems/) - MEDIUM confidence, demonstrates the broader pattern of AST-walking for data dependency extraction
-- [Column-level lineage via SQL parsing (Metaplane)](https://www.metaplane.dev/blog/column-level-lineage-an-adventure-in-sql-parsing) - LOW confidence (single source), but validates that ~80% coverage is achievable with initial AST walking and edge cases require iteration
-- [JSONata npm trends](https://npmtrends.com/jsonata) - MEDIUM confidence, ~635K weekly downloads confirms active ecosystem
-- [AWS Step Functions JSONata integration](https://aws.amazon.com/blogs/compute/simplifying-developer-experience-with-variables-and-jsonata-in-aws-step-functions/) - HIGH confidence (official AWS blog), confirms JSONata adoption in major cloud platforms
-- [JSONata in Node-RED](https://flows.nodered.org/flow/29fd01f8a62fec86d875ecbd68001cb0) - MEDIUM confidence, confirms JSONata as built-in Node-RED feature
-- [JSONata processing model](https://docs.jsonata.org/processing) - HIGH confidence, official docs on how JSONata evaluates expressions
-- [JSONata programming constructs](https://docs.jsonata.org/programming) - HIGH confidence, official docs on variables, lambdas, blocks
+- [JSONata Official Docs - Path Operators](https://docs.jsonata.org/path-operators) - HIGH confidence, canonical source for filter, sort, group-by, wildcard, descendant, parent, context binding, positional binding syntax
+- [JSONata Official Docs - Building Result Structures](https://docs.jsonata.org/construction) - HIGH confidence, object and array constructor patterns
+- [JSONata Official Docs - Programming Constructs](https://docs.jsonata.org/programming) - HIGH confidence, variable binding, lambdas, closures, recursion, higher-order functions, partial application
+- [JSONata Official Docs - Expressions](https://docs.jsonata.org/expressions) - HIGH confidence, string/numeric/comparison/boolean operators
+- [JSONata Official Docs - Other Operators](https://docs.jsonata.org/other-operators) - HIGH confidence, transform operator, apply/chaining, conditional, concatenation, variable binding
+- [Stedi Common Mapping Expressions](https://www.stedi.com/docs/edi-platform/mappings/jsonata/common-mapping-expressions) - HIGH confidence, production JSONata patterns for EDI/API data transformation
+- [Stedi JSONata Cheatsheet](https://www.stedi.com/docs/edi-platform/mappings/jsonata/jsonata-cheatsheet) - MEDIUM confidence, summarizes common real-world patterns
+- [AWS Step Functions JSONata](https://docs.aws.amazon.com/step-functions/latest/dg/transforming-data.html) - HIGH confidence, production JSONata usage in cloud workflows
+- [SSENSE Step Functions JSONata 2025](https://medium.com/ssense-tech/step-functions-in-2025-simplify-your-development-with-jsonata-1590b6c439d3) - MEDIUM confidence, real-world production patterns and complexity examples
+- [Node-RED JSONata Recipes](https://github.com/node-red/cookbook.nodered.org/wiki/JSONata-Recipes) - MEDIUM confidence, community-sourced production patterns with message transformation, context access, array processing
+- [Node-RED Home Assistant JSONata](https://zachowj.github.io/node-red-contrib-home-assistant-websocket/guide/jsonata/) - MEDIUM confidence, IoT-specific JSONata usage patterns
+- [JSONata Kestra Article](https://medium.com/@fhussonnois/jsonata-the-swiss-army-knife-of-kestra-for-json-transformation-07c27d27988d) - MEDIUM confidence, data integration pipeline patterns
+- [Blues Wireless JSONata Examples](https://blues.com/blog/10-jsonata-examples/) - MEDIUM confidence, IoT device data transformation patterns
+- [JSONata GitHub Issues #170](https://github.com/jsonata-js/jsonata/issues/170) - MEDIUM confidence, documents path processing edge cases
+- [JSONata GitHub Issues #496](https://github.com/jsonata-js/jsonata/issues/496) - LOW confidence, documents variable binding in transform edge case

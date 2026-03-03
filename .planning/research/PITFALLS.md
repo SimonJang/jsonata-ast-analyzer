@@ -1,290 +1,434 @@
-# Pitfalls Research
+# Domain Pitfalls: Integration Testing a Static Analysis Tool
 
-**Domain:** Static path extraction from JSONata expression ASTs
-**Researched:** 2026-03-02
-**Confidence:** HIGH (based on official JSONata docs, parser source code analysis, GitHub issues, and AST type definitions)
+**Domain:** Adding integration tests to an existing JSONata AST path analyzer
+**Researched:** 2026-03-03
+**Confidence:** HIGH (based on codebase analysis, testing anti-pattern literature, and domain-specific reasoning about this exact tool's architecture)
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Incomplete AST Node Type Coverage
+Mistakes that produce false confidence, miss real bugs, or result in a test suite that costs time without catching anything.
+
+### Pitfall 1: Tautological Assertions That Never Fail
 
 **What goes wrong:**
-The walker handles the "obvious" node types (path, name, binary, variable) but silently ignores node types it does not recognize. Paths accessed through unhandled node types (transform, sort, condition, partial, apply, parent, descendant) are never reported. The tool claims "these are all the paths" but the list is incomplete -- an under-approximation that causes exactly the data refactoring breakage this tool exists to prevent.
+Integration tests use `toContainEqual` or `expect.arrayContaining` to assert that expected paths are present in the output -- but never assert that UNEXPECTED paths are absent. A test like `expect(result).toContainEqual({ path: "orders.total", confidence: "static" })` will pass even if the tool also returns 50 spurious garbage paths. This is the single most likely failure mode for this project because the existing test suite already uses both `toContainEqual` (subset match) and `toEqual` (exact match) inconsistently -- 24 tests use exact `toEqual`, but 19 use `toContainEqual` without length checks. The new integration tests, which are more complex and harder to enumerate exhaustively, will be tempted to lean heavily on subset assertions.
 
 **Why it happens:**
-The JSONata parser produces at least 20+ distinct node types: `binary`, `unary`, `function`, `partial`, `lambda`, `condition`, `transform`, `block`, `name`, `parent`, `string`, `number`, `value`, `wildcard`, `descendant`, `variable`, `regexp`, `operator`, `error`, `path`, `filter`, `sort`, `bind`, `apply`. But the official TypeScript `ExprNode` type union is incomplete -- it lists only: `"binary" | "unary" | "function" | "partial" | "lambda" | "condition" | "transform" | "block" | "name" | "parent" | "string" | "number" | "value" | "wildcard" | "descendant" | "variable" | "regexp" | "operator" | "error"`. Missing from the union: `path`, `filter`, `sort`, `bind`, `apply`. Developers who code against the TypeScript types will miss these node types entirely. Additionally, the parser produces post-processing node types like `stages`, `group`, and `index` that are not in the type union at all.
+Complex JSONata expressions produce many paths. Enumerating every expected path is tedious. The natural shortcut is "assert the important ones are there" and skip checking that nothing extra came through. This makes the test pass today but provides zero protection against the tool spuriously adding paths after a refactor. An over-approximation bug (reporting `order.customer.address.zip` when only `order.customer.name` is accessed) would sail through every subset assertion test.
 
-**How to avoid:**
-- Do NOT rely on the `ExprNode` type union as a source of truth. Instead, analyze the actual parser source (`src/parser.js`) to enumerate all node types.
-- Build a comprehensive test suite that parses real JSONata expressions and asserts every node type in the resulting AST is handled.
-- Implement an "unknown node type" handler that throws/warns loudly rather than silently skipping. Every node type must either be explicitly handled or explicitly marked as "no paths to extract here."
-- Use a discriminated union with exhaustive checking in TypeScript (a `never` default case in a switch on node type).
+**Consequences:**
+- The test suite reports 100% pass rate but catches zero over-approximation regressions.
+- False confidence: "we have 50+ integration tests and they all pass" when the tests are structurally incapable of detecting the most common static analysis bug (reporting too many paths).
+- A future refactor that breaks the deduplication logic or adds erroneous path prefixing goes undetected.
 
-**Warning signs:**
-- Simple expressions work but complex ones miss paths.
-- No test cases for transform (`|...|...|`), sort (`^(...)`), conditional (`? :`), or parent (`%`) operators.
-- The switch/if-else chain for node types does not have a default/else case that errors.
+**Prevention:**
+- Mandate a "closed-world assertion" discipline: every integration test must use `toEqual` (exact match) as its primary assertion, not `toContainEqual` or `arrayContaining`.
+- When exact match is impractical (very complex expressions with 15+ paths), use `toEqual` with `expect.arrayContaining` PLUS an explicit `toHaveLength(N)` check -- this is what the existing test already does in 5 cases (e.g., EXPR-03 filter tests).
+- Never use `toContainEqual` without a corresponding `toHaveLength` guard.
+- Add a lint rule or review checklist: "Does this test fail if the tool returns extra paths?"
 
-**Phase to address:**
-Phase 1 (Core AST Walker). The walker must be designed from day one with exhaustive node type handling. Retrofitting this later means rewriting the core dispatch logic.
+**Detection (warning signs):**
+- A test uses `toContainEqual` without `toHaveLength`.
+- A test uses `expect.arrayContaining` without `toHaveLength`.
+- A test passes when you manually insert a bogus path into the result (mutation test it mentally).
+- The test file has no tests that assert the absence of specific paths.
+
+**Phase to address:** Phase 1 -- must be established as a convention before any tests are written.
 
 ---
 
-### Pitfall 2: Undocumented AST Properties and Hidden Path-Bearing Fields
+### Pitfall 2: Testing the Expression, Not the Tool
 
 **What goes wrong:**
-AST nodes carry paths in properties that are not obvious from the `ExprNode` TypeScript interface. The interface exposes `lhs`, `rhs`, `steps`, `expressions`, `stages`, `arguments`, `procedure`, `name`, and `value` -- all optional. But the actual parser output includes additional properties like `predicate`, `group`, `condition`, `then`, `else`, `body`, `update`, `delete`, `pattern`, `focus`, `index`, `tuple`, and boolean flags like `keepArray`/`keepSingletonArray`/`sequence`. Failing to traverse these properties means missing paths hidden inside filter predicates, sort expressions, grouping keys, conditional branches, and transform update/delete clauses.
+Integration tests validate that a JSONata expression is syntactically valid (it parses without error) and produces some output -- but the expected paths are derived by running the test author's mental model of "what paths should be here" without verifying against the JSONata specification or actual runtime behavior. The test author writes the expression, guesses what paths it accesses, writes assertions for those guesses, and the test passes because the tool happens to match their mental model. But the mental model is wrong -- the expression actually accesses different paths at runtime -- so the test is asserting the wrong answer and will pass forever.
 
 **Why it happens:**
-The JSONata AST is an internal implementation detail of the parser, not a documented public API. The TypeScript definitions are a convenience layer that does not exhaustively describe every property the parser attaches to nodes. The Go implementation of JSONata reveals additional fields including `Stages`, `Terms`, `Group`, `Predicate`, `Focus`, `Index`, `Pattern`, `Update`, `Delete`, `Condition`, `Then`, `Else`, `Body` -- many of which are path-bearing.
+JSONata has many subtle semantics:
+- `items[0].name` accesses `items` and `items.name` but NOT `items.0` -- the `[0]` is an array index, not a filter predicate. A test author might expect `items.0.name` and write a test asserting that.
+- `$sum(items.price)` accesses `items.price` as a path. A test author unfamiliar with JSONata might think `$sum` is opaque and only `items` is a data path.
+- `Account.Order.Product.(Price * %.Quantity)` -- the `%` refers to the parent `Order` object. A test author might think `%` means something else and write wrong expected paths.
+- In `$map(data, function($v, $i, $a) { $v.x + $a })`, `$a` is bound to the full array `data` (not an element), while `$v` is bound to elements. The test author might assume both are elements.
 
-**How to avoid:**
-- In Phase 1, write a "discovery harness" that parses a large corpus of JSONata expressions and logs every property found on every node, compared against what is expected. This empirically discovers the real AST shape.
-- For each node type, document which properties can contain child nodes (and thus paths). Build a property-to-child-nodes map.
-- Write tests that specifically assert paths are extracted from: filter predicates, sort expressions, grouping keys, conditional then/else branches, transform update/delete clauses, lambda bodies, and block expressions.
-- Extend or replace the `ExprNode` type with a comprehensive discriminated union that accurately models the parser output.
+**Consequences:**
+- Tests lock in wrong behavior as "correct." Future developers who fix a genuine bug will see these tests fail and assume the fix is wrong.
+- The test suite becomes an obstacle to correctness improvement rather than a safety net.
 
-**Warning signs:**
-- Paths inside `[predicate]` expressions are not extracted.
-- Paths in `^(sort_expr)` sort clauses are not found.
-- Paths in `{group_key: aggregate}` reduce expressions are not found.
-- Conditional branches (`condition ? then_path : else_path`) only extract paths from one branch.
+**Prevention:**
+- For each integration test scenario, manually trace through what the JSONata expression does with a concrete sample input. Write down: "Given input X, this expression evaluates by reading paths A, B, C." Use the [JSONata Exerciser](https://try.jsonata.org) to verify the expression's behavior.
+- Cross-reference expected paths against the existing v1.0 unit tests for the constituent features (filters, variables, higher-order functions) that the integration test combines.
+- Include a comment in each test explaining WHY each path is expected, referencing specific JSONata semantics (e.g., "// $v is bound to elements of items, so $v.name resolves to items.name").
+- For contentious cases, add a companion comment: "// Verified via JSONata Exerciser with input { items: [{ name: 'x' }] }".
 
-**Phase to address:**
-Phase 1 (Core AST Walker). Must be addressed before any node-type-specific handling is built, because the traversal infrastructure needs to know which properties to recurse into.
+**Detection (warning signs):**
+- Test has no comment explaining why specific paths are expected.
+- Test author cannot explain the distinction between `items[0]` (index) and `items[active]` (filter) in terms of path extraction behavior.
+- Expected paths include things like `items.0` (index-as-path) or `$sum` (function name as path).
+- Tests never have a "this path should NOT appear" negative assertion.
+
+**Phase to address:** Phase 1 -- test design principles must be established before writing tests.
 
 ---
 
-### Pitfall 3: Variable Binding Scope Resolution Errors
+### Pitfall 3: Integration Tests That Are Just Longer Unit Tests
 
 **What goes wrong:**
-JSONata variables (`$var := expr`) are aliases to data paths. The expression `($x := account.name; $x)` accesses `account.name`, but a naive walker that does not trace variable bindings will report `$x` as the path instead of `account.name`. Worse, JSONata has lexical scoping with closures: variables bound inside blocks go out of scope at the end of the block, lambda definitions capture their enclosing scope, and the `@` and `#` operators bind context/position variables that go out of scope at the end of the path expression. Getting scope wrong means either missing paths (variable resolves to nothing) or reporting phantom paths (variable resolves to the wrong binding).
+The "integration" tests are actually just unit tests with longer expressions. Instead of testing the interaction between features (variable tracing + filter predicates + lambda bindings in a single expression), they test one feature at a time with a slightly more complex expression. The 50+ integration tests end up being 50 variations of the 105 existing unit tests, adding coverage volume but not coverage depth. They pass for the same reason the unit tests pass and would fail for the same reason the unit tests fail. They catch zero new bugs.
 
 **Why it happens:**
-JSONata's scoping rules are non-trivial:
-- Block expressions `(...)` create scope frames.
-- Variable bindings (`:=`) are scoped to their containing block and nested blocks.
-- Lambda definitions capture a snapshot of the environment (closures).
-- `@` (context binding) and `#` (positional binding) create variables scoped to the remainder of the current path expression only.
-- The reduce operator `{...}` terminates the current path expression, making prior `@`/`#` bindings inaccessible.
+Writing genuinely integrated expressions is hard. It requires understanding how JSONata features compose. The temptation is to start with a simple expression and add "one more thing" -- but the "one more thing" doesn't actually interact with the first feature. For example:
 
-Static analysis must model these scope rules without executing the expression. Incorrect scope modeling is the single most likely source of subtle, hard-to-detect bugs.
+- **Not integration:** `($x := account.name; $x)` (just variable tracing -- already covered by SCOPE-01 unit tests)
+- **Not integration:** `items[price > 10]` (just filter predicates -- already covered by EXPR-03 unit tests)
+- **Integration:** `($threshold := config.minPrice; items[price > $threshold].name)` (variable tracing AND filter predicates AND path continuation interact -- the filter uses a variable, and the result path continues past the filter)
 
-**How to avoid:**
-- Build an explicit scope model: a stack of scope frames, each containing variable-to-path mappings. Push frames on block/lambda entry, pop on exit.
-- For `@` and `#` bindings, track that their scope is the remainder of the path expression, not the containing block.
-- For lambda closures, capture the scope at definition time, not invocation time.
-- For `:=` bindings, resolve the RHS path in the current scope before adding the variable to the scope.
-- Write dedicated test cases for: nested blocks with shadowed variables, lambdas that close over outer variables, `@`/`#` bindings used in subsequent filter predicates, and the reduce operator terminating scope.
+**Consequences:**
+- 50+ tests that add maintenance burden but catch no bugs the 105 unit tests wouldn't catch.
+- False confidence that "integration testing is complete" when the interactions between features are untested.
+- The scenarios the tool is most likely to get wrong (feature interactions) remain untested.
 
-**Warning signs:**
-- Variables resolve to `undefined` instead of their bound path.
-- Inner block variable shadows are not detected (inner `$x` masks outer `$x`).
-- Lambda bodies report paths relative to their call site rather than their definition site.
-- `@`/`#` variables are accessible after the path expression ends.
+**Prevention:**
+- Define "integration test" operationally: an integration test MUST combine at least 2 of the following features in a way where they interact (one feature's output feeds another's input):
+  - Variable tracing (`:=` / `$var`)
+  - Filter predicates (`[...]`)
+  - Higher-order functions (`$map`, `$filter`, `$reduce`)
+  - Lambda closures (capturing outer scope variables)
+  - Sort/group-by operators (`^(...)` / `{key: value}`)
+  - Transform operator (`|...|...|`)
+  - Parent operator (`%`)
+  - Dynamic bracket wildcard (`[$var]`)
+  - Object constructors with path-derived values (`{"key": expr}`)
+  - Apply/chaining operator (`~>`)
+- Each test must document which features are interacting and how.
+- Organize tests by interaction pattern, not by primary feature.
 
-**Phase to address:**
-Phase 2 (Variable Tracing). This is the second-hardest problem after getting the basic walker right. Must be a dedicated phase because scope modeling requires careful design.
+**Detection (warning signs):**
+- A test expression uses only one JSONata feature.
+- A test can be reduced to an existing unit test by removing surrounding context.
+- The test would be caught by running the existing 105 unit tests (it exercises no new interaction).
+- Tests are organized by feature ("filter tests", "variable tests") rather than by scenario ("data pipeline with filtering and reshaping").
+
+**Phase to address:** Phase 1 -- test categorization and scenario design before writing any tests.
 
 ---
 
-### Pitfall 4: Over-Approximation vs. Under-Approximation Strategy Not Decided Up Front
+### Pitfall 4: Snapshot Tests Without Intent Documentation
 
 **What goes wrong:**
-When static analysis cannot determine the exact set of paths (e.g., computed property names, `$eval`, higher-order functions), the tool must choose: report more paths than are actually accessed (over-approximation/safe for refactoring) or fewer paths (under-approximation/precise but risky). Without a deliberate, consistent strategy, some code paths over-approximate while others under-approximate, making the tool's guarantees meaningless. Users cannot trust it for safe refactoring (needs over-approximation) or for fetch optimization (benefits from precision).
+To avoid the tedium of enumerating all expected paths for complex expressions, the test suite adopts snapshot testing (`toMatchInlineSnapshot`). The initial run generates snapshots. Future runs compare against those snapshots. This creates two failure modes:
 
-**Why it happens:**
-Different language features push toward different strategies:
-- Computed property names (`obj[variable]`) -- cannot statically resolve, must approximate.
-- `$eval(string_expr)` -- dynamically evaluates an expression, completely opaque to static analysis.
-- Higher-order functions (`$map`, `$filter`, `$reduce`, `$each`) -- callback functions access data, but the specific paths depend on what collection is passed.
-- `**` (recursive descent) -- matches all descendants, inherently imprecise about which specific paths.
-- Custom registered functions -- opaque to static analysis; may access any path.
+1. **Snapshot blindly accepted:** The first run's output becomes the "expected" value without anyone verifying it is correct. If the tool has a bug in path extraction for complex expressions, the snapshot locks in the wrong answer.
+2. **Snapshot blindly updated:** When the tool's behavior changes (bug fix or regression), developers run `vitest -u` to update all snapshots without reviewing whether each change is an improvement or a regression. Research consistently shows this happens in practice -- teams become conditioned to update snapshots reflexively.
 
-**How to avoid:**
-- Decide the strategy in Phase 1 and document it: this tool should OVER-APPROXIMATE (report a superset of actual paths). This is the correct choice for the stated use cases (safe refactoring, fetch optimization). Missing a path is worse than reporting an extra one.
-- For computed property names: use wildcard (`obj[*]`) as the project already plans.
-- For `$eval`: report the entire input as potentially accessed (or flag as "cannot analyze").
-- For `**`: report a wildcard descendant marker rather than trying to enumerate specific paths.
-- For higher-order functions: trace the callback body and combine with the collection's known paths.
-- For custom functions: flag as "opaque -- all paths potentially accessed" or allow user annotation.
-- Document the approximation strategy in the API so users understand the guarantees.
+**Consequences:**
+- Snapshots lock in bugs as "correct behavior."
+- Behavior regressions are auto-accepted by `vitest -u`.
+- No one can tell from a snapshot diff whether a change is correct without understanding the JSONata expression AND the tool's intended behavior -- which no reviewer will do for 50+ tests.
+- The test suite becomes a change detector (alerts on any change) rather than a correctness validator (alerts on incorrect changes).
 
-**Warning signs:**
-- No test cases for computed properties, `$eval`, `**`, or higher-order functions.
-- Some code paths return empty arrays (under-approximation) while others return wildcards (over-approximation).
-- No documentation about what guarantees the tool provides.
+**Prevention:**
+- Use snapshots only as a SECONDARY validation, never as the primary assertion. The primary assertion must be explicit: `toEqual([...expected paths...])`.
+- If snapshots are used, every snapshot test must have a companion comment explaining what the correct output should be and why. The comment is the source of truth; the snapshot is the automated check.
+- Better alternative: use "golden file" testing where expected outputs are in a separate, reviewed file with comments. Changes to golden files require review.
+- Best alternative for this project: use exact `toEqual` assertions for all integration tests. The tool's output is a small array of `{ path, confidence }` objects -- manageable even for complex expressions (typically 5-15 paths). Snapshots are unnecessary.
 
-**Phase to address:**
-Phase 1 (Architecture Decision). Must be decided before writing any extraction logic, because the strategy affects every handler.
+**Detection (warning signs):**
+- `toMatchInlineSnapshot` or `toMatchSnapshot` appears in integration tests.
+- A PR updates snapshots without per-snapshot review comments.
+- No one can explain why a specific snapshot value is correct.
+- Tests have snapshots but no explicit assertions.
+
+**Phase to address:** Phase 1 -- assertion strategy must ban snapshots as primary assertions.
 
 ---
 
-### Pitfall 5: Path Flattening and the Stages/Steps Distinction
+### Pitfall 5: Missing the "Silence is Wrong" Scenarios
 
 **What goes wrong:**
-The JSONata parser post-processes the AST to "flatten" paths. Chained `.` operators are collapsed into a single `path` node with a `steps` array. But filter predicates, sort expressions, and reduce operations are NOT part of the steps array -- they are stored as `stages` on individual step nodes. A walker that only traverses `steps` on path nodes will miss all paths inside filter predicates, sort keys, and grouping expressions.
+The tool returns an empty array `[]` for expressions it cannot analyze. Tests that expect non-empty results will catch bugs where the tool misses paths. But tests never cover the scenario where the tool should return something but returns nothing -- because the test author doesn't know the expression should produce paths. This is especially dangerous for:
+
+- Variable chains that fail to resolve (resolve returns `null`, paths silently dropped).
+- Lambda parameters that aren't bound by higher-order function semantics (parameter reference produces empty array).
+- `walkNode` hitting the `default` branch for an unrecognized node type (returns `[]`).
+- Filter predicates where `isNumericIndex` incorrectly classifies a predicate as a numeric index (skipped silently).
+
+In all these cases, the tool returns `[]` or a partial result, the test asserts that specific paths are present using `toContainEqual`, and the missing paths go unnoticed because no one asserts they should be there.
 
 **Why it happens:**
-The parser's post-processing phase transforms the raw AST:
-1. Sequences of `.` (map) operations become a `path` node with `steps: [step1, step2, ...]`.
-2. Filter predicates `[expr]` become entries in a `stages` array on the preceding step node, not as children of the path node.
-3. Sort `^(expr)`, index `#$var`, join `@$var`, and reduce `{...}` are also stored as stages.
-4. The `tuple` flag on a node indicates it supports focus/index binding.
+The library's design philosophy is "over-approximate: report a superset of actual paths rather than risk missing paths." But the implementation has many code paths that silently return `[]` (under-approximate). The gap between design intent and implementation creates exactly the class of bug that integration tests should catch -- but only if the tests know which paths to expect.
 
-This two-level structure (path.steps[].stages[]) is not obvious from the TypeScript types, where `stages` is just listed as an optional `ExprNode[]`.
+Specific silent-drop code paths in `walker.ts`:
+- Line 127: "Unresolvable variable in path: drop the entire path (silent skip)" -- returns `[]`.
+- Line 79: "Unknown node type -- skip silently" -- returns `[]`.
+- Line 407: "Unresolvable variable: silent skip" -- returns `[]`.
+- Line 70: literals return `[]` (correct, but interacts with variable resolution -- a variable bound to a literal resolves to `[]`).
 
-**How to avoid:**
-- When processing a `path` node, iterate over `steps` AND for each step, also iterate over its `stages` array.
-- Each stage itself is an AST node that may contain paths (e.g., a filter stage contains a predicate expression with paths to extract).
-- Write explicit test cases: `items[price > 10]` should extract `items.price`; `items^(price)` should extract `items.price`; `items{category: $sum(price)}` should extract `items.category` and `items.price`.
+**Consequences:**
+- The most insidious class of bugs -- silent data loss -- goes undetected.
+- A refactor that breaks variable resolution will cause many paths to silently disappear. If tests only check for presence of some paths, the missing paths go unnoticed.
+- The test suite provides no protection against the tool's most dangerous failure mode.
 
-**Warning signs:**
-- `account.orders[status = "active"]` only reports `account.orders` but not `account.orders.status`.
-- Sort expressions like `account.orders^(date)` do not report `account.orders.date`.
-- Grouping like `account.orders{category: $sum(total)}` misses `account.orders.category` and `account.orders.total`.
+**Prevention:**
+- Every integration test MUST use `toEqual` (exact match) so that missing paths cause test failure. This is the same solution as Pitfall 1 but applied from a different angle -- Pitfall 1 catches extra paths, this catches missing paths.
+- Write specific "resolution chain" tests where a variable is bound through 3+ levels and the final path is asserted. If any link in the chain breaks, the path disappears entirely.
+- Write tests for expressions where the tool's known "silent skip" code paths could be triggered incorrectly:
+  - A variable that SHOULD resolve but might not due to scope ordering.
+  - A filter predicate that contains a variable reference (not numeric, but could be misclassified).
+  - A node type that the walker handles but whose child traversal is incomplete.
+- Track the number of paths returned as a canary metric: if a complex 20-path expression suddenly returns 15 paths, something silently dropped.
 
-**Phase to address:**
-Phase 1 (Core AST Walker). The steps/stages traversal is fundamental to the walker's correctness and must be built into the core traversal logic.
+**Detection (warning signs):**
+- Integration test expects `[]` without explaining why zero paths is the correct answer.
+- Tests only assert positive cases (these paths should be present), never negative cases (these paths should not be absent).
+- No tests exercise the 3+ hop variable chain resolution.
+- No tests verify that the tool's output count matches expectation.
+
+**Phase to address:** Phase 1 and ongoing -- every test must be checked against this criterion.
 
 ---
 
-### Pitfall 6: The Parent Operator (%) Requires Backward Path Resolution
+## Moderate Pitfalls
+
+### Pitfall 6: Not Testing Feature Interactions at the Boundary
 
 **What goes wrong:**
-The parent operator `%` navigates "upward" in the input data structure. For example, in `Account.Order.Product.(Price * %.Quantity)`, the `%` refers to the `Order` object (the parent of `Product`), so `%.Quantity` means `Account.Order.Quantity`. Static analysis must resolve `%` by tracking the navigation context -- knowing which object is the "current" object at any point in a path expression and computing what its parent would be. Getting this wrong means either missing the path entirely or reporting the wrong path.
+Unit tests verify each feature in isolation. Integration tests combine features -- but only in the "happy path" middle. The bugs live at feature boundaries:
 
-**Why it happens:**
-The parent operator is the only JSONata feature that navigates "backwards" in the input structure. JSONata itself implements `%` via static analysis at compile time, and the documentation notes that if the parent location cannot be determined, a static error (S0217) is thrown. This means the JSONata parser/compiler already does the hard work of resolving parent references, but the resolved information may or may not be exposed in the AST. If the AST only contains the raw `%` node without the resolved parent path, the analyzer must replicate JSONata's own static analysis logic.
+- What happens when a filter predicate inside a `$map` callback references a variable from the outer scope? (Filter + Lambda + Variable interaction)
+- What happens when a sort expression sorts by a computed key that involves a variable? (Sort + Variable interaction)
+- What happens when the parent operator `%` is used inside a filter predicate inside a `$map` callback? (Parent + Filter + Lambda interaction)
+- What happens when `~>` pipes into a custom function whose body uses a filter? (Apply + Custom function + Filter interaction)
+- What happens when an object constructor has a key derived from a filter result? (Object constructor + Filter interaction)
 
-**How to avoid:**
-- First, investigate whether the JSONata parser's AST output for `%` includes any resolved path information or only the raw `parent` node type. Parse a test expression with `%` and inspect the AST.
-- If the AST contains resolved information: extract it directly.
-- If it does not: implement a context-tracking mechanism that, while walking a path expression, maintains a stack of "current objects" so that `%` can be resolved to the parent path segment.
-- Support chained `%.%` for grandparent access.
-- Test edge cases: `%` at the top level (should be an error), `%.%.field` for deep parent navigation, `%` inside filter predicates.
+**Prevention:**
+- Create a "feature interaction matrix" -- a grid of all 10 features vs. all 10 features. Each cell that represents a meaningful interaction should have at least one test.
+- Focus tests on 3-way interactions (feature A inside feature B inside feature C) since those are where scope and context bugs manifest.
+- Example critical 3-way interactions for this codebase:
+  - Variable + Filter + Lambda: `($threshold := 10; $map(items, function($v) { $v[price > $threshold] }))`
+  - Variable + Custom function + Apply: `($fn := function($x) { $x.name }; data ~> $fn())`
+  - Filter + Sort + Path continuation: `items[active]^(price).name`
+  - Lambda + Parent + Filter: `$map(items, function($v) { $v[%.category = "A"] })`
+  - Transform + Variable + Object constructor: `($prefix := "new"; | data | {$prefix & "Name": firstName} |)`
 
-**Warning signs:**
-- Test expressions with `%` produce empty path results.
-- `%.field` resolves to just `field` without the parent path prefix.
-- No test cases use the parent operator at all.
+**Detection (warning signs):**
+- No test has 3+ features interacting.
+- Tests are organized by primary feature, not by interaction pattern.
+- The feature interaction matrix has empty cells for combinations involving filter + variable + lambda.
 
-**Phase to address:**
-Phase 3 (Advanced Operators). This is one of the most complex features and should be deferred until the basic walker and variable tracing are solid.
+**Phase to address:** Phase 2 -- after basic integration test infrastructure is established.
 
 ---
 
-## Technical Debt Patterns
+### Pitfall 7: Confidence Level Assertions Are Missing or Incorrect
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Using `any` types for AST nodes instead of discriminated unions | Faster initial development, avoids fighting incomplete TypeScript types | Every handler needs runtime type checking; refactoring is error-prone; no compile-time exhaustiveness checking | Never -- invest in proper types from the start, as the custom types are the tool's foundation |
-| Hardcoding built-in function behavior instead of a function registry | Handles common functions quickly | Adding new function awareness requires code changes; custom registered functions are unhandled | Phase 1 MVP only -- replace with registry in Phase 2 |
-| Testing only with simple expressions (e.g., `a.b.c`) | Quick to write, builds false confidence | Complex expressions with filters, sorts, conditionals, transforms are where bugs live | Never -- always include complex expressions from the first test suite |
-| Ignoring `$eval()` as an edge case | Avoids the hardest static analysis problem | Users who use `$eval` get incorrect results with no warning | Acceptable if `$eval` is explicitly flagged as "cannot analyze" with a warning |
-| String-based path comparison instead of structured path representation | Simple to implement and display | Cannot distinguish `a.b` (path) from `a[*].b` (path through wildcard) or `a.b` (two steps) from `a.b` (one step with dot in name) | Never -- use structured path arrays from the start |
+**What goes wrong:**
+The tool annotates each path with a confidence level (`static`, `dynamic`, or `partial`). Integration tests assert the `path` field but ignore or incorrectly assert the `confidence` field. This is especially dangerous because:
 
-## Integration Gotchas
+- A path through a parent operator (`%`) should be `partial`, not `static`.
+- A path through a dynamic bracket (`[$var]`) should be `dynamic`, not `static`.
+- A path resolved through a 3-hop variable chain should still be `static` (fully resolvable).
+- All other paths should be `static`.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| JSONata parser (`jsonata` npm package) | Calling `jsonata(expr).evaluate()` when you only need the AST | Call `jsonata(expr).ast()` -- never evaluate. The parser and evaluator are bundled together but only the parser is needed. Evaluation would require input data and is out of scope. |
-| JSONata parser version | Assuming AST structure is stable across versions | Pin the JSONata version. The AST is an internal API -- node types, property names, and structure can change between versions without notice. Test against the pinned version's actual output. |
-| JSONata parser error handling | Assuming all expressions parse successfully | JSONata throws on syntax errors with error codes (S01xx series). Wrap `jsonata(expr)` in try/catch and return meaningful error messages including the position of the syntax error. |
-| TypeScript types from `jsonata` | Trusting `ExprNode` as a complete type | The `ExprNode` interface is missing node types (`path`, `filter`, `sort`, `bind`, `apply`) and properties (`predicate`, `group`, `condition`, `then`, `else`, `body`, `update`, `delete`, `pattern`, `focus`, `index`, `tuple`). Create your own comprehensive types. |
-| Singleton array behavior | Assuming path results are always arrays | JSONata has "sequence flattening" where single values are unwrapped and nested sequences are flattened. AST nodes may have `keepArray`, `keepSingletonArray`, and `sequence` flags that affect this. These flags don't affect path extraction directly but can cause confusion when comparing tool output to JSONata evaluation output. |
+If confidence is wrong, downstream consumers (e.g., a schema validator that only validates `static` paths) will silently skip paths that should be validated, or attempt to validate paths that cannot be resolved.
 
-## Performance Traps
+**Prevention:**
+- Every integration test assertion must include the `confidence` field, not just `path`.
+- Group tests by expected confidence outcome: "these expressions should produce only static paths," "these should produce at least one dynamic path," "these should produce at least one partial path."
+- Write specific tests for confidence transitions:
+  - Variable bound to a `%`-containing path: the resolved reference should inherit `partial` confidence.
+  - Variable bound to a `[*]`-containing path: the resolved reference should inherit `dynamic` confidence.
+  - Filter predicate on a statically resolvable path: should remain `static`.
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Recursive AST traversal without cycle detection | Stack overflow on deeply nested expressions | JSONata expressions can be deeply nested (especially with chained transforms or complex conditionals). Use iterative traversal or set a maximum recursion depth. In practice, JSONata expressions rarely exceed 50-100 levels of nesting. | Expressions with 1000+ nesting levels (unlikely in practice but possible with generated expressions) |
-| Re-resolving variable bindings on every reference | O(n*m) where n=variable references, m=scope depth | Cache resolved bindings in the scope frame. Once `$x` is resolved to `account.name`, store it. | Expressions with 100+ variable references in deeply nested scopes |
-| Parsing the same expression multiple times | Unnecessary CPU cost if the tool is used in a batch pipeline analyzing many expressions | Cache parsed ASTs. `jsonata(expr).ast()` is deterministic for the same input. | Batch analysis of 10,000+ expressions |
-| Building path strings by concatenation | Creates many intermediate strings; makes path comparison expensive | Use arrays of path segments internally. Only join to a string for display. | Not a scale issue per se, but a correctness and performance hygiene issue |
+**Detection (warning signs):**
+- Tests assert `{ path: "foo.bar" }` using `toMatchObject` or `objectContaining` without `confidence`.
+- No test specifically validates that `partial` or `dynamic` confidence is assigned correctly in integration scenarios.
+- The `deriveConfidence` function is tested indirectly only through `extractPaths` -- but integration tests don't verify its output.
 
-## Security Mistakes
+**Phase to address:** Phase 1 -- include confidence in all assertions from the start.
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Not handling `$eval()` in analyzed expressions | The tool reports paths for the outer expression but misses all paths accessed by the dynamically evaluated inner expression, giving a false sense of completeness | Flag `$eval()` occurrences as "dynamic evaluation detected -- path analysis is incomplete for this expression." Do NOT silently ignore it. |
-| Treating user-provided JSONata expressions as safe to parse | The JSONata parser itself could theoretically have bugs that cause issues with maliciously crafted input | Run the parser in a try/catch, set a timeout for parsing (JSONata parsing is normally fast but pathological inputs are possible), and limit input expression length if exposed as a web service. |
-| Exposing the tool as an API without input validation | ReDoS-style attacks on the JSONata parser, resource exhaustion | Validate expression length, set parsing timeouts, rate-limit API endpoints. |
+---
 
-## UX Pitfalls
+### Pitfall 8: Expressions Not Representative of Production JSONata
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| Reporting paths as flat strings without context | User sees `price` but does not know if it comes from `items[].price` or `order.price` or a filter predicate | Report full paths with their origin context: `items[].price` (from filter predicate), `order.price` (from direct access) |
-| Not distinguishing "definitely accessed" from "possibly accessed" | User cannot tell if a path is always read or only read in one conditional branch | Tag paths with certainty: `definite` (always accessed) vs `conditional` (inside if/else) vs `approximate` (inside wildcard/computed access) |
-| Silently returning empty results for expressions with `$eval` or custom functions | User trusts the empty result as "no paths accessed" | Return a warning/flag when analysis is incomplete due to dynamic features |
-| Not showing which part of the expression accesses each path | User cannot trace back from a reported path to the expression fragment that uses it | Include source position references (the AST has `position` on each node) so paths can be traced back to expression locations |
-| Outputting paths in a non-deterministic order | Diff-based workflows break, test assertions become fragile | Sort output paths alphabetically or by source position -- pick one and be consistent |
+**What goes wrong:**
+Integration test expressions are invented by the test author as "this seems complex enough" rather than derived from actual production JSONata usage. The result is expressions that exercise the tool's features but not in the patterns that real users write. Real-world JSONata has characteristic patterns that synthetic tests rarely capture:
 
-## "Looks Done But Isn't" Checklist
+- **Multi-line with whitespace:** Real expressions are 10-30 lines with indentation. The parser handles whitespace correctly, but tests that use single-line expressions never verify this.
+- **Chained transforms:** `data ~> $map(...) ~> $filter(...) ~> $reduce(...)` is common in data pipelines but rarely appears in test suites.
+- **Nested object construction with mixed sources:** `{ "id": order.id, "total": $sum(order.items.price), "active": order.status = "active" }` mixes paths, aggregations, and comparisons in a single object constructor.
+- **Variable-heavy business rules:** 5+ variables assigned at the top of a block, used in complex conditionals with nested ternaries.
+- **Lookup patterns:** `Account.Order.Product.$lookup(catalog, SKU)` -- using `$lookup` with cross-collection references.
+- **Guard clauses:** `$exists(field) ? field.subfield : "default"` as a common defensive pattern.
 
-- [ ] **Basic path extraction:** Often missing paths inside filter predicates -- verify `items[price > 10]` extracts `items.price`
-- [ ] **Variable tracing:** Often missing multi-hop chains -- verify `($a := x.y; $b := $a.z; $b)` extracts `x.y.z`
-- [ ] **Conditional branches:** Often only traverses the `then` branch -- verify both branches of `condition ? path_a : path_b` are extracted
-- [ ] **Lambda bodies:** Often skipped entirely -- verify `$map(items, function($v) { $v.name })` extracts `items.name` (or at minimum `items` + notes lambda body access)
-- [ ] **Transform operator:** Often ignored -- verify `$ ~> |account.order|{"total": price * qty}|` extracts `account.order.price` and `account.order.qty`
-- [ ] **Sort expressions:** Often missed -- verify `items^(price)` extracts `items.price`
-- [ ] **Grouping/reduce expressions:** Often missed -- verify `items{category: $sum(price)}` extracts `items.category` and `items.price`
-- [ ] **Recursive descent:** Often returns nothing useful -- verify `**.price` reports a descendant wildcard path marker
-- [ ] **Parent operator:** Often crashes or returns empty -- verify `Product.(Price * %.Quantity)` extracts both `Product.Price` and the parent-relative `Quantity` path
-- [ ] **Negative test cases:** Verify that string literals, number literals, and boolean constants are NOT reported as paths
-- [ ] **Context binding operators:** Often ignored -- verify `items@$item.name` properly traces the `@` binding and extracts `items.name`
-- [ ] **Chained function application:** Often only traces one step -- verify `data ~> $map(fn) ~> $filter(fn2)` traces through the entire chain
+**Prevention:**
+- Source test expressions from:
+  1. JSONata documentation examples (https://docs.jsonata.org).
+  2. AWS Step Functions JSONata examples (real production patterns).
+  3. JSONata GitHub issues and discussions (user-reported expressions).
+  4. The JSONata Exerciser example library.
+- Categorize tests by real-world use case pattern, not by language feature:
+  - Data transformation pipelines (ETL reshape)
+  - Business rule evaluation
+  - API response reshaping
+  - Configuration/template expansion
+  - Data export/format conversion
 
-## Recovery Strategies
+**Detection (warning signs):**
+- All test expressions fit on one line.
+- No test uses multi-line string templates for expressions.
+- Test expressions use generic names (`a`, `b`, `x`, `y`) instead of domain-realistic names (`order.items.price`, `customer.address.city`).
+- No test expression uses more than 3 features together.
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Incomplete node type coverage | MEDIUM | Add missing handlers one by one. Each handler is relatively independent. The hard part is finding which types are missing -- use the discovery harness. |
-| Missing hidden AST properties | MEDIUM | Parse a comprehensive expression corpus and diff actual vs expected properties. Add traversal for each missing property. |
-| Wrong variable scoping | HIGH | Scope model is deeply embedded in the walker. May require redesigning the scope representation and re-testing all variable-related test cases. |
-| No over/under-approximation strategy | HIGH | Requires auditing every handler to ensure consistent behavior. Retrofitting a consistent strategy means changing return values throughout. |
-| Missed stages on path steps | LOW | Localized fix -- add stages iteration in the path handler. But must then add tests for all stage types (filter, sort, index, join, reduce). |
-| Parent operator not handled | LOW | Self-contained feature. Can be added as a new handler without changing existing logic. Needs context tracking addition. |
+**Phase to address:** Phase 1 -- scenario design must be grounded in real-world patterns.
 
-## Pitfall-to-Phase Mapping
+---
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Incomplete node type coverage | Phase 1: Core AST Walker | Exhaustive switch with `never` default compiles; all known node types have a handler; discovery harness finds no unhandled types |
-| Undocumented AST properties | Phase 1: Core AST Walker | Discovery harness parsing 50+ diverse expressions finds no un-traversed properties that contain ExprNode children |
-| Variable binding scope errors | Phase 2: Variable Tracing | Test suite with nested scopes, shadowing, closures, `@`/`#` bindings all pass; scope frames push/pop correctly |
-| Over/under-approximation strategy | Phase 1: Architecture Decision | Strategy documented; every handler reviewed for consistency; computed properties use wildcards; `$eval` flagged |
-| Path flattening / stages | Phase 1: Core AST Walker | Test cases for filter, sort, index, join, reduce stages all extract paths from predicate/key expressions |
-| Parent operator resolution | Phase 3: Advanced Operators | Test cases with `%`, `%.%`, `%` in predicates all resolve to correct parent-relative paths |
-| Higher-order function tracing | Phase 2: Variable Tracing / Phase 3: Advanced | `$map`, `$filter`, `$reduce`, `$each`, `$sift` all trace callback body paths combined with collection paths |
-| `$eval` and dynamic analysis boundaries | Phase 3: Advanced Operators | `$eval` occurrences produce explicit warnings; tool output includes "analysis incomplete" flag |
-| Custom registered functions | Phase 3: Advanced Operators | Opaque function calls produce "cannot analyze" annotations; optional user-provided function signatures supported |
-| Incomplete TypeScript types | Phase 1: Core AST Walker | Custom discriminated union type replaces `ExprNode`; all properties documented; type-safe handlers for each node type |
+### Pitfall 9: Test Ordering and Deduplication Sensitivity
+
+**What goes wrong:**
+The tool deduplicates paths using `Set` (insertion order preserved) and returns them in discovery order. Integration test assertions using `toEqual` require exact ordering. When the walker's traversal order changes (e.g., a refactor processes binary operator LHS before RHS instead of RHS before LHS), all integration tests break even though the output is semantically identical. This makes tests brittle -- they fail on correct behavior changes.
+
+**Why it happens:**
+The current implementation in `index.ts` line 44: `const unique = [...new Set(rawPaths)]` preserves insertion order. The walker processes nodes in a specific order (e.g., `walkBinary` processes `lhs` then `rhs`). If that order changes, the output order changes, and `toEqual` fails.
+
+**Consequences:**
+- A correct refactor that changes traversal order breaks all integration tests.
+- Developers waste time debugging "failures" that are actually just order changes.
+- Developers may be tempted to switch to `arrayContaining` (losing the benefits of exact matching) to avoid order sensitivity.
+
+**Prevention:**
+- Sort results before assertion: `expect(result.sort((a, b) => a.path.localeCompare(b.path))).toEqual(expected.sort(...))`.
+- Better: create a test utility function `expectPaths(expression, expectedPaths)` that sorts both arrays before comparing. Use this consistently across all tests.
+- Alternative: sort the output of `extractPaths` itself (in the implementation). This makes the API deterministic and order-insensitive. The existing test suite would need updating but the API becomes more predictable.
+- If sort-in-implementation is too invasive for v1.1, sort in the test helper only.
+
+**Detection (warning signs):**
+- A test fails after a correct refactor due to path ordering changes.
+- Different tests use different assertion strategies (some `toEqual`, some `arrayContaining`), making the suite inconsistent.
+- No shared test utility for path assertion.
+
+**Phase to address:** Phase 1 -- create the test utility before writing integration tests.
+
+---
+
+## Minor Pitfalls
+
+### Pitfall 10: Test File Organization Becomes Unmanageable
+
+**What goes wrong:**
+Adding 50+ integration tests to the existing `test/extract-paths.test.ts` (already 848 lines, 105 tests) creates a 1500+ line test file that is hard to navigate, review, and maintain. Test failures become hard to locate. New tests get appended at the bottom without organization.
+
+**Prevention:**
+- Create a separate test file: `test/integration/` directory with one file per scenario category:
+  - `test/integration/data-pipelines.test.ts`
+  - `test/integration/business-rules.test.ts`
+  - `test/integration/api-reshaping.test.ts`
+  - `test/integration/data-export.test.ts`
+  - `test/integration/edge-cases.test.ts`
+- Keep the existing `extract-paths.test.ts` as the unit test file.
+- Each integration test file should import and use the same `expectPaths` utility.
+
+**Detection (warning signs):**
+- The test file exceeds 1500 lines.
+- Tests are hard to find by scenario.
+- PR reviews of test changes require scrolling past hundreds of unrelated tests.
+
+**Phase to address:** Phase 1 -- file structure before writing tests.
+
+---
+
+### Pitfall 11: Ignoring the Known Tech Debt in Test Design
+
+**What goes wrong:**
+The PROJECT.md documents two pieces of known tech debt:
+1. `$sort` higher-order semantics defined but untested (handled by `walkSortTerms`, not via `HIGHER_ORDER_SEMANTICS`).
+2. `$lookup` not in `HIGHER_ORDER_SEMANTICS`; standalone `BindNode` outside block untested.
+
+Integration tests that use `$sort` with a lambda callback or `$lookup` may reveal that these features don't work correctly -- but only if the test exercises them. If integration tests avoid these features (because the test author sticks to "safe" territory), the tech debt persists and grows.
+
+**Prevention:**
+- Include at least one integration test that exercises each known tech debt item:
+  - `$sort(items, function($a, $b) { $a.price - $b.price })` -- tests the higher-order semantics of `$sort`.
+  - `$lookup(table, key)` -- tests the non-higher-order handling of `$lookup`.
+  - Standalone `$x := value` outside a block -- tests the `walkBind` path.
+- If these tests reveal bugs, document them as v1.2 fixes, but at least the tests exist as failing/skipped tests that track the debt.
+
+**Detection (warning signs):**
+- No integration test uses `$sort` with a lambda callback.
+- No integration test uses `$lookup`.
+- Known tech debt from PROJECT.md is not represented in any test.
+
+**Phase to address:** Phase 3 -- after the core integration tests are established, add edge-case tests targeting known debt.
+
+---
+
+### Pitfall 12: Not Testing the CLI Interface in Integration
+
+**What goes wrong:**
+The library has a CLI tool (`jsonata-paths`). Integration tests test the library API (`extractPaths`) but not the CLI. The CLI could have bugs in:
+- Argument parsing (expression escaping in shell).
+- Stdin reading (piped input).
+- Output formatting (JSON vs. text).
+- Error message formatting (already had a bug where error objects showed as `[object Object]`, fixed in v1.0 Phase 7).
+
+**Prevention:**
+- Include a small number of CLI integration tests (3-5) that:
+  - Pass a complex expression as a CLI argument and verify JSON output.
+  - Pipe a multi-line expression via stdin and verify output.
+  - Pass an invalid expression and verify error formatting.
+- Use `execFileSync` as the existing Phase 7 test does.
+
+**Detection (warning signs):**
+- No test invokes the CLI binary.
+- The CLI is tested only by the single error-formatting test from Phase 7.
+
+**Phase to address:** Phase 3 -- after core integration tests are established.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Test infrastructure setup | Pitfall 9 (ordering sensitivity) + Pitfall 10 (file organization) | Create shared `expectPaths` utility and directory structure before writing any tests |
+| Data transformation pipeline tests | Pitfall 3 (just longer unit tests) + Pitfall 8 (unrealistic expressions) | Design scenarios around real ETL patterns with 3+ feature interactions |
+| Business rule expression tests | Pitfall 2 (testing the expression not the tool) + Pitfall 5 (missing silence-is-wrong) | Verify expected paths against JSONata Exerciser; assert exact result counts |
+| API response reshaping tests | Pitfall 1 (tautological assertions) + Pitfall 7 (confidence level) | Use exact `toEqual` assertions including confidence field |
+| Edge case and tech debt tests | Pitfall 11 (ignoring known tech debt) + Pitfall 6 (boundary interactions) | Explicitly target `$sort` lambda, `$lookup`, standalone bind, and 3-way feature interactions |
+| CLI integration tests | Pitfall 12 (not testing CLI) | Verify complex expression round-trip through CLI with JSON output parsing |
+
+## Pitfall Severity Summary
+
+| # | Pitfall | Severity | Effort to Prevent | Effort to Fix Later |
+|---|---------|----------|-------------------|-------------------|
+| 1 | Tautological assertions | CRITICAL | LOW (convention) | HIGH (rewrite all assertions) |
+| 2 | Testing the expression not the tool | CRITICAL | MEDIUM (requires JSONata knowledge) | HIGH (research every test's expected values) |
+| 3 | Integration tests = longer unit tests | CRITICAL | MEDIUM (scenario design discipline) | HIGH (rewrite all test scenarios) |
+| 4 | Snapshot tests without intent | CRITICAL | LOW (ban snapshots as primary) | MEDIUM (replace snapshots with explicit) |
+| 5 | Missing silence-is-wrong tests | CRITICAL | LOW (use exact assertions) | MEDIUM (add length checks) |
+| 6 | Not testing feature boundary interactions | MODERATE | MEDIUM (interaction matrix) | MEDIUM (add targeted tests) |
+| 7 | Confidence level assertions missing | MODERATE | LOW (include in all assertions) | LOW (add confidence to existing) |
+| 8 | Expressions not representative | MODERATE | MEDIUM (research real patterns) | LOW (swap expressions) |
+| 9 | Order sensitivity | MODERATE | LOW (sort utility) | LOW (add sorting) |
+| 10 | File organization | MINOR | LOW (directory structure) | MEDIUM (split files later) |
+| 11 | Ignoring known tech debt | MINOR | LOW (add specific tests) | LOW (add tests later) |
+| 12 | Not testing CLI | MINOR | LOW (few tests needed) | LOW (add tests later) |
 
 ## Sources
 
-- [JSONata Official Documentation - Path Operators](https://docs.jsonata.org/path-operators) -- HIGH confidence
-- [JSONata Official Documentation - Processing Model](https://docs.jsonata.org/processing) -- HIGH confidence
-- [JSONata Official Documentation - Programming Constructs](https://docs.jsonata.org/programming) -- HIGH confidence
-- [JSONata Official Documentation - Object Functions](https://docs.jsonata.org/object-functions) -- HIGH confidence
-- [JSONata Official Documentation - Higher Order Functions](https://docs.jsonata.org/higher-order-functions) -- HIGH confidence
-- [JSONata Official Documentation - Other Operators](https://docs.jsonata.org/other-operators) -- HIGH confidence
-- [JSONata Official Documentation - Embedding and Extending](https://docs.jsonata.org/embedding-extending) -- HIGH confidence
-- [JSONata GitHub Repository](https://github.com/jsonata-js/jsonata) -- HIGH confidence
-- [JSONata Parser Source (parser.js AST node types)](https://github.com/jsonata-js/jsonata/blob/master/src/parser.js) -- HIGH confidence (WebFetch verified)
-- [JSONata TypeScript Definitions (jsonata.d.ts)](https://github.com/jsonata-js/jsonata/blob/master/jsonata.d.ts) -- HIGH confidence (WebFetch verified)
-- [Internal Structures of JSONata Expressions (Medium)](https://medium.com/@varshajainm.1121/internal-structures-of-jsonata-expressions-053540af937f) -- MEDIUM confidence
-- [JSONata Go Implementation ASTNode Structure](https://pkg.go.dev/github.com/jsonata-go/jsonata/v206) -- MEDIUM confidence (different implementation but reveals hidden properties)
-- [JSONata GitHub Issue #473 - Unexpected Array Properties](https://github.com/jsonata-js/jsonata/issues/473) -- HIGH confidence
-- [JSONata GitHub Issue #335 - Parallel Evaluation Bug](https://github.com/jsonata-js/jsonata/issues/335) -- MEDIUM confidence
-- [JSONata GitHub Issue #299 - Parent Operator Proposal](https://github.com/jsonata-js/jsonata/issues/299) -- MEDIUM confidence
-- [JSONata GitHub PR #371 - Data Joins and Positional Variables](https://github.com/jsonata-js/jsonata/pull/371/files) -- MEDIUM confidence
-- [Stedi Prettier Plugin for JSONata](https://github.com/Stedi/prettier-plugin-jsonata) -- MEDIUM confidence (prior art for AST walking)
-- [AST Visitor Pattern Pitfalls (Pat Shaughnessy)](https://patshaughnessy.net/2022/1/22/visiting-an-abstract-syntax-tree) -- MEDIUM confidence
-- [Static Analysis Limitations for Dynamic Languages (Raven)](https://raven.io/blog/why-static-analysis-falls-short-in-dynamic-programming-languages) -- LOW confidence (general, not JSONata-specific)
-- [Data Flow Analysis (Wikipedia)](https://en.wikipedia.org/wiki/Data-flow_analysis) -- MEDIUM confidence (over/under-approximation theory)
+- [Software Testing Anti-patterns (Codepipes)](https://blog.codepipes.com/testing/software-testing-antipatterns.html) -- MEDIUM confidence (general testing literature)
+- [Tautological Test Driven Development Anti-Pattern (Fabio Pereira)](http://fabiopereira.me/blog/2010/05/27/ttdd-tautological-test-driven-development-anti-pattern/) -- MEDIUM confidence (general but directly applicable)
+- [Effective Snapshot Testing (Kent C. Dodds)](https://kentcdodds.com/blog/effective-snapshot-testing) -- MEDIUM confidence (snapshot-specific guidance)
+- [Its 2025, Stop Using Snapshot Testing (Stackademic)](https://blog.stackademic.com/its-2025-stop-using-snapshot-testing-1afa6612259e) -- LOW confidence (opinion piece but reflects community sentiment)
+- [Unit Testing Anti-Patterns (Enterprise Craftsmanship)](https://enterprisecraftsmanship.com/posts/structural-inspection) -- MEDIUM confidence (structural inspection anti-pattern)
+- [Vitest Snapshot Guide](https://vitest.dev/guide/snapshot) -- HIGH confidence (official Vitest documentation)
+- [JSONata Official Documentation](https://docs.jsonata.org) -- HIGH confidence (JSONata semantics reference)
+- [AWS Step Functions JSONata](https://docs.aws.amazon.com/step-functions/latest/dg/transforming-data.html) -- HIGH confidence (real-world JSONata usage patterns)
+- [The Challenge of Testing Data Pipelines (Slalom Build)](https://medium.com/slalom-build/the-challenge-of-testing-data-pipelines-4450744a84f1) -- MEDIUM confidence (test oracle problem)
+- Codebase analysis: `walker.ts`, `index.ts`, `types.ts`, `scope.ts`, `extract-paths.test.ts` -- HIGH confidence (direct source code reading)
+- Existing v1.0 PITFALLS.md research -- HIGH confidence (prior research on this codebase)
 
 ---
-*Pitfalls research for: JSONata AST static path extraction*
-*Researched: 2026-03-02*
+*Pitfalls research for: v1.1 Real-World Integration Tests milestone*
+*Researched: 2026-03-03*

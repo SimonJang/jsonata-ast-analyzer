@@ -1,258 +1,278 @@
 # Technology Stack
 
-**Project:** JSONata AST Path Analyzer
-**Researched:** 2026-03-02
+**Project:** JSONata AST Path Analyzer -- v1.1 Integration Testing
+**Researched:** 2026-03-03
+**Scope:** Stack additions/changes for exhaustive real-world integration testing. Base stack (TypeScript 5.9, jsonata 2.1.0, Vitest 4.0, tsup 8.5) is validated and unchanged.
 
 ## Recommended Stack
 
-### Runtime & Language
+### No New Dependencies Required
+
+The existing stack handles everything needed for v1.1 integration testing. This section explains what capabilities to use and why no new packages are needed.
+
+### Testing Framework (Existing -- Use More Features)
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| Node.js | >= 22.x (LTS) | Runtime | Node 22 is Active LTS (supported until April 2027). Node 24 entered LTS October 2025 and is also viable. Target >= 22 for maximum compatibility while staying on maintained versions. | HIGH |
-| TypeScript | ~5.9 | Language | Latest stable release. TypeScript 6.0 is in beta but is feature-frozen (last JS-based release). 5.9 is the safe, proven choice. No reason to jump to 6.0 beta for a new library. | HIGH |
+| Vitest | 4.0.18 (installed) | Test runner, snapshots, parameterized tests | Already installed. Vitest 4.0.18 is the latest release (Feb 2026). It includes `test.for()`, `toMatchInlineSnapshot()`, `toMatchSnapshot()`, `toMatchFileSnapshot()`, custom snapshot serializers, and `describe.each()` -- all the capabilities needed for 50+ integration tests with zero additional packages. | HIGH |
+| @vitest/coverage-v8 | 4.0.18 (installed) | Code coverage | Already installed. V8-based coverage works out of the box. Useful for verifying integration tests exercise new code paths beyond what unit tests cover. | HIGH |
 
-### Core Dependency
+### Key Vitest APIs for Integration Testing
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| jsonata | ^2.1.0 | JSONata parser (AST source) | The official JSONata library. v2.1.0 (July 2024) is the latest release. It exposes an `ast()` method on parsed expressions that returns the full AST tree. It also exposes `jsonata.parser` as a public property for direct parser access. Ships with built-in TypeScript types (`jsonata.d.ts`) -- no `@types/jsonata` needed. The `ExprNode` type provides a discriminated union over ~20 node types. This is the only dependency that matters; everything else is dev tooling. | HIGH |
+These are built-in Vitest features that should be leveraged heavily. They require no additional installation.
 
-**Critical detail about jsonata's API:**
+#### 1. `test.for()` -- Data-Driven Test Tables
+
+**What:** Vitest-native parameterized test API. Superior to `test.each()` for TypeScript because it does not spread array arguments, giving better type inference.
+
+**Why use it:** Each integration test scenario is a tuple of `(expression, expectedPaths)`. With 50+ scenarios, data-driven tables prevent boilerplate explosion. `test.for()` lets you define a typed array of test cases and run the same assertion logic over all of them.
+
+**Example pattern for this project:**
 
 ```typescript
-import jsonata from 'jsonata';
-
-// Parse expression -- this invokes the parser internally
-const expr = jsonata("account.name");
-
-// Access the AST -- this is the method we depend on
-const ast = expr.ast();
-// Returns: { type: 'path', steps: [{ type: 'name', value: 'account' }, { type: 'name', value: 'name' }] }
-
-// AST node types include: 'binary', 'unary', 'name', 'string', 'number', 'value',
-// 'path', 'function', 'lambda', 'condition', 'transform', 'block', 'bind',
-// 'variable', 'wildcard', 'descendant', 'parent', 'filter', 'sort', 'regex'
-
-// jsonata.parser is also exposed publicly (may be removed in future versions)
-```
-
-**Note:** The `ast()` method is defined in the TypeScript types (`Expression` interface) and exists in the source code, but is NOT documented in the official JSONata docs. It is an undocumented-but-typed public API. The `jsonata.parser` static property is also public but explicitly noted as potentially removable. Prefer `expr.ast()` over direct parser access for stability.
-
-### Build Tooling
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| tsup | ^8.5 | Bundle library for distribution | Zero-config TypeScript bundler powered by esbuild. Outputs both ESM and CJS with a single command. Generates `.d.ts` declaration files via `--dts`. tsup is battle-tested with 2,274 dependents on npm. While tsdown (Rolldown-based) is the emerging successor, it is still in beta (0.21.0-beta.2) and not production-ready. Use tsup now; migrate to tsdown later if needed. | HIGH |
-| tsx | ^4.21 | Dev-time TypeScript execution | Run `.ts` files directly during development without a compile step. Powered by esbuild, near-instant startup. Used for the CLI entry point during development and for running scripts. Node.js 22+ has built-in type stripping, but tsx handles tsconfig paths, decorators, and edge cases more reliably. | HIGH |
-
-### Testing
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| vitest | ^4.0 | Test runner | Vitest 4.0 is the current standard for TypeScript testing. Native ESM support, native TypeScript support (no ts-jest needed), 10-20x faster than Jest in watch mode, Jest-compatible API for easy adoption. New in v4: stable browser mode, filesystem-based caching, schema matching. For a pure Node library like this, Vitest's speed and zero-config TypeScript support make it the clear winner. | HIGH |
-
-### CLI Framework
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| commander | ^14.0 | CLI argument parsing | The standard for Node.js CLIs with 116,000+ dependents. Built-in TypeScript types. Clean, declarative API. v14 requires Node >= 20 (aligns with our Node 22+ target). Security updates guaranteed through May 2027. For a simple CLI wrapper around a library, commander is the right weight -- not too heavy (like oclif), not too light (like minimist). | HIGH |
-
-### Code Quality
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| eslint | ^10.0 | Linting | ESLint 10 released February 2026. Flat config is now the only format. Per-file config resolution (useful for monorepos). Requires Node >= 20.19. | HIGH |
-| typescript-eslint | ^8.56 | TypeScript-specific lint rules | Actively maintained (weekly releases). v8 supports ESLint flat config natively. "Project Service" feature simplifies typed linting setup. | HIGH |
-| prettier | ^3.x | Code formatting | Standard formatter. Separates formatting concerns from linting. Use with eslint-config-prettier to avoid conflicts. | HIGH |
-
-### Package Management & Publishing
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| npm | (bundled) | Package manager | Ships with Node.js. For a single-package library, npm is simpler than pnpm or yarn. No workspace complexity needed. | HIGH |
-| @changesets/cli | ^2.29 | Version management & changelog | Automates semver bumps and changelog generation. Overkill for initial development but valuable once publishing to npm. Add when ready to publish, not at project start. | MEDIUM |
-
-## Project Configuration
-
-### tsconfig.json
-
-```jsonc
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "bundler",
-    "lib": ["ES2022"],
-    "outDir": "dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noUncheckedIndexedAccess": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+interface IntegrationCase {
+  name: string;
+  expression: string;
+  expected: PathResult[];
 }
-```
 
-**Key decisions:**
-- `target: ES2022` -- Node 22+ supports all ES2022 features natively
-- `module: ES2022` -- enables top-level await, native ESM
-- `moduleResolution: bundler` -- correct for tsup-bundled libraries
-- `noUncheckedIndexedAccess` -- critical for safe AST walking where node properties may be undefined
-- `strict: true` -- non-negotiable for a library that analyzes code
-
-### tsup.config.ts
-
-```typescript
-import { defineConfig } from 'tsup';
-
-export default defineConfig({
-  entry: {
-    index: 'src/index.ts',
-    cli: 'src/cli.ts',
+const pipelineScenarios: IntegrationCase[] = [
+  {
+    name: "filter then map with nested access",
+    expression: `Account.Order[price > 100].Product.{
+      "name": Description.Title,
+      "weight": Description.Weight
+    }`,
+    expected: [
+      { path: "Account.Order.price", confidence: "static" },
+      { path: "Account.Order.Product.Description.Title", confidence: "static" },
+      { path: "Account.Order.Product.Description.Weight", confidence: "static" },
+    ],
   },
-  format: ['esm', 'cjs'],
-  dts: true,
-  splitting: false,
-  clean: true,
-  sourcemap: true,
+  // ... 49 more cases
+];
+
+describe("Data transformation pipelines", () => {
+  test.for(pipelineScenarios)(
+    "$name",
+    ({ expression, expected }) => {
+      expect(extractPaths(expression)).toEqual(expected);
+    }
+  );
 });
 ```
 
-**Key decisions:**
-- Dual ESM/CJS output for maximum consumer compatibility
-- Two entry points: `index` for library API, `cli` for command-line usage
-- `splitting: false` -- small library, no need for code splitting
-- `.d.ts` generation built into the build step
+**Confidence:** HIGH -- `test.for()` is documented in Vitest 4.0 official API reference.
 
-### package.json (exports)
+#### 2. `toMatchInlineSnapshot()` -- Baseline Validation
+
+**What:** Stores the snapshot directly in the test file as a string literal. Vitest auto-updates the literal when you run `vitest -u`.
+
+**Why use it:** For complex expressions where manually specifying every expected path is tedious or error-prone, inline snapshots let you verify the output once, then lock it in. The snapshot lives right next to the test case for easy review. This is the "snapshot-style baseline validation" mentioned in the project requirements.
+
+**When to use vs. explicit assertions:**
+- Use explicit `toEqual()` when the expected paths are the point of the test (most integration tests).
+- Use `toMatchInlineSnapshot()` for complex expressions where you want to capture the full output shape and review it as a baseline, especially early in development before expected values are fully enumerated.
+
+**Example pattern:**
+
+```typescript
+it("captures all paths from a complex reshape", () => {
+  const result = extractPaths(`
+    (
+      $orders := Account.Order;
+      $orders[price > 50].{
+        "total": $sum(price * quantity),
+        "items": Product.Description.Title
+      }
+    )
+  `);
+  expect(result).toMatchInlineSnapshot();
+  // Vitest fills this in on first run:
+  // expect(result).toMatchInlineSnapshot(`
+  //   [
+  //     { "path": "Account.Order", "confidence": "static" },
+  //     ...
+  //   ]
+  // `);
+});
+```
+
+**Confidence:** HIGH -- built into Vitest since v0.x, stable API.
+
+#### 3. `toMatchSnapshot()` -- File-Based Snapshots
+
+**What:** Stores snapshots in adjacent `__snapshots__/*.snap` files.
+
+**Why use it sparingly:** For this project, inline snapshots are preferable because test cases are self-contained (expression in, paths out). File snapshots are useful when output is very large (20+ paths from a single expression), where inline snapshots would make test files hard to read.
+
+**Confidence:** HIGH -- core Vitest API.
+
+#### 4. Custom Snapshot Serializer
+
+**What:** Controls how `PathResult[]` arrays are serialized in snapshots.
+
+**Why use it:** The default pretty-format serializer outputs verbose `Object` wrappers. A custom serializer can produce a clean, readable format that makes snapshot diffs easy to review.
+
+**Example:**
+
+```typescript
+// test/setup.ts or directly in test file
+expect.addSnapshotSerializer({
+  test(val) {
+    return Array.isArray(val) && val.length > 0 && val[0]?.path !== undefined;
+  },
+  serialize(val: PathResult[]) {
+    return val
+      .map((p) => `${p.confidence === "static" ? " " : p.confidence.charAt(0).toUpperCase()} ${p.path}`)
+      .join("\n");
+  },
+});
+```
+
+This would produce snapshots like:
+
+```
+  Account.Order.price
+  Account.Order.Product.Description.Title
+D Account.Order[*].computed
+P some.%.parent.path
+```
+
+**Recommendation:** Consider but do not implement unless snapshot reviews become noisy. Explicit `toEqual()` assertions are clearer for most integration tests.
+
+**Confidence:** HIGH -- Vitest custom serializer API is stable.
+
+### Test Organization (Vitest Config Change)
+
+| Change | Current | Proposed | Why | Confidence |
+|--------|---------|----------|-----|------------|
+| Vitest include pattern | Default (`**/*.test.ts`) | Keep default -- add new files in `test/integration/` | No config change needed. Vitest's default glob picks up `test/**/*.test.ts` automatically. Separate directory provides logical separation from unit tests without requiring workspace/project config overhead. | HIGH |
+
+**Proposed test file structure:**
+
+```
+test/
+  extract-paths.test.ts           # Existing 105 unit tests (unchanged)
+  integration/
+    pipelines.test.ts             # Data transformation pipeline scenarios
+    business-rules.test.ts        # Business rule expression scenarios
+    api-reshaping.test.ts         # API response reshaping scenarios
+    export-conversion.test.ts     # Data export/format conversion scenarios
+    edge-cases.test.ts            # Complex edge cases: deep variable chains,
+                                  #   mixed contexts, complex object constructors
+```
+
+**Rationale:** Five focused integration test files (one per scenario category) rather than one monolithic file. Each file uses `test.for()` with typed test case arrays. This keeps individual files under 200 lines, makes test failures immediately locatable by category, and allows running a single category in isolation via `vitest run test/integration/pipelines.test.ts`.
+
+**Alternative considered: Vitest Projects (workspace)** -- Overkill. Projects are for different environments (browser vs node) or different configs. Integration and unit tests here share the same config, same runner, same TypeScript setup. A subdirectory provides sufficient separation.
+
+### Test Data Strategy (No Package Needed)
+
+| Approach | Recommendation | Why | Confidence |
+|----------|----------------|-----|------------|
+| Inline test data | YES -- primary approach | JSONata expressions are short strings. The expression IS the test data. Inline keeps tests self-documenting. No external fixture files needed for expressions under 10 lines. | HIGH |
+| Multi-line template literals | YES -- for complex expressions | TypeScript template literals handle multi-line JSONata cleanly. No special tooling needed. | HIGH |
+| Shared fixture constants | YES -- for reusable expression fragments | Extract common sub-expressions (e.g., a standard "order" variable binding) into a `test/fixtures.ts` constants file. Import into multiple test files. | HIGH |
+| External JSON fixture files | NO | Overkill. We are not testing with sample JSON data (static analysis does not evaluate). The only input is expression strings. | HIGH |
+| Test data generation / fuzzing | NO | JSONata expressions cannot be meaningfully auto-generated. The value is in hand-crafted real-world patterns. Random expressions would not test real scenarios. | HIGH |
+| JSONata official test suite | REFERENCE ONLY | The jsonata-js/jsonata repo has test cases organized as JSON files by feature group. These are useful as a reference for expression patterns but test evaluation, not path extraction. Do not import them as test data. | MEDIUM |
+
+### NPM Scripts Addition
 
 ```jsonc
 {
-  "name": "jsonata-ast-analyzer",
-  "type": "module",
-  "exports": {
-    ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "bin": {
-    "jsonata-paths": "./dist/cli.mjs"
-  },
-  "files": ["dist"],
-  "engines": {
-    "node": ">=22"
+  "scripts": {
+    // Existing
+    "test": "vitest run",
+    "test:watch": "vitest",
+    // New -- optional convenience scripts
+    "test:unit": "vitest run test/extract-paths.test.ts",
+    "test:integration": "vitest run test/integration/",
+    "test:update-snapshots": "vitest run -u"
   }
 }
 ```
 
-### eslint.config.mjs
-
-```javascript
-import eslint from '@eslint/js';
-import { defineConfig } from 'eslint/config';
-import tseslint from 'typescript-eslint';
-
-export default defineConfig(
-  eslint.configs.recommended,
-  tseslint.configs.recommended,
-);
-```
+**Confidence:** HIGH -- standard Vitest CLI usage.
 
 ## Alternatives Considered
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| Bundler | tsup 8.x | tsdown (Rolldown) | tsdown is still beta (0.21.0-beta.2). Faster, but not stable enough for production libraries yet. Migrate when it hits 1.0. |
-| Bundler | tsup 8.x | tsc + manual config | tsc alone doesn't bundle, doesn't produce CJS+ESM dual output easily, and requires more configuration. tsup wraps esbuild for speed and simplicity. |
-| Bundler | tsup 8.x | Rollup | Rollup is powerful but requires significant configuration for TypeScript. tsup provides the same output with zero config. |
-| Test runner | Vitest 4.x | Jest 30 | Jest now supports ESM but still requires ts-jest or babel for TypeScript. Vitest handles TypeScript natively with zero config and runs 10-20x faster. Jest only makes sense for React Native or legacy codebases. |
-| CLI | commander 14 | yargs | yargs is more verbose and heavier. For a simple CLI with 1-2 commands and a few flags, commander is cleaner. |
-| CLI | commander 14 | oclif | oclif is a full CLI framework with plugins, hooks, and generators. Massive overkill for a single-purpose tool. |
-| CLI | commander 14 | citty / cleye | Newer, lighter alternatives but with smaller ecosystems. commander's maturity and documentation win for a library that needs reliability. |
-| Linter | ESLint 10 | Biome | Biome is faster but has fewer TypeScript-specific rules than typescript-eslint. For a library doing AST analysis, strong type-aware linting is more valuable than speed. |
-| TS runner | tsx | Node.js native type stripping | Node 22+ can run `.ts` files natively via `--experimental-strip-types`, but it doesn't support tsconfig paths, doesn't handle all TypeScript syntax, and is still experimental. tsx is more reliable for development. |
-| TS version | 5.9 | 6.0 beta | 6.0 is feature-frozen (same features as 5.9 essentially) but is beta. No benefit, some risk. |
+| Test runner | Vitest 4.0 (keep) | Jest 30 | Already using Vitest. Switching would be pointless churn. Jest offers nothing Vitest lacks for this use case. |
+| Snapshot tool | Vitest built-in snapshots | `jest-snapshot` standalone | Vitest includes its own snapshot engine. No need for external snapshot packages. |
+| Snapshot tool | Vitest inline snapshots | `snap-shot-it` or `snap-shot-core` | Third-party snapshot libraries add complexity. Vitest's built-in `toMatchInlineSnapshot()` and `toMatchSnapshot()` cover all needs. |
+| Test data | Inline expressions | External `.jsonata` fixture files | Adds file I/O complexity, makes tests harder to read, separates test intent from test data. Expressions are short strings -- keep them inline. |
+| Test data | Hand-crafted scenarios | Property-based testing (fast-check) | Cannot meaningfully generate valid JSONata expressions that represent real-world patterns. Property-based testing is excellent for parsers; it is not useful for testing an analyzer against realistic scenarios. |
+| Parameterized tests | `test.for()` | `test.each()` | Both work. `test.for()` has better TypeScript type inference because it does not spread array arguments. Prefer `test.for()` for new code. |
+| Coverage | @vitest/coverage-v8 (keep) | @vitest/coverage-istanbul | v8 coverage is faster and already installed. Istanbul is only needed for specific edge cases (e.g., browser code). |
+| Test organization | Subdirectory | Vitest workspace/projects | Workspace config is designed for multi-environment testing (browser + node). Same-environment test separation needs only a directory. |
+| Test organization | Multiple files by category | Single large integration test file | A 1000+ line test file is hard to navigate. Five 150-200 line files by scenario category is more maintainable. |
 
-## What NOT to Use
+## What NOT to Add
 
 | Technology | Why Not |
 |------------|---------|
-| `@types/jsonata` | Outdated (6+ years old). jsonata ships its own types since v2.x. Installing @types/jsonata will cause type conflicts. |
-| `ts-node` | Slow, complex configuration, poor ESM support. tsx is faster and simpler in every way. |
-| `jest` | Requires ts-jest for TypeScript, slow compared to vitest, worse ESM support. No advantage for a new project. |
-| `webpack` | Application bundler, not a library bundler. Massive configuration overhead for no benefit. |
-| `babel` | Unnecessary when using tsup (esbuild) for building and vitest for testing. Adds complexity with no value. |
-| Custom JSONata parser | Explicitly out of scope. The official parser is proven, complete, and maintained. Re-implementing it would be a massive waste of effort and a source of bugs. |
-| `jsonata-go` or other ports | This project is TypeScript/Node. Use the canonical JavaScript implementation. |
-| `esbuild` directly | tsup wraps esbuild with library-appropriate defaults (dual output, dts, clean). Using esbuild directly requires manual configuration for all of this. |
+| `fast-check` (property-based testing) | Cannot generate meaningful JSONata expressions. Hand-crafted real-world scenarios are the entire point of v1.1. |
+| `faker` / `@faker-js/faker` | No sample data generation needed. This is static analysis of expression strings, not data processing. |
+| `testcontainers` or database tools | No external services involved. Pure function testing: string in, paths out. |
+| `supertest` / `msw` | No HTTP or API mocking needed. No network calls in the library. |
+| `cypress` / `playwright` | No browser testing. This is a Node library. |
+| `nock` | No HTTP mocking. The library has no network dependencies. |
+| `sinon` / `vitest mocking` | The function under test (`extractPaths`) is a pure function. No mocking needed. Mocking the jsonata parser would defeat the purpose of integration testing. |
+| `ts-mockito` | Same as above. Pure function testing requires no mocks. |
+| `json-schema-faker` | No JSON schema involvement. Out of scope per PROJECT.md. |
+| `snapshot-diff` | Vitest's built-in snapshot diffing is sufficient. No need for a specialized diff package. |
+| Additional assertion libraries (`chai`, `should`) | Vitest's `expect` API is Jest-compatible and complete. No gaps to fill. |
+| `test-data-bot` / `fishery` | Factory libraries for generating test fixtures. Not applicable -- our "fixtures" are JSONata expression strings, not complex object trees. |
 
-## Installation
+## Integration Points with Existing Setup
 
-```bash
-# Core runtime dependency
-npm install jsonata
+### Zero Config Changes Required
 
-# Build tooling
-npm install -D typescript tsup tsx
+The existing `vitest.config.ts` needs no modification:
 
-# Testing
-npm install -D vitest
-
-# CLI (runtime dependency)
-npm install commander
-
-# Code quality
-npm install -D eslint @eslint/js typescript-eslint eslint-config-prettier prettier
+```typescript
+import { defineConfig } from "vitest/config";
+export default defineConfig({
+  test: {
+    globals: true,
+    passWithNoTests: true,
+  },
+});
 ```
 
-## Dependency Inventory
+Vitest's default `include` pattern (`**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}`) already matches files in `test/integration/*.test.ts`. No include/exclude changes needed.
 
-| Package | Runtime/Dev | Justification |
-|---------|-------------|---------------|
-| jsonata | Runtime | Core dependency -- provides the parser and AST we analyze |
-| commander | Runtime | CLI argument parsing for the `jsonata-paths` command |
-| typescript | Dev | Type checking (tsup uses esbuild for actual compilation) |
-| tsup | Dev | Bundling library for distribution |
-| tsx | Dev | Running TypeScript during development |
-| vitest | Dev | Test runner |
-| eslint | Dev | Linting |
-| @eslint/js | Dev | ESLint base config |
-| typescript-eslint | Dev | TypeScript lint rules |
-| eslint-config-prettier | Dev | Prevent eslint/prettier conflicts |
-| prettier | Dev | Code formatting |
+### Import Pattern
 
-**Total runtime dependencies: 2** (jsonata, commander). This is deliberately minimal. A library should have few runtime dependencies.
+All integration tests import the same public API:
+
+```typescript
+import { extractPaths } from "../../src/index.js";
+import type { PathResult } from "../../src/index.js";
+```
+
+This tests the library through its public interface, which is exactly what integration tests should do. No internal imports.
+
+## Summary
+
+**Net new dev dependencies: 0**
+**Config changes: 0**
+**New files: 5-6 test files + optional 1 fixtures file**
+
+The v1.0 stack is fully sufficient for v1.1. The work is in writing tests, not in adding tooling. Use `test.for()` for parameterized scenario tables, `toMatchInlineSnapshot()` for baseline captures, organize by scenario category in `test/integration/`, and keep expressions inline. No external test data sources, no mocking, no new packages.
 
 ## Sources
 
-- [jsonata npm package](https://www.npmjs.com/package/jsonata) -- version 2.1.0, built-in TypeScript types (HIGH confidence)
-- [jsonata GitHub releases](https://github.com/jsonata-js/jsonata/releases) -- v2.1.0 latest, July 2024 (HIGH confidence)
-- [jsonata source code (jsonata.js)](https://github.com/jsonata-js/jsonata/blob/master/src/jsonata.js) -- confirms `ast()` method on expression objects (HIGH confidence)
-- [jsonata TypeScript definitions](https://github.com/jsonata-js/jsonata/blob/master/jsonata.d.ts) -- ExprNode type, Expression interface with ast() (HIGH confidence)
-- [JSONata official docs](https://docs.jsonata.org/) -- ast() not documented but exists in code and types (MEDIUM confidence for long-term stability)
-- [tsup npm](https://www.npmjs.com/package/tsup) -- v8.5.1 (HIGH confidence)
-- [tsup documentation](https://tsup.egoist.dev/) (HIGH confidence)
-- [tsdown npm](https://www.npmjs.com/package/tsdown) -- v0.21.0-beta.2, still beta (HIGH confidence)
-- [Vitest 4.0 announcement](https://vitest.dev/blog/vitest-4) -- stable release (HIGH confidence)
-- [Vitest npm](https://www.npmjs.com/package/vitest) -- v4.0.18 (HIGH confidence)
-- [commander npm](https://www.npmjs.com/package/commander) -- v14.0.3 (HIGH confidence)
-- [TypeScript releases](https://github.com/microsoft/typescript/releases) -- 5.9 stable, 6.0 beta (HIGH confidence)
-- [ESLint 10 release](https://eslint.org/blog/2026/02/eslint-v10.0.0-released/) -- v10.0.2 (HIGH confidence)
-- [typescript-eslint](https://typescript-eslint.io/) -- v8.56.1 (HIGH confidence)
-- [Node.js releases](https://nodejs.org/en/about/previous-releases) -- Node 22 LTS, Node 24 LTS (HIGH confidence)
-- [tsx npm](https://www.npmjs.com/package/tsx) -- v4.21.0 (HIGH confidence)
+- [Vitest Snapshot Guide](https://vitest.dev/guide/snapshot) -- `toMatchSnapshot()`, `toMatchInlineSnapshot()`, `toMatchFileSnapshot()`, custom serializers (HIGH confidence)
+- [Vitest Test API Reference](https://vitest.dev/api/) -- `test.for()`, `test.each()`, `describe.each()` documentation (HIGH confidence)
+- [Vitest 4.0 Announcement](https://vitest.dev/blog/vitest-4) -- confirms v4.0 as current stable, inline snapshots in test.for/each supported (HIGH confidence)
+- [Vitest npm](https://www.npmjs.com/package/vitest) -- v4.0.18 latest (HIGH confidence)
+- [Vitest GitHub Discussion #4675](https://github.com/vitest-dev/vitest/discussions/4675) -- separating unit and integration tests with directory structure vs workspace (HIGH confidence)
+- [Vitest GitHub Discussion #5557](https://github.com/vitest-dev/vitest/discussions/5557) -- file suffix patterns for test organization (HIGH confidence)
+- [JSONata Official Docs](https://docs.jsonata.org/) -- expression patterns and programming constructs for test case design (HIGH confidence)
+- [JSONata Exerciser](https://try.jsonata.org/) -- interactive testing of expressions for verifying test case validity (HIGH confidence)
+- [jsonata-js/jsonata GitHub](https://github.com/jsonata-js/jsonata) -- test suite structure as reference for expression patterns (MEDIUM confidence)
+- [Glance Parser Testing Infrastructure](https://deepwiki.com/lpil/glance/3-testing-system) -- snapshot-based AST testing patterns from compiler/parser community (MEDIUM confidence)

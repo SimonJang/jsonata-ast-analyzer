@@ -1,186 +1,178 @@
 # Project Research Summary
 
-**Project:** JSONata AST Path Analyzer
-**Domain:** Static analysis / AST path extraction for JSONata expressions
-**Researched:** 2026-03-02
+**Project:** JSONata AST Path Analyzer — v1.1 Real-World Integration Testing
+**Domain:** Static analysis tool integration testing
+**Researched:** 2026-03-03
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The JSONata AST Path Analyzer is a static analysis library that walks the AST produced by the official JSONata parser to extract every data path an expression reads from its input. This is a well-scoped compiler-analysis problem: the parser already exists and is proven, so this project operates exclusively at the semantic analysis layer. The architecture follows a classic compiler front-end pipeline (parse, walk, collect, resolve, output) with five internal components -- Parser Adapter, AST Walker, Scope Tracker, Path Collector, and Path Resolver. The stack is straightforward: TypeScript 5.9, Node 22+, jsonata ^2.1.0, tsup for bundling, vitest for testing, commander for the CLI. Only two runtime dependencies (jsonata, commander), which is correct for a library.
+This milestone adds exhaustive real-world integration tests to a mature v1.0 JSONata AST path analyzer. The tool takes JSONata expressions as input and returns an array of `PathResult` objects (`{ path, confidence }`) representing every data field the expression reads. Integration testing for a static analysis tool differs critically from standard integration testing: the tool's output is a small, deterministic array (typically 5-15 paths) that must exactly match what the analyzed expression reads, and the most dangerous failure modes are silent — the tool returns fewer paths than it should, not more.
 
-The recommended approach is to build the exhaustive AST walker first, handling all 20+ node types from day one with a discriminated union and TypeScript exhaustive switch checking. The critical architectural decision is that the tool must OVER-APPROXIMATE -- reporting a superset of actual paths is safer than under-reporting, since the primary use case is safe data refactoring. The walker must traverse both `steps` and `stages` on path nodes (the JSONata parser's internal distinction for inline filters, sorts, and grouping operators) and must NOT rely on the official TypeScript `ExprNode` type, which is incomplete. Custom types that accurately model the parser's actual output are essential infrastructure.
+The recommended approach is to write 50+ hand-crafted test scenarios organized into five category files under `test/integration/`, using Vitest's `it.for()` with typed fixture objects and exact `toEqual` assertions as the primary validation mechanism. No new dependencies are required — the existing stack (TypeScript 5.9, jsonata 2.1.0, Vitest 4.0.18, @vitest/coverage-v8) already provides all capabilities needed, including parameterized test tables (`it.for()`), inline snapshots (`toMatchInlineSnapshot()`), and parallel file execution. The v1.1 work is entirely in writing tests, not in adding infrastructure.
 
-The main risks are: (1) incomplete AST node type coverage silently missing paths -- mitigated by exhaustive dispatch and a discovery harness, (2) incorrect variable scope modeling producing wrong path resolutions -- mitigated by a dedicated scope stack with block boundaries and thorough test cases for shadowing, closures, and context bindings, and (3) the steps/stages distinction in the parser's path representation -- a non-obvious internal detail that, if missed, causes filter predicates, sort keys, and grouping expressions to be invisible. All three risks are addressable with known patterns and must be tackled in the first two phases.
+The dominant risks are not technical but disciplinary: the test suite can be written in ways that provide zero protection against the tool's most common failure modes. Specifically, using subset assertions (`toContainEqual`) without length guards allows the tool to spuriously over-report paths without detection, while using exact assertions without sorted comparison makes the suite brittle to correct refactors. Both problems are solved by a shared `helpers.ts` assertion utility that sorts both arrays before comparison and uses `toEqual` as the standard. Every test must include the `confidence` field in assertions, not just `path`, because confidence misclassification (`static` vs `dynamic` vs `partial`) is a silent functional regression.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is deliberately minimal: two runtime dependencies, standard TypeScript tooling. The jsonata package (^2.1.0) is the sole essential dependency -- it provides the parser and exposes an `ast()` method on expression objects. This method is typed in the official `jsonata.d.ts` but undocumented in the official docs, making it a stable-but-undocumented API. The `jsonata.parser` static property also exists but is explicitly noted as potentially removable; prefer `expr.ast()`.
+The v1.0 stack requires zero changes for v1.1. Vitest 4.0.18 (the current stable release as of February 2026) provides everything needed: `it.for()` for typed parameterized test tables with superior TypeScript inference over `it.each()`, `toMatchInlineSnapshot()` for baseline captures, `@vitest/coverage-v8` for coverage reporting, and parallel file execution for fast feedback. The existing `vitest.config.ts` already picks up files in `test/integration/*.test.ts` via its default glob — no configuration changes are needed.
 
 **Core technologies:**
-- **jsonata ^2.1.0:** AST source -- the official parser with built-in TypeScript types and `ExprNode` discriminated union
-- **TypeScript ~5.9:** Language -- strict mode with `noUncheckedIndexedAccess` for safe AST property access
-- **tsup ^8.5:** Build -- zero-config bundler producing dual ESM/CJS output with `.d.ts` generation
-- **vitest ^4.0:** Testing -- native TypeScript support, 10-20x faster than Jest, zero-config
-- **commander ^14.0:** CLI -- lightweight argument parsing for a simple command-line wrapper
-- **Node.js >= 22:** Runtime -- Active LTS, supports all ES2022 features natively
+- **Vitest 4.0.18**: Test runner, parameterized tables, snapshots — already installed; use `it.for()` for all new tests
+- **@vitest/coverage-v8 4.0.18**: Coverage verification — confirms integration tests exercise new code paths beyond unit tests
+- **TypeScript 5.9**: Typed fixture interfaces enforce completeness and catch typos at compile time
+- **jsonata 2.1.0**: The library under test — integration tests go through the public `extractPaths()` API only
 
-**Critical version notes:** Pin jsonata to a specific minor version. The AST is an internal API -- node types, property names, and structure can change between versions without notice. The official `ExprNode` TypeScript type is incomplete (missing `path`, `filter`, `sort`, `bind`, `apply` node types and several properties). Custom types must be built.
+**What NOT to add:** fast-check (cannot generate meaningful JSONata expressions), faker, mocking libraries (pure function, no mocking needed), external fixture files (expressions are short strings, keep them inline).
 
 ### Expected Features
 
-**Must have (table stakes):**
-- Simple and nested dot-path extraction (`account.name`, `order.items.price`)
-- Wildcard (`*`) and descendant (`**`) operator handling
-- Filter predicate path extraction (`items[price > 10]` reports `items.price`)
-- Binary/unary/conditional operator operand extraction
-- Variable binding tracing (`$x := account.name; $x` resolves to `account.name`)
-- Block expression scope handling
-- String/number/boolean literal handling (return empty, never crash)
-- Programmatic TypeScript API + CLI tool
+The research identified test coverage across 10 table-stakes scenario categories and 14 differentiating complex patterns, with 6 explicit anti-features to avoid.
 
-**Should have (differentiators):**
-- Lambda/higher-order function context tracking (`$map` callback resolution)
-- Sort expression path extraction (`items^(price)` reports `items.price`)
-- Transform operator analysis
-- Dynamic path detection with wildcards
-- Confidence/completeness annotations on extracted paths
+**Must have (table stakes — 20-25 tests):**
+- API response reshaping (nested extraction + flattening) — the single most common JSONata use case in production
+- Data transformation pipelines (filter → sort → map → reshape) — core production pattern at Stedi, AWS, Node-RED
+- Conditional field selection (ternary, elvis `?:`, coalescing) — all branches must produce paths
+- String concatenation and formatting (`&` operator with path operands on both sides)
+- Aggregation over nested arrays (`$sum`, `$count`, `$average` with nested path arguments)
+- Variable-driven object construction (bind sub-tree to `$var`, reference multiple times in constructor)
+- Array mapping via dot operator (context-relative path resolution per element)
+- Multi-field filter predicates (compound `and`/`or` boolean filters)
+- Lookup and cross-reference patterns (`$lookup`, filter by value from another context)
+- Nested object output with mixed sources (object constructors pulling from multiple root paths)
 
-**Defer (v2+):**
-- Parent operator (`%`) full resolution -- emit symbolic markers for now
-- Custom function interprocedural analysis
-- Context variable (`@$v`) and positional variable (`#$i`) binding
-- Output format options beyond JSON array
-- Multiple expression batch analysis
-- Visual explorer / GUI
+**Should have (differentiators — 15-20 tests):**
+- Chained apply operator pipelines (`~>` multi-stage processing with lambda threading)
+- Context variable binding with cross-reference (`@$l.books@$b[$l.isbn=$b.isbn]` pattern from official docs)
+- Parent operator in nested context (multi-level `%` chaining in mapped object constructors)
+- Recursive/nested higher-order functions (closure capture across two `$map` levels)
+- Deeply nested variable chains (3-4 hop resolution: `$prices := $items.price; $items := $orders.items; ...`)
+- Custom function definition and multi-call (interprocedural path tracing)
+- Transform operator with update + delete clause (paths from update expression, not delete clause)
+- Group-by with aggregation (context-relative key and value extraction)
+
+**Defer (out of scope for v1.1):**
+- Platform-specific extension functions (`$lookupTable`, `$globalContext`, `$states.input`) — cover with 1-2 "unknown function passthrough" tests
+- Expression evaluation correctness — not the analyzer's job
+- Performance benchmark tests — expressions are short strings, not a concern
+- Unicode/i18n field name matrix — 1 smoke test is sufficient
+- Equivalent expression variation coverage — pick the natural syntax per scenario
 
 ### Architecture Approach
 
-The system is a five-component pipeline. The Parser Adapter wraps `jsonata(expr).ast()` to obtain the AST root. The AST Walker performs recursive dispatch via an exhaustive switch on `node.type`, delegating to the Scope Tracker (which maintains a stack of variable-to-path mappings with block-level lexical scoping) and the Path Collector (which accumulates raw path segments including wildcards and filter predicates). After the walk completes, the Path Resolver substitutes variable references with their bound data paths, marks dynamic paths with wildcards, deduplicates, and produces the final output. A two-pass architecture (walk then resolve) avoids ordering issues with variable chains.
+The integration test suite follows a **category-per-file, fixture-driven, dual-validation** architecture. Five test files under `test/integration/` each cover one scenario category. Test cases are defined as typed `IntegrationFixture` objects in arrays at the top of each file and iterated with `it.for()`. Primary validation uses exact `toEqual` assertions on sorted results; secondary validation uses `toMatchInlineSnapshot()` as a regression baseline. A shared `helpers.ts` module provides the typed fixture interface, `sortPaths()`, and `assertFixture()`.
 
 **Major components:**
-1. **Parser Adapter** -- wraps `jsonata(expr).ast()`, handles parse errors, thin layer
-2. **AST Walker** -- recursive descent with exhaustive `switch(node.type)` dispatch over 20+ node types
-3. **Scope Tracker** -- stack of `Map<string, ResolvedPath[]>` frames for lexical scope modeling
-4. **Path Collector** -- accumulates raw path segments, handles steps AND stages on path nodes
-5. **Path Resolver** -- post-walk variable substitution, wildcard expansion, deduplication, normalization
+1. **`test/integration/helpers.ts`** — `IntegrationFixture` interface, `sortPaths()`, `assertFixture()`; imported by all category files
+2. **5 category test files** — `data-transforms`, `business-rules`, `api-reshaping`, `data-export`, `edge-cases`; 8-15 typed fixtures each
+3. **Fixture arrays** — Typed `IntegrationFixture[]` with expression string, `expectedPaths: PathResult[]`, optional `mustContain`/`mustNotContain`
+4. **Inline snapshots** — Secondary baselines per complex test, populated by `vitest -u`, reviewed before commit
+
+**Build order within the suite:** data-transforms → business-rules → api-reshaping → data-export → edge-cases. Each category builds on confidence from the previous and escalates complexity. The file structure requires no config changes — Vitest's default glob picks up `test/**/*.test.ts` automatically.
 
 ### Critical Pitfalls
 
-1. **Incomplete AST node type coverage** -- The `ExprNode` TypeScript type is missing at least 5 node types (`path`, `filter`, `sort`, `bind`, `apply`) and several post-processing types (`stages`, `group`, `index`). Use a custom discriminated union with exhaustive switch dispatch and a `never` default. Build a discovery harness to parse diverse expressions and verify all node types are handled.
+1. **Tautological assertions (`toContainEqual` without length guard)** — Subset assertions allow over-reporting bugs to go undetected entirely. Mandate `toEqual` (exact match after sorting) as the primary assertion on every test. When subset assertions are necessary for very complex outputs, always pair with `toHaveLength(N)`. Enforce via the shared `assertFixture()` utility.
 
-2. **Steps/Stages distinction in path nodes** -- Filter predicates (`[expr]`), sort keys (`^(expr)`), and grouping expressions (`{key: agg}`) are stored in a `stages` array on individual step nodes, NOT as children of the path node. A walker that only traverses `steps` will miss all paths inside predicates. Must iterate `path.steps[].stages[]` in addition to `path.steps[]`.
+2. **Testing the expression, not the tool** — Expected paths must reflect JSONata specification semantics, not the test author's mental model. Subtle semantics (array index vs. filter predicate, `$v` vs. `$a` in `$map` callbacks, `%` parent scope) are easy to get wrong. Verify each fixture's expected output using the JSONata Exerciser with concrete sample data. Document WHY each path appears in fixture comments.
 
-3. **Variable binding scope resolution** -- JSONata has block-level lexical scoping with closures, `@`/`#` context bindings scoped to path expressions, and the reduce operator terminating scope. Incorrect scope modeling produces silent wrong results. Build an explicit scope stack with push/pop on block/lambda boundaries.
+3. **Integration tests that are just longer unit tests** — Every integration test must combine at least 2 interacting features (e.g., variable tracing inside a filter predicate inside a lambda). Tests organized by feature are unit tests; tests organized by real-world scenario are integration tests. Each test's scenario name and comments must explain which features are interacting.
 
-4. **Over-approximation strategy not decided** -- Without a consistent strategy, some handlers over-approximate while others under-approximate, making guarantees meaningless. Decision: ALWAYS over-approximate. Report a superset of actual paths. Use wildcards for computed properties, flag `$eval` as opaque.
+4. **Snapshot tests without intent documentation** — `toMatchInlineSnapshot()` is a secondary baseline only, never the primary assertion. Snapshots can be blindly updated with `vitest -u`. The primary assertion is always an explicit `toEqual`. Never commit snapshot content without reviewing that the values are semantically correct.
 
-5. **Undocumented AST properties** -- The parser attaches properties (`predicate`, `group`, `condition`, `then`, `else`, `body`, `update`, `delete`, `pattern`, `focus`, `index`, `tuple`) that are not reflected in the TypeScript types. Missing these means missing paths in conditional branches, transform clauses, and grouping keys.
+5. **Missing "silence is wrong" coverage** — The walker has documented silent-drop code paths: unresolvable variables return `[]`, unknown node types return `[]`. These produce fewer paths without any error. Only exact `toEqual` assertions catch this; subset assertions do not. Deep variable chain tests (3+ hops) are specifically designed to surface silent resolution failures.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on combined research, the recommended phase structure prioritizes: (1) infrastructure that prevents poorly-structured tests from being written, (2) core production patterns that exercise the most walker code paths, and (3) advanced patterns that stress feature interactions and known technical debt.
 
-### Phase 1: Foundation -- Types, Parser Adapter, and Basic Walker
+### Phase 1: Test Infrastructure and Assertion Foundation
 
-**Rationale:** Everything depends on having accurate AST types and a working walker. The official TypeScript types are incomplete, so custom types are the foundation. The basic walker covering simple paths (without variables or complex operators) validates the approach end-to-end and delivers immediate value.
-**Delivers:** Custom AST type definitions, parser adapter, core walker handling `path`, `name`, `string`, `number`, `value`, `wildcard`, `descendant`, `binary`, `unary`, `block`, `condition`, literal types. Path Collector component. Over-approximation strategy documented. Steps AND stages traversal implemented.
-**Addresses (FEATURES.md):** Simple dot-path extraction, nested paths, wildcard/descendant operators, binary/conditional operand extraction, literal handling, block expression support.
-**Avoids (PITFALLS.md):** Incomplete node type coverage (exhaustive switch from day one), steps/stages distinction (built into core traversal), undocumented AST properties (custom types + discovery harness), no approximation strategy (decided and documented upfront).
+**Rationale:** Without the shared `helpers.ts` utility and assertion discipline established before any tests are written, pitfalls 1, 4, 5, and 9 will manifest across the entire suite and be expensive to retroactively fix. This is the foundational constraint identified across all four research files — PITFALLS.md explicitly calls it out as "Phase 1 before writing any tests."
 
-### Phase 2: Scope Infrastructure and Variable Tracing
+**Delivers:** `test/integration/` directory, `helpers.ts` with `IntegrationFixture` type + `sortPaths()` + `assertFixture()`, NPM scripts (`test:unit`, `test:integration`, `test:update-snapshots`), and 2-3 smoke fixtures in `data-transforms.integration.test.ts` to validate the infrastructure end-to-end.
 
-**Rationale:** Variable binding tracing is the single most important differentiator AND the highest-complexity table-stakes feature. It requires dedicated infrastructure (Scope Tracker) and careful design. Must come before advanced operators because transforms, lambdas, and higher-order functions all depend on scope resolution.
-**Delivers:** Scope Tracker component with push/pop block boundaries, variable binding resolution (`$x := expr` traces to data paths), Path Resolver component (post-walk variable substitution), multi-hop variable chain resolution (`$a := x.y; $b := $a.z; $b` resolves to `x.y.z`).
-**Addresses (FEATURES.md):** Variable binding tracing, function argument paths (partial -- arguments extracted, not callback body resolution).
-**Avoids (PITFALLS.md):** Variable binding scope resolution errors (explicit scope stack, dedicated test cases for shadowing/closures).
+**Addresses:** File organization (Pitfall 10), assertion strategy convention (Pitfall 1), ordering sensitivity (Pitfall 9), snapshot discipline (Pitfall 4)
+**Avoids:** All critical assertion pitfalls before they can be written into tests
 
-### Phase 3: Filter Predicates and Complex Operators
+### Phase 2: Core Production Patterns (20-25 tests)
 
-**Rationale:** Filter predicates are the first "interesting" feature where context changes -- `items[price > 10]` means `price` is relative to `items`. Sort expressions and transform operators follow the same pattern of relative-path resolution. Group these because they share the path-context-stack mechanism.
-**Delivers:** Filter predicate path extraction with context-relative resolution, sort expression path extraction, transform operator analysis (pattern/update/delete clauses), array index vs. filter predicate distinction.
-**Addresses (FEATURES.md):** Filter predicate path extraction, sort expression paths, transform operator analysis, array index access distinction.
-**Avoids (PITFALLS.md):** Path flattening/stages confusion (thoroughly tested here), over-approximation consistency (wildcard for unresolvable predicates).
+**Rationale:** API reshaping, data pipelines, conditional selection, aggregation, and variable-driven construction appear in every production JSONata environment. These also exercise the widest cross-section of the walker's code paths. If the walker has fundamental bugs in variable resolution or filter predicate context, they surface here. FEATURES.md designates these as the 10 table-stakes categories sourced from Stedi, AWS Step Functions, and Node-RED production usage.
 
-### Phase 4: Lambda, Higher-Order Functions, and Advanced Features
+**Delivers:** `data-transforms.integration.test.ts`, `business-rules.integration.test.ts`, `api-reshaping.integration.test.ts` fully populated with 20-25 tests sourced from real production patterns. Expressions are multi-line template literals with descriptive comments. All tests use `assertFixture()` with `confidence` included in every `PathResult` assertion.
 
-**Rationale:** Lambda/higher-order function tracking is the hardest problem and depends on both the scope infrastructure (Phase 2) and context tracking (Phase 3). This phase also handles parent operator resolution and context/positional bindings. These are differentiators, not table stakes -- ship the core tool before tackling them.
-**Delivers:** Lambda body path extraction, higher-order function context binding (`$map` callback parameter resolution), parent operator (`%`) symbolic resolution, context (`@`) and positional (`#`) variable tracking, `$eval` detection and flagging, confidence annotations on paths.
-**Addresses (FEATURES.md):** Lambda/higher-order function context tracking, parent operator resolution, context/positional variable binding, confidence annotations, dynamic path detection.
-**Avoids (PITFALLS.md):** Parent operator backward resolution (symbolic markers as fallback), `$eval` silent omission (explicit warning).
+**Uses:** `it.for()` parameterized tables, typed `IntegrationFixture[]` arrays, `assertFixture()` helper from Phase 1
+**Implements:** Category-per-file architecture from ARCHITECTURE.md; complexity-ladder ordering within each file
+**Avoids:** Pitfall 2 (verify via JSONata Exerciser), Pitfall 3 (each test combines 2+ interacting features), Pitfall 7 (confidence field in all assertions), Pitfall 8 (expressions sourced from real production patterns)
 
-### Phase 5: Public API, CLI, and Polish
+### Phase 3: Advanced Patterns, Edge Cases, and Tech Debt (25-30 tests)
 
-**Rationale:** The API and CLI are thin wrappers. Deferring them until the core is solid avoids designing the interface before understanding the output structure (especially if confidence annotations are added in Phase 4). This phase also handles output formatting, batch analysis, and documentation.
-**Delivers:** Public `extractPaths()` API with TypeScript types, CLI via commander, output format options (JSON, newline-delimited), batch expression analysis, npm package configuration (dual ESM/CJS), comprehensive documentation.
-**Addresses (FEATURES.md):** Programmatic TypeScript/JS API, CLI tool, output format options, multiple expression batch analysis.
-**Avoids (PITFALLS.md):** UX pitfalls (non-deterministic output order, missing context on paths, silent incomplete results).
+**Rationale:** Chained `~>` pipelines, context variable binding (`@$v`), parent operator chains, nested lambda closures, and deeply nested variable chains represent the complex end of production JSONata. They also target the features most likely to have subtle scope-chain bugs. The known technical debt from PROJECT.md (`$sort` lambda semantics, `$lookup`, standalone `BindNode`) must be explicitly covered — PITFALLS.md identifies skipping known debt as Pitfall 11 and flags it as a Phase 3 concern.
+
+**Delivers:** `data-export.integration.test.ts`, `edge-cases.integration.test.ts`, targeted fixtures for each known tech debt item (`$sort` with lambda callback, `$lookup`, standalone `$x := expr` bind outside a block), plus 3-5 CLI integration tests using `execFileSync` (complex expression round-trip, stdin piping, error formatting verification).
+
+**Avoids:** Pitfall 5 (3+ hop variable chain tests detect silent drops), Pitfall 6 (3-way feature interaction matrix cells covered), Pitfall 11 (tech debt items explicitly targeted), Pitfall 12 (CLI tests added)
 
 ### Phase Ordering Rationale
 
-- **Phase 1 before everything:** Custom types and exhaustive walker are the foundation. Every subsequent phase adds handlers to the walker framework established here.
-- **Phase 2 before Phase 3:** Filter predicates and transforms can involve variables (`items[$x]`). Scope infrastructure must exist before complex operator handling.
-- **Phase 3 before Phase 4:** Lambda context tracking builds on the path-context-stack mechanism introduced for filter predicates.
-- **Phase 4 before Phase 5:** API design benefits from knowing the full output structure, including confidence annotations and warnings from advanced analysis.
-- **Architecture and Pitfalls converge:** Both recommend building exhaustive types first, scope tracking second, complex operators third. The dependency chain in ARCHITECTURE.md (Parser Adapter -> Type Defs -> Scope Tracker + Path Collector -> Walker -> Resolver -> API) maps directly to this phase structure.
+- Infrastructure before tests: PITFALLS.md shows that bad assertion conventions are hard to retroactively fix across 50+ tests; `helpers.ts` must exist before the first test is written.
+- Core patterns before edge cases: ARCHITECTURE.md's build-order analysis shows each category builds on confidence from the previous; edge cases require the fixture infrastructure to be battle-tested.
+- Feature interaction depth: PITFALLS.md's feature interaction matrix analysis shows 3-way interactions (variable + filter + lambda) as the highest-risk untested area; these are addressed in Phase 3 after Phase 2 establishes that 2-way interactions work correctly.
+- Tech debt explicitly phased: Phase 3 targets known tech debt items from PROJECT.md explicitly rather than relying on incidental coverage.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 2 (Scope Infrastructure):** JSONata's scoping rules for `@`/`#` bindings, closure capture semantics, and the reduce operator's scope termination need validation against actual parser behavior. Write exploratory tests parsing real expressions.
-- **Phase 3 (Filters and Complex Operators):** The `stages` property structure on path steps needs empirical validation -- parse diverse filter/sort/group expressions and inspect the actual AST shape.
-- **Phase 4 (Lambdas and Advanced):** Higher-order function binding semantics (`$map`, `$filter`, `$reduce`, `$each`, `$sift`, `$sort`) and parent operator AST output need investigation. The AST may or may not include resolved parent path information.
+Phases needing closer attention during implementation:
+- **Phase 3 edge cases:** Context variable binding (`@$v` with cross-reference across two arrays), parent operator in mapped contexts, and deeply nested variable chains are the hardest to reason about. Expected paths for these scenarios should be verified against the JSONata Exerciser with concrete sample data before writing assertions, per Pitfall 2 guidance.
+- **Phase 3 tech debt targets:** `$sort` higher-order semantics and standalone `BindNode` behavior are documented as untested in PROJECT.md. Tests for these may reveal actual bugs. If they do, document as v1.2 items and mark tests as `it.skip` with a tracking comment — do not fix the bugs in scope of v1.1.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation):** Exhaustive switch dispatch, discriminated unions, recursive AST walking are all well-documented TypeScript patterns. The node type list is verified.
-- **Phase 5 (API and CLI):** Standard library packaging with tsup, commander CLI wrapping, and npm publishing are thoroughly documented.
+Phases with standard, lower-risk patterns:
+- **Phase 1 infrastructure:** Vitest APIs are well-documented; the `IntegrationFixture` interface and `sortPaths()` utility are straightforward TypeScript.
+- **Phase 2 core patterns:** Production JSONata patterns are extensively documented across four independent sources; expected outputs for basic pipelines, conditionals, and aggregations are mechanically derivable from JSONata semantics.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All technologies verified via official sources, npm, and release announcements. Versions confirmed current. Only 2 runtime dependencies. |
-| Features | MEDIUM-HIGH | Table stakes features are clear from JSONata language semantics. Differentiators synthesized from analogous tools (GraphQL analyzers, ESLint scope analysis, SQL lineage). No direct competitor exists for validation. |
-| Architecture | HIGH | Pipeline pattern is standard for compiler analysis tools. Component boundaries verified against JSONata parser source. AST node types confirmed from official TypeScript definitions and parser source. |
-| Pitfalls | HIGH | Pitfalls verified against actual JSONata parser source code, GitHub issues, Go implementation cross-reference, and TypeScript type definitions. The ExprNode incompleteness is empirically confirmed. |
+| Stack | HIGH | Zero new dependencies; all capabilities verified in Vitest 4.0 official docs; npm version confirmed |
+| Features | HIGH | Test categories sourced from official JSONata docs + Stedi + AWS Step Functions + Node-RED — four independent production sources; cross-referenced against existing 105-test unit suite |
+| Architecture | HIGH | Category-per-file fixture pattern validated against Vitest community discussions; component boundaries are clean and consistent with existing project structure |
+| Pitfalls | HIGH | Grounded in direct codebase analysis of `walker.ts`, `index.ts`, `scope.ts` combined with testing anti-pattern literature; silent-drop code paths identified by line number |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Exact `stages` property structure:** The steps/stages distinction is documented by the pitfalls research but the exact shape of stage nodes for each operator type (filter, sort, index, join, reduce) needs empirical validation by parsing real expressions. Address in Phase 1 via discovery harness.
-- **Parent operator AST output:** Whether the parser's AST includes resolved parent path information or only raw `%` nodes is unknown. Must inspect actual AST output for expressions containing `%`. Address at start of Phase 4.
-- **Higher-order function binding semantics:** How `$map`, `$filter`, `$reduce` bind their callback parameters at the AST level is not documented. Need to parse expressions using these functions and inspect parameter binding in the AST. Address in Phase 4.
-- **`$eval` prevalence in real-world expressions:** If `$eval` is rare, flagging it as opaque is sufficient. If common, users may need partial analysis. Validate against real expression corpora during Phase 4.
-- **Forward reference behavior:** ARCHITECTURE.md notes uncertainty about whether JSONata allows forward references within blocks. The two-pass architecture hedges against this but the actual behavior should be confirmed. Address in Phase 2.
-- **No competing tool for feature validation:** No existing JSONata path extraction tool was found. Feature priorities are inferred from analogous domains (GraphQL, SQL lineage, XPath analysis) rather than validated against user expectations. Mitigate by shipping early and iterating.
+- **Snapshot usage policy:** ARCHITECTURE.md recommends inline snapshots as secondary validation on every test; PITFALLS.md recommends against relying on them. These are consistent but the implementation team should decide upfront: secondary snapshot on every test, or only on complex expressions with 10+ paths. Either is defensible — consistency across the suite is what matters.
+- **`$sort` lambda semantics:** PROJECT.md documents that `$sort` higher-order semantics are defined but untested. An integration test may reveal a bug. The gap is known and scoped to Phase 3 — if a test fails, it becomes a tracked v1.2 item. Do not let uncertainty about this prevent starting Phase 2.
+- **Exact path enumeration for complex expressions:** For expressions producing 15+ paths (deeply nested variable chains, transform operator with update + delete), manually enumerating expected paths is tedious and error-prone. Mitigation: verify against the JSONata Exerciser with concrete input data and document the reasoning in fixture comments. This is a process discipline gap, not a technical one.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [jsonata npm package](https://www.npmjs.com/package/jsonata) -- v2.1.0, built-in TypeScript types, `ast()` method verified
-- [jsonata GitHub repository and source](https://github.com/jsonata-js/jsonata) -- parser source, AST node types, TypeScript definitions
-- [JSONata official documentation](https://docs.jsonata.org/) -- path operators, processing model, programming constructs, higher-order functions, other operators
-- [Vitest 4.0](https://vitest.dev/) -- test runner, stable release
-- [tsup](https://tsup.egoist.dev/) -- bundler, v8.5
-- [commander](https://www.npmjs.com/package/commander) -- CLI framework, v14
-- [TypeScript 5.9](https://github.com/microsoft/typescript/releases) -- stable release
-- [ESLint 10](https://eslint.org/blog/2026/02/eslint-v10.0.0-released/) -- stable release
-- [Node.js releases](https://nodejs.org/en/about/previous-releases) -- Node 22 LTS
+- [Vitest Test API Reference](https://vitest.dev/api/) — `it.for()`, `it.each()`, `describe.each()` documentation
+- [Vitest Snapshot Guide](https://vitest.dev/guide/snapshot) — `toMatchInlineSnapshot()`, custom serializers, best practices
+- [Vitest 4.0 Announcement](https://vitest.dev/blog/vitest-4) — confirms v4.0.18 as current stable
+- [JSONata Official Docs](https://docs.jsonata.org/) — path operators, programming constructs, expressions, construction patterns
+- [AWS Step Functions JSONata](https://docs.aws.amazon.com/step-functions/latest/dg/transforming-data.html) — production JSONata usage patterns in cloud workflows
+- [Stedi Common Mapping Expressions](https://www.stedi.com/docs/edi-platform/mappings/jsonata/common-mapping-expressions) — production EDI/API data transformation patterns
+- Codebase analysis: `walker.ts`, `index.ts`, `types.ts`, `scope.ts`, `extract-paths.test.ts` — direct source code reading; silent-drop code paths identified by line number
 
 ### Secondary (MEDIUM confidence)
-- [Stedi prettier-plugin-jsonata](https://github.com/Stedi/prettier-plugin-jsonata) -- prior art for JSONata AST walking
-- [Rust JSONata AstKind enum](https://docs.rs/jsonata/latest/jsonata/ast/enum.AstKind.html) -- cross-reference for node types
-- [ESLint scope-manager](https://eslint.org/docs/latest/extend/scope-manager-interface) -- pattern reference for variable scope tracking
-- [GraphQL static query analysis](https://www.graphql.de/blog/static-query-analysis/) -- analogous domain for field dependency extraction
-- [JSONata GitHub issues (#206, #473, #299, #335)](https://github.com/jsonata-js/jsonata/issues) -- confirms no built-in path extraction, reveals AST quirks
+- [Vitest GitHub Discussion #4675](https://github.com/vitest-dev/vitest/discussions/4675) — unit vs. integration test separation via directory
+- [Node-RED JSONata Recipes](https://github.com/node-red/cookbook.nodered.org/wiki/JSONata-Recipes) — community production patterns
+- [SSENSE Step Functions JSONata 2025](https://medium.com/ssense-tech/step-functions-in-2025-simplify-your-development-with-jsonata-1590b6c439d3) — real-world complexity examples
+- [Effective Snapshot Testing (Kent C. Dodds)](https://kentcdodds.com/blog/effective-snapshot-testing) — snapshot discipline guidance
+- [Software Testing Anti-patterns (Codepipes)](https://blog.codepipes.com/testing/software-testing-antipatterns.html) — tautological test anti-pattern
+- [Stedi JSONata Cheatsheet](https://www.stedi.com/docs/edi-platform/mappings/jsonata/jsonata-cheatsheet) — common real-world expression patterns
 
 ### Tertiary (LOW confidence)
-- [Internal structures of JSONata expressions (Medium blog)](https://medium.com/@varshajainm.1121/internal-structures-of-jsonata-expressions-053540af937f) -- helpful AST walkthrough, single source
-- [Column-level lineage via SQL parsing (Metaplane)](https://www.metaplane.dev/blog/column-level-lineage-an-adventure-in-sql-parsing) -- validates ~80% coverage achievable with initial AST walking
+- [Its 2025, Stop Using Snapshot Testing (Stackademic)](https://blog.stackademic.com/its-2025-stop-using-snapshot-testing-1afa6612259e) — opinion piece, informs snapshot policy discussion
+- [JSONata Kestra Article](https://medium.com/@fhussonnois/jsonata-the-swiss-army-knife-of-kestra-for-json-transformation-07c27d27988d) — data integration pipeline patterns
+- [Tautological Test Driven Development Anti-Pattern (Fabio Pereira)](http://fabiopereira.me/blog/2010/05/27/ttdd-tautological-test-driven-development-anti-pattern/) — general testing literature
 
 ---
-*Research completed: 2026-03-02*
+*Research completed: 2026-03-03*
 *Ready for roadmap: yes*
