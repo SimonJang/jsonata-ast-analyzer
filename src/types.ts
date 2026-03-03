@@ -1,5 +1,4 @@
-// PathResult — the public output type. Starts with just `path` string;
-// Phase 4 will add confidence annotations without breaking the contract.
+// PathResult — the public output type.
 export interface PathResult {
   path: string;
 }
@@ -160,6 +159,13 @@ export interface TransformNode {
   position?: number;
 }
 
+/** Parent operator node -- appears as a step in PathNode.steps or as a filter stage expr. */
+export interface ParentNode {
+  type: "parent";
+  slot: { label: string; level: number; index: number };
+  position?: number;
+}
+
 /** Group-by structure on PathNode.group. Contains array of [key, value] expression pairs. */
 export interface GroupByNode {
   type: string;
@@ -195,4 +201,5 @@ export type AstNode =
   | ApplyNode
   | SortNode
   | TransformNode
+  | ParentNode   // explicit union member before GenericNode
   | GenericNode;
