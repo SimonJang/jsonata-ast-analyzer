@@ -90,7 +90,7 @@ function prefixPaths(prefix: string, paths: string[]): string[] {
 
 /**
  * Extract paths from a path node's steps, handling variable steps,
- * filter stages on name steps, and focus/index variable binding.
+ * filter stages on name steps, sort steps, and group-by expressions.
  */
 function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   // Check if any step is a variable (e.g., $x.name)
@@ -130,36 +130,57 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(...walkFilterStages(nameStep, contextPrefix, scope));
       }
     } else if (step.type === "sort") {
-      const sortNode = step as SortNode;
-      // Context prefix: steps BEFORE the sort step (NOT including it)
-      // Sort step itself is not a path segment -- buildPathString already skips it
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
-      for (const term of sortNode.terms) {
-        const termPaths = walkNode(term.expression, scope);
-        paths.push(...prefixPaths(contextPrefix, termPaths));
-      }
+      paths.push(...walkSortTerms(step as SortNode, contextPrefix, scope));
     }
   }
 
   // Handle group-by on the PathNode (node.group)
   if (node.group) {
-    const basePath = buildPathString(node.steps) ?? "";
-    const groupNode = node.group as unknown as GroupByNode;
-    if (groupNode.lhs) {
-      for (const pair of groupNode.lhs) {
-        const [keyExpr, valExpr] = pair;
-        if (keyExpr) {
-          const keyPaths = walkNode(keyExpr, scope);
-          paths.push(...prefixPaths(basePath, keyPaths));
-        }
-        if (valExpr) {
-          const valPaths = walkNode(valExpr, scope);
-          paths.push(...prefixPaths(basePath, valPaths));
-        }
+    paths.push(...walkGroupBy(node, scope));
+  }
+
+  return paths;
+}
+
+/**
+ * Walk sort terms on a sort step, extracting and context-prefixing paths.
+ * Context prefix uses steps BEFORE the sort step (slice(0, i), NOT slice(0, i+1))
+ * because the sort step itself is not a path segment.
+ */
+function walkSortTerms(
+  sortNode: SortNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+  for (const term of sortNode.terms) {
+    const termPaths = walkNode(term.expression, scope);
+    paths.push(...prefixPaths(contextPrefix, termPaths));
+  }
+  return paths;
+}
+
+/**
+ * Walk group-by expression on a PathNode, extracting key and value paths.
+ * Both key and value expressions are prefixed with the base path of the
+ * PathNode (computed from all steps, with sort steps skipped by buildPathString).
+ */
+function walkGroupBy(node: PathNode, scope: ScopeTracker): string[] {
+  const paths: string[] = [];
+  const groupBasePath = buildPathString(node.steps) ?? "";
+  const groupNode = node.group as unknown as GroupByNode;
+  if (groupNode.lhs) {
+    for (const pair of groupNode.lhs) {
+      const [keyExpr, valExpr] = pair;
+      if (keyExpr) {
+        paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
+      }
+      if (valExpr) {
+        paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
       }
     }
   }
-
   return paths;
 }
 
