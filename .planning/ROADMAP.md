@@ -119,10 +119,10 @@ Plans:
   2. All existing tests continue to pass
   3. CLI produces the actual error message (not `[object Object]`) for jsonata parse errors
   4. New tests cover standalone VariableNode predicate and CLI error formatting
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 07-01-PLAN.md -- TBD
+- [ ] 07-01-PLAN.md -- Fix walkVariable predicate + CLI error message + cosmetic cleanup
 
 ## Progress
 
