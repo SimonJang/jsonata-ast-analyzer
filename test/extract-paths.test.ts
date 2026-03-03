@@ -705,4 +705,54 @@ describe("extractPaths", () => {
       expect(result).toHaveLength(3);
     });
   });
+
+  // ============================================================
+  // Phase 4 Plan 01: Parent Operator and Dynamic Bracket Wildcard
+  // ============================================================
+
+  // ---------- ADV-01: Parent operator ----------
+  describe("ADV-01: Parent operator", () => {
+    it('standalone parent: "%"', () => {
+      expect(extractPaths("%")).toEqual([{ path: "%" }]);
+    });
+
+    it('parent in path: "%.name"', () => {
+      expect(extractPaths("%.name")).toEqual([{ path: "%.name" }]);
+    });
+
+    it('parent mid-path: "items.%.name"', () => {
+      expect(extractPaths("items.%.name")).toContainEqual({ path: "items.%.name" });
+    });
+
+    it('parent in filter predicate: "products[%]"', () => {
+      const result = extractPaths("products[%]");
+      expect(result).toContainEqual({ path: "products.%" });
+    });
+  });
+
+  // ---------- ADV-02: Dynamic bracket wildcard ----------
+  describe("ADV-02: Dynamic bracket wildcard", () => {
+    it('unbound variable in bracket: "item[$field]" -> item[*]', () => {
+      const result = extractPaths("item[$field]");
+      expect(result).toContainEqual({ path: "item[*]" });
+      expect(result).toContainEqual({ path: "item" });
+    });
+
+    it('unbound variable with suffix: "item[$field].name" -> item.name + item[*]', () => {
+      const result = extractPaths("item[$field].name");
+      expect(result).toContainEqual({ path: "item.name" });
+      expect(result).toContainEqual({ path: "item[*]" });
+    });
+
+    it('bare name in filter is NOT dynamic: "item[fieldName]" has no [*]', () => {
+      const result = extractPaths("item[fieldName]");
+      expect(result.some(r => r.path.includes("[*]"))).toBe(false);
+      expect(result).toContainEqual({ path: "item.fieldName" });
+    });
+
+    it('variable bound to literal resolves to [] -> emits [*]: "($f := \\"price\\"; item[$f])"', () => {
+      const result = extractPaths('($f := "price"; item[$f])');
+      expect(result).toContainEqual({ path: "item[*]" });
+    });
+  });
 });
