@@ -20,6 +20,9 @@ export function buildPathString(steps: AstNode[]): string | null {
       case "descendant":
         segments.push("**");
         break;
+      case "parent":
+        segments.push("%");
+        break;
       default:
         // Non-path step (e.g., filter/sort in Phase 3)
         // Skip silently -- don't break the path
