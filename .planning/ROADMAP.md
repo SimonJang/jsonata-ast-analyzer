@@ -44,10 +44,10 @@ Full details: `milestones/v1.0-ROADMAP.md`
   2. Running `npm run test:unit` executes only existing unit tests (not integration tests)
   3. A sample fixture using `assertFixture()` fails when expected paths are wrong and passes when correct (the helper enforces exact sorted comparison with confidence)
   4. The `IntegrationFixture` interface provides TypeScript type errors when `name`, `expression`, or `expectedPaths` is missing
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md -- Integration test helpers, fixture types, category files, and NPM scripts
 
 ### Phase 9: Data Transformation Tests
 **Goal**: Users can verify the analyzer correctly extracts paths from real-world data transformation patterns -- the most common JSONata production use case
@@ -137,7 +137,7 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 5. Public API and CLI | v1.0 | 1/1 | Complete | 2026-03-03 |
 | 6. ADV-02 Edge Case Fix | v1.0 | 1/1 | Complete | 2026-03-03 |
 | 7. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-03 |
-| 8. Test Infrastructure | v1.1 | 0/? | Not started | - |
+| 8. Test Infrastructure | v1.1 | 0/1 | Not started | - |
 | 9. Data Transformation Tests | v1.1 | 0/? | Not started | - |
 | 10. Business Rule Tests | v1.1 | 0/? | Not started | - |
 | 11. API Reshaping Tests | v1.1 | 0/? | Not started | - |
