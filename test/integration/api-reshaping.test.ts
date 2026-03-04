@@ -115,4 +115,144 @@ describe("API Reshaping", () => {
       });
     }
   });
+
+  describe("APIR-04: Context variable binding with cross-reference", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "variable-bound API payload: resolves variable through nested API response paths",
+        expression: `($payload := event.data; {"type": $payload.eventType, "userId": $payload.actor.id, "target": $payload.resource.name})`,
+        expectedPaths: [
+          { path: "event.data", confidence: "static" },
+          { path: "event.data.actor.id", confidence: "static" },
+          { path: "event.data.eventType", confidence: "static" },
+          { path: "event.data.resource.name", confidence: "static" },
+        ],
+      },
+      {
+        name: "variable cross-reference in calculation: resolves bound variable in arithmetic context",
+        expression: `($config := settings; order.amount * $config.taxRate)`,
+        expectedPaths: [
+          { path: "order.amount", confidence: "static" },
+          { path: "settings", confidence: "static" },
+          { path: "settings.taxRate", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+
+    // BUG(v1.2): focus variable @$o double-prefixes -- $o resolves to ["orders"],
+    // then filter context re-prefixes to "orders.orders.total"
+    it.skip("focus variable cross-reference: extracts focus-resolved paths without double prefix", () => {
+      assertFixture({
+        name: "focus variable cross-reference: extracts focus-resolved paths without double prefix",
+        expression: `orders@$o[$o.total > 100].id`,
+        expectedPaths: [
+          { path: "orders.id", confidence: "static" },
+          { path: "orders.total", confidence: "static" },
+        ],
+      });
+    });
+
+    // BUG(v1.2): variable-resolved paths in filter predicates get spuriously context-prefixed
+    it.skip("variable cross-reference in filter: extracts variable source and filter paths without spurious prefixing", () => {
+      assertFixture({
+        name: "variable cross-reference in filter: extracts variable source and filter paths without spurious prefixing",
+        expression: `($cfg := config; items[$cfg.minPrice < price].name)`,
+        expectedPaths: [
+          { path: "config", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+        ],
+      });
+    });
+  });
+
+  describe("APIR-05: Parent operator in nested mapped contexts", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "parent operator in flat path: produces partial-confidence path with % segment",
+        expression: `orders.items.%.orderRef`,
+        expectedPaths: [
+          { path: "orders.items.%.orderRef", confidence: "partial" },
+        ],
+      },
+      {
+        name: "two-level parent operator: produces path with double % segments",
+        expression: `company.departments.employees.%.%.companyName`,
+        expectedPaths: [
+          { path: "company.departments.employees.%.%.companyName", confidence: "partial" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+
+    // BUG(v1.2): walkPath does not walk value expressions inside unary (object constructor)
+    // path steps -- all inner paths including parent references are silently dropped
+    it.skip("parent in object constructor: extracts both local and parent-scoped paths", () => {
+      assertFixture({
+        name: "parent in object constructor: extracts both local and parent-scoped paths",
+        expression: `orders.items.{"itemName": name, "orderDate": %.date}`,
+        expectedPaths: [
+          { path: "orders.items", confidence: "static" },
+          { path: "orders.items.%.date", confidence: "partial" },
+          { path: "orders.items.name", confidence: "static" },
+        ],
+      });
+    });
+
+    // BUG(v1.2): walkPath does not walk inner expressions inside block path steps -- same
+    // root cause as object constructor step
+    it.skip("parent in block path step: extracts expression paths from block within path", () => {
+      assertFixture({
+        name: "parent in block path step: extracts expression paths from block within path",
+        expression: `orders.items.(%.orderRef & ": " & name)`,
+        expectedPaths: [
+          { path: "orders.items.%.orderRef", confidence: "partial" },
+          { path: "orders.items.name", confidence: "static" },
+        ],
+      });
+    });
+  });
+
+  describe("Composite: cross-pattern API reshaping", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "combined patterns: resolves all paths across APIR-01/02/03",
+        expression: `($resp := api.response;
+ $items := $resp.data.items;
+ {
+   "user": $resp.meta.requestedBy,
+   "count": $count($items),
+   "topItem": $map($items, function($v) {
+     {"name": $v.title, "category": $v.attributes.category}
+   }),
+   "source": config.apiVersion
+ })`,
+        expectedPaths: [
+          { path: "api.response", confidence: "static" },
+          { path: "api.response.data.items", confidence: "static" },
+          { path: "api.response.data.items.attributes.category", confidence: "static" },
+          { path: "api.response.data.items.title", confidence: "static" },
+          { path: "api.response.meta.requestedBy", confidence: "static" },
+          { path: "config.apiVersion", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
 });
