@@ -59,10 +59,10 @@ Plans:
   3. Array dot-notation mapping with context-relative paths (e.g., `orders.items.price`) produces correctly prefixed leaf paths
   4. Multi-stage transforms with intermediate variable bindings resolve all variable hops to their source data paths
   5. All tests use `assertFixture()` with confidence included in every PathResult assertion
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md -- TRFM-01 through TRFM-05 fixtures: pipeline chains, apply operators, array dot-notation, string formatting, multi-stage variable transforms
 
 ### Phase 10: Business Rule Tests
 **Goal**: Users can verify the analyzer correctly extracts paths from conditional logic, cross-field calculations, and lookup patterns typical of business rule expressions
@@ -138,7 +138,7 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 6. ADV-02 Edge Case Fix | v1.0 | 1/1 | Complete | 2026-03-03 |
 | 7. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-03 |
 | 8. Test Infrastructure | v1.1 | 0/1 | Not started | - |
-| 9. Data Transformation Tests | v1.1 | 0/? | Not started | - |
+| 9. Data Transformation Tests | v1.1 | 0/1 | Not started | - |
 | 10. Business Rule Tests | v1.1 | 0/? | Not started | - |
 | 11. API Reshaping Tests | v1.1 | 0/? | Not started | - |
 | 12. Data Export Tests | v1.1 | 0/? | Not started | - |
