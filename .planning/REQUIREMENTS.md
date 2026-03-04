@@ -39,10 +39,10 @@
 
 ### Data Export
 
-- [ ] **DEXP-01**: User can verify path extraction from structure-to-structure JSON format conversion
-- [ ] **DEXP-02**: User can verify path extraction from multi-field extraction into flat records
-- [ ] **DEXP-03**: User can verify path extraction from transform operator with update + delete clauses
-- [ ] **DEXP-04**: User can verify path extraction from group-by with aggregation (context-relative key/value)
+- [x] **DEXP-01**: User can verify path extraction from structure-to-structure JSON format conversion
+- [x] **DEXP-02**: User can verify path extraction from multi-field extraction into flat records
+- [x] **DEXP-03**: User can verify path extraction from transform operator with update + delete clauses
+- [x] **DEXP-04**: User can verify path extraction from group-by with aggregation (context-relative key/value)
 
 ### Edge Cases & Tech Debt
 
@@ -96,10 +96,10 @@
 | APIR-03 | Phase 11 | Complete |
 | APIR-04 | Phase 11 | Complete |
 | APIR-05 | Phase 11 | Complete |
-| DEXP-01 | Phase 12 | Pending |
-| DEXP-02 | Phase 12 | Pending |
-| DEXP-03 | Phase 12 | Pending |
-| DEXP-04 | Phase 12 | Pending |
+| DEXP-01 | Phase 12 | Complete |
+| DEXP-02 | Phase 12 | Complete |
+| DEXP-03 | Phase 12 | Complete |
+| DEXP-04 | Phase 12 | Complete |
 | EDGE-01 | Phase 13 | Pending |
 | EDGE-02 | Phase 13 | Pending |
 | EDGE-03 | Phase 13 | Pending |
