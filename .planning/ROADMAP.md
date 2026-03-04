@@ -31,7 +31,7 @@ Full details: `milestones/v1.0-ROADMAP.md`
 - [x] **Phase 10: Business Rule Tests** - Conditionals, compound filters, aggregation, lookups, variable-driven construction (completed 2026-03-04)
 - [x] **Phase 11: API Reshaping Tests** - Nested extraction, mixed sources, deep traversal, context variables, parent operator (completed 2026-03-04)
 - [x] **Phase 12: Data Export Tests** - Format conversion, flat records, transform operator, group-by aggregation (completed 2026-03-04)
-- [ ] **Phase 13: Edge Cases and Tech Debt** - Deep variable chains, nested HOFs, custom functions, $sort/$lookup/$bind debt, CLI round-trip
+- [x] **Phase 13: Edge Cases and Tech Debt** - Deep variable chains, nested HOFs, custom functions, $sort/$lookup/$bind debt, CLI round-trip (completed 2026-03-04)
 
 ## Phase Details
 
@@ -142,4 +142,4 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 10. Business Rule Tests | 1/1 | Complete    | 2026-03-04 | - |
 | 11. API Reshaping Tests | 1/1 | Complete    | 2026-03-04 | - |
 | 12. Data Export Tests | 1/1 | Complete    | 2026-03-04 | - |
-| 13. Edge Cases and Tech Debt | v1.1 | 0/1 | Not started | - |
+| 13. Edge Cases and Tech Debt | 1/1 | Complete   | 2026-03-04 | - |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Real-World Integration Tests
 status: completed
-stopped_at: Phase 13 context gathered
-last_updated: "2026-03-04T19:24:53.201Z"
-last_activity: 2026-03-04 -- Completed Phase 12 Plan 01 (data export tests)
+stopped_at: Completed 13-01-PLAN.md -- v1.1 milestone complete
+last_updated: "2026-03-04T19:48:24.409Z"
+last_activity: 2026-03-04 -- Completed Phase 13 Plan 01 (edge cases and tech debt)
 progress:
   total_phases: 6
-  completed_phases: 5
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 6
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
-**Current focus:** v1.1 Phase 12 -- Data Export Tests
+**Current focus:** v1.1 Phase 13 -- Edge Cases and Tech Debt (FINAL)
 
 ## Current Position
 
-Phase: 12 of 13 (Data Export Tests) -- fifth phase of v1.1
+Phase: 13 of 13 (Edge Cases and Tech Debt) -- sixth/final phase of v1.1
 Plan: 1 of 1 complete
-Status: Phase 12 complete
-Last activity: 2026-03-04 -- Completed Phase 12 Plan 01 (data export tests)
+Status: Phase 13 complete -- v1.1 milestone complete
+Last activity: 2026-03-04 -- Completed Phase 13 Plan 01 (edge cases and tech debt)
 
-Progress: [██████████] 100% (v1.1: 5/6 phases)
+Progress: [██████████] 100% (v1.1: 6/6 phases)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5 (v1.1)
+- Total plans completed: 6 (v1.1)
 - Average duration: 2.2min
-- Total execution time: 11min
+- Total execution time: 13min
 
 **By Phase:**
 
@@ -48,6 +48,7 @@ Progress: [██████████] 100% (v1.1: 5/6 phases)
 | 10-business-rule-tests | 1 | 2min | 2min |
 | 11-api-reshaping-tests | 1 | 2min | 2min |
 | 12-data-export-tests | 1 | 2min | 2min |
+| 13-edge-cases-and-tech-debt | 1 | 2min | 2min |
 
 *Updated after each plan completion*
 
@@ -70,6 +71,10 @@ All v1.0 decisions documented in PROJECT.md Key Decisions table with outcomes.
 - Phase 11: APIR-05 passing fixtures use flat parent paths to avoid walkPath unary/block step bug
 - Phase 12: Both pre-verified composite expressions included as separate fixtures (DEXP-01+02 and DEXP-03+04)
 - Phase 12: Variable-resolved group-by documented as BUG(v1.2) -- walkVariable missing .group property handling
+- Phase 13: EDGE-04 $sort lambda included as passing test (pre-verified working via HIGHER_ORDER_SEMANTICS)
+- Phase 13: EDGE-05 uses $lookup(inventory, itemCode).quantity to avoid BIZR-04 duplication
+- Phase 13: EDGE-07 uses execFileSync for shell-safe CLI subprocess invocation
+- Phase 13: Composite combines EDGE-01 variable chain + EDGE-02 nested HOF (bug-free patterns only)
 
 ### Pending Todos
 
@@ -81,6 +86,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-04T19:24:53.200Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-edge-cases-and-tech-debt/13-CONTEXT.md
+Last session: 2026-03-04T19:48:24.408Z
+Stopped at: Completed 13-01-PLAN.md -- v1.1 milestone complete
+Resume file: None

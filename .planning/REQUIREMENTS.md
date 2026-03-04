@@ -46,13 +46,13 @@
 
 ### Edge Cases & Tech Debt
 
-- [ ] **EDGE-01**: User can verify path extraction from deeply nested variable chains (3-4 hop resolution)
-- [ ] **EDGE-02**: User can verify path extraction from recursive/nested higher-order functions (closure across `$map` levels)
-- [ ] **EDGE-03**: User can verify path extraction from custom function definition with multi-call interprocedural tracing
-- [ ] **EDGE-04**: User can verify path extraction from `$sort` with lambda callback (known tech debt)
-- [ ] **EDGE-05**: User can verify path extraction from `$lookup` higher-order semantics (known tech debt)
-- [ ] **EDGE-06**: User can verify path extraction from standalone `BindNode` outside block (known tech debt)
-- [ ] **EDGE-07**: User can verify complex expression round-trip via CLI (`jsonata-paths`)
+- [x] **EDGE-01**: User can verify path extraction from deeply nested variable chains (3-4 hop resolution)
+- [x] **EDGE-02**: User can verify path extraction from recursive/nested higher-order functions (closure across `$map` levels)
+- [x] **EDGE-03**: User can verify path extraction from custom function definition with multi-call interprocedural tracing
+- [x] **EDGE-04**: User can verify path extraction from `$sort` with lambda callback (known tech debt)
+- [x] **EDGE-05**: User can verify path extraction from `$lookup` higher-order semantics (known tech debt)
+- [x] **EDGE-06**: User can verify path extraction from standalone `BindNode` outside block (known tech debt)
+- [x] **EDGE-07**: User can verify complex expression round-trip via CLI (`jsonata-paths`)
 
 ## Future Requirements
 
@@ -100,13 +100,13 @@
 | DEXP-02 | Phase 12 | Complete |
 | DEXP-03 | Phase 12 | Complete |
 | DEXP-04 | Phase 12 | Complete |
-| EDGE-01 | Phase 13 | Pending |
-| EDGE-02 | Phase 13 | Pending |
-| EDGE-03 | Phase 13 | Pending |
-| EDGE-04 | Phase 13 | Pending |
-| EDGE-05 | Phase 13 | Pending |
-| EDGE-06 | Phase 13 | Pending |
-| EDGE-07 | Phase 13 | Pending |
+| EDGE-01 | Phase 13 | Complete |
+| EDGE-02 | Phase 13 | Complete |
+| EDGE-03 | Phase 13 | Complete |
+| EDGE-04 | Phase 13 | Complete |
+| EDGE-05 | Phase 13 | Complete |
+| EDGE-06 | Phase 13 | Complete |
+| EDGE-07 | Phase 13 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 31 total
