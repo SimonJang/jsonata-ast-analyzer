@@ -28,7 +28,7 @@ Full details: `milestones/v1.0-ROADMAP.md`
 
 - [ ] **Phase 8: Test Infrastructure** - Shared helpers, fixture types, assertion utilities, NPM scripts
 - [ ] **Phase 9: Data Transformation Tests** - Pipeline chains, apply operators, array mapping, string formatting, multi-stage transforms
-- [ ] **Phase 10: Business Rule Tests** - Conditionals, compound filters, aggregation, lookups, variable-driven construction
+- [x] **Phase 10: Business Rule Tests** - Conditionals, compound filters, aggregation, lookups, variable-driven construction (completed 2026-03-04)
 - [ ] **Phase 11: API Reshaping Tests** - Nested extraction, mixed sources, deep traversal, context variables, parent operator
 - [ ] **Phase 12: Data Export Tests** - Format conversion, flat records, transform operator, group-by aggregation
 - [ ] **Phase 13: Edge Cases and Tech Debt** - Deep variable chains, nested HOFs, custom functions, $sort/$lookup/$bind debt, CLI round-trip
@@ -139,7 +139,7 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 7. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-03 |
 | 8. Test Infrastructure | v1.1 | 0/1 | Not started | - |
 | 9. Data Transformation Tests | v1.1 | 0/1 | Not started | - |
-| 10. Business Rule Tests | v1.1 | 0/1 | Not started | - |
+| 10. Business Rule Tests | 1/1 | Complete   | 2026-03-04 | - |
 | 11. API Reshaping Tests | v1.1 | 0/? | Not started | - |
 | 12. Data Export Tests | v1.1 | 0/? | Not started | - |
 | 13. Edge Cases and Tech Debt | v1.1 | 0/? | Not started | - |

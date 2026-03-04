@@ -23,11 +23,11 @@
 
 ### Business Rules
 
-- [ ] **BIZR-01**: User can verify path extraction from conditional field selection (ternary, elvis `?:`, coalescing)
-- [ ] **BIZR-02**: User can verify path extraction from multi-field compound filter predicates (and/or boolean)
-- [ ] **BIZR-03**: User can verify path extraction from aggregation over nested arrays (`$sum`, `$count`, `$average`)
-- [ ] **BIZR-04**: User can verify path extraction from lookup and cross-reference patterns
-- [ ] **BIZR-05**: User can verify path extraction from variable-driven object construction (bind + multi-reference)
+- [x] **BIZR-01**: User can verify path extraction from conditional field selection (ternary, elvis `?:`, coalescing)
+- [x] **BIZR-02**: User can verify path extraction from multi-field compound filter predicates (and/or boolean)
+- [x] **BIZR-03**: User can verify path extraction from aggregation over nested arrays (`$sum`, `$count`, `$average`)
+- [x] **BIZR-04**: User can verify path extraction from lookup and cross-reference patterns
+- [x] **BIZR-05**: User can verify path extraction from variable-driven object construction (bind + multi-reference)
 
 ### API Reshaping
 
@@ -86,11 +86,11 @@
 | TRFM-03 | Phase 9 | Complete |
 | TRFM-04 | Phase 9 | Complete |
 | TRFM-05 | Phase 9 | Complete |
-| BIZR-01 | Phase 10 | Pending |
-| BIZR-02 | Phase 10 | Pending |
-| BIZR-03 | Phase 10 | Pending |
-| BIZR-04 | Phase 10 | Pending |
-| BIZR-05 | Phase 10 | Pending |
+| BIZR-01 | Phase 10 | Complete |
+| BIZR-02 | Phase 10 | Complete |
+| BIZR-03 | Phase 10 | Complete |
+| BIZR-04 | Phase 10 | Complete |
+| BIZR-05 | Phase 10 | Complete |
 | APIR-01 | Phase 11 | Pending |
 | APIR-02 | Phase 11 | Pending |
 | APIR-03 | Phase 11 | Pending |

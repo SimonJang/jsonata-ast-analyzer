@@ -4,13 +4,13 @@ milestone: v1.1
 milestone_name: Real-World Integration Tests
 status: completed
 stopped_at: Phase 10 context gathered
-last_updated: "2026-03-04T11:01:22.070Z"
+last_updated: "2026-03-04T13:06:51.815Z"
 last_activity: 2026-03-04 -- Completed Phase 9 Plan 01 (data transformation tests)
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
   percent: 100
 ---
 
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
-**Current focus:** v1.1 Phase 9 -- Data Transformation Tests
+**Current focus:** v1.1 Phase 10 -- Business Rule Tests
 
 ## Current Position
 
-Phase: 9 of 13 (Data Transformation Tests) -- second phase of v1.1
+Phase: 10 of 13 (Business Rule Tests) -- third phase of v1.1
 Plan: 1 of 1 complete
-Status: Phase 9 complete
-Last activity: 2026-03-04 -- Completed Phase 9 Plan 01 (data transformation tests)
+Status: Phase 10 complete
+Last activity: 2026-03-04 -- Completed Phase 10 Plan 01 (business rule tests)
 
-Progress: [██████████] 100% (v1.1: 2/6 phases)
+Progress: [██████████] 100% (v1.1: 3/6 phases)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (v1.1)
-- Average duration: 2.5min
-- Total execution time: 5min
+- Total plans completed: 3 (v1.1)
+- Average duration: 2.3min
+- Total execution time: 7min
 
 **By Phase:**
 
@@ -45,6 +45,7 @@ Progress: [██████████] 100% (v1.1: 2/6 phases)
 |-------|-------|-------|----------|
 | 08-test-infrastructure | 1 | 2min | 2min |
 | 09-data-transformation-tests | 1 | 3min | 3min |
+| 10-business-rule-tests | 1 | 2min | 2min |
 
 *Updated after each plan completion*
 
@@ -60,6 +61,9 @@ All v1.0 decisions documented in PROJECT.md Key Decisions table with outcomes.
 - Phase 9: BUG(v1.2) tracking comment format for consistent bug documentation across skipped tests
 - Phase 9: Skipped fixtures show CORRECT expected output (what fix should produce), not buggy actual
 - Phase 9: Composite fixture combines bug-free patterns (TRFM-03/04/05) to avoid Bug A exposure
+- Phase 10: BIZR-04 skipped fixtures show CORRECT expected output for $lookup chaining and filter leak bugs
+- Phase 10: Composite fixture combines clean BIZR-01/03/05 patterns to avoid exposing known bugs
+- Phase 10: Variable+aggregation fixture ($count/$sum inside object constructor) validates complex BIZR-05 pattern
 
 ### Pending Todos
 
@@ -71,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-04T11:01:22.068Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-business-rule-tests/10-CONTEXT.md
+Last session: 2026-03-04T13:06:03Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: .planning/phases/10-business-rule-tests/10-01-SUMMARY.md
