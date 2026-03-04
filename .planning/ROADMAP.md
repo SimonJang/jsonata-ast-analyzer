@@ -118,10 +118,10 @@ Plans:
   3. Custom function definitions called from multiple sites produce the union of paths from all call-site arguments
   4. Known tech debt items (`$sort` lambda, `$lookup` HOF semantics, standalone `BindNode`) either pass or are documented as `it.skip` with a tracking comment for v1.2
   5. Complex expressions piped through the CLI (`jsonata-paths`) produce the same path output as the programmatic API
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md -- EDGE-01 through EDGE-07 fixtures: variable chains, nested HOFs, custom functions, $sort lambda, $lookup/$bind debt, CLI round-trip, plus composite
 
 ## Progress
 
@@ -142,4 +142,4 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 10. Business Rule Tests | 1/1 | Complete    | 2026-03-04 | - |
 | 11. API Reshaping Tests | 1/1 | Complete    | 2026-03-04 | - |
 | 12. Data Export Tests | 1/1 | Complete    | 2026-03-04 | - |
-| 13. Edge Cases and Tech Debt | v1.1 | 0/? | Not started | - |
+| 13. Edge Cases and Tech Debt | v1.1 | 0/1 | Not started | - |
