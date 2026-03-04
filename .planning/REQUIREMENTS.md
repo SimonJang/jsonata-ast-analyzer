@@ -31,11 +31,11 @@
 
 ### API Reshaping
 
-- [ ] **APIR-01**: User can verify path extraction from nested API payload extraction + flattening into new objects
-- [ ] **APIR-02**: User can verify path extraction from nested object output with mixed sources (multiple root paths)
-- [ ] **APIR-03**: User can verify path extraction from deep path traversal with array flattening
-- [ ] **APIR-04**: User can verify path extraction from context variable binding with cross-reference (`@$v` pattern)
-- [ ] **APIR-05**: User can verify path extraction from parent operator `%` in nested mapped contexts
+- [x] **APIR-01**: User can verify path extraction from nested API payload extraction + flattening into new objects
+- [x] **APIR-02**: User can verify path extraction from nested object output with mixed sources (multiple root paths)
+- [x] **APIR-03**: User can verify path extraction from deep path traversal with array flattening
+- [x] **APIR-04**: User can verify path extraction from context variable binding with cross-reference (`@$v` pattern)
+- [x] **APIR-05**: User can verify path extraction from parent operator `%` in nested mapped contexts
 
 ### Data Export
 
@@ -91,11 +91,11 @@
 | BIZR-03 | Phase 10 | Complete |
 | BIZR-04 | Phase 10 | Complete |
 | BIZR-05 | Phase 10 | Complete |
-| APIR-01 | Phase 11 | Pending |
-| APIR-02 | Phase 11 | Pending |
-| APIR-03 | Phase 11 | Pending |
-| APIR-04 | Phase 11 | Pending |
-| APIR-05 | Phase 11 | Pending |
+| APIR-01 | Phase 11 | Complete |
+| APIR-02 | Phase 11 | Complete |
+| APIR-03 | Phase 11 | Complete |
+| APIR-04 | Phase 11 | Complete |
+| APIR-05 | Phase 11 | Complete |
 | DEXP-01 | Phase 12 | Pending |
 | DEXP-02 | Phase 12 | Pending |
 | DEXP-03 | Phase 12 | Pending |
