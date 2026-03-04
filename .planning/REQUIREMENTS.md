@@ -7,11 +7,11 @@
 
 ### Test Infrastructure
 
-- [ ] **INFR-01**: Integration test directory (`test/integration/`) with category-per-file organization (5 files)
-- [ ] **INFR-02**: Typed `IntegrationFixture` interface with `name`, `expression`, `expectedPaths`, optional `mustContain`/`mustNotContain`
-- [ ] **INFR-03**: Shared `sortPaths()` utility that normalizes path order before comparison
-- [ ] **INFR-04**: Shared `assertFixture()` utility enforcing `toEqual` on sorted results with confidence included
-- [ ] **INFR-05**: NPM scripts for `test:unit`, `test:integration`, and `test:update-snapshots`
+- [x] **INFR-01**: Integration test directory (`test/integration/`) with category-per-file organization (5 files)
+- [x] **INFR-02**: Typed `IntegrationFixture` interface with `name`, `expression`, `expectedPaths`, optional `mustContain`/`mustNotContain`
+- [x] **INFR-03**: Shared `sortPaths()` utility that normalizes path order before comparison
+- [x] **INFR-04**: Shared `assertFixture()` utility enforcing `toEqual` on sorted results with confidence included
+- [x] **INFR-05**: NPM scripts for `test:unit`, `test:integration`, and `test:update-snapshots`
 
 ### Data Transformations
 
@@ -76,11 +76,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFR-01 | Phase 8 | Pending |
-| INFR-02 | Phase 8 | Pending |
-| INFR-03 | Phase 8 | Pending |
-| INFR-04 | Phase 8 | Pending |
-| INFR-05 | Phase 8 | Pending |
+| INFR-01 | Phase 8 | Complete |
+| INFR-02 | Phase 8 | Complete |
+| INFR-03 | Phase 8 | Complete |
+| INFR-04 | Phase 8 | Complete |
+| INFR-05 | Phase 8 | Complete |
 | TRFM-01 | Phase 9 | Pending |
 | TRFM-02 | Phase 9 | Pending |
 | TRFM-03 | Phase 9 | Pending |
