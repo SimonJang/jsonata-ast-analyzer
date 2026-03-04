@@ -89,10 +89,10 @@ Plans:
   3. Context variable binding with cross-reference (`@$v` pattern) resolves paths through the binding correctly
   4. Parent operator `%` in nested mapped contexts produces path segments indicating parent scope access
   5. All tests use `assertFixture()` with confidence included in every PathResult assertion
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md -- APIR-01 through APIR-05 fixtures: nested extraction, mixed sources, deep traversal, context variables, parent operator, plus composite
 
 ### Phase 12: Data Export Tests
 **Goal**: Users can verify the analyzer correctly extracts paths from structure-to-structure conversions, flat record extraction, and grouped aggregation patterns
@@ -140,6 +140,6 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 8. Test Infrastructure | v1.1 | 0/1 | Not started | - |
 | 9. Data Transformation Tests | v1.1 | 0/1 | Not started | - |
 | 10. Business Rule Tests | 1/1 | Complete    | 2026-03-04 | - |
-| 11. API Reshaping Tests | v1.1 | 0/? | Not started | - |
+| 11. API Reshaping Tests | v1.1 | 0/1 | Not started | - |
 | 12. Data Export Tests | v1.1 | 0/? | Not started | - |
 | 13. Edge Cases and Tech Debt | v1.1 | 0/? | Not started | - |
