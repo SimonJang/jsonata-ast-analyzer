@@ -103,10 +103,10 @@ Plans:
   2. Multi-field extraction into flat records produces one path per extracted source field
   3. Transform operator with update and delete clauses produces paths from the update expression (not just the match expression)
   4. Group-by with aggregation produces both the grouping key path and the aggregated value path
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md -- DEXP-01 through DEXP-04 fixtures: format conversion, flat records, transform operator, group-by aggregation, plus composite
 
 ### Phase 13: Edge Cases and Tech Debt
 **Goal**: Users can verify the analyzer handles the hardest feature interactions and known tech debt items -- deep variable chains, nested closures, interprocedural tracing, and documented untested code paths
@@ -141,5 +141,5 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 9. Data Transformation Tests | v1.1 | 0/1 | Not started | - |
 | 10. Business Rule Tests | 1/1 | Complete    | 2026-03-04 | - |
 | 11. API Reshaping Tests | 1/1 | Complete    | 2026-03-04 | - |
-| 12. Data Export Tests | v1.1 | 0/? | Not started | - |
+| 12. Data Export Tests | v1.1 | 0/1 | Not started | - |
 | 13. Edge Cases and Tech Debt | v1.1 | 0/? | Not started | - |
