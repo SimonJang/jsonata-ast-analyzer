@@ -15,11 +15,11 @@
 
 ### Data Transformations
 
-- [ ] **TRFM-01**: User can verify path extraction from filter -> sort -> map -> reshape pipeline chains
-- [ ] **TRFM-02**: User can verify path extraction from chained `~>` apply operator pipelines with lambda threading
-- [ ] **TRFM-03**: User can verify path extraction from array dot-notation mapping with context-relative paths
-- [ ] **TRFM-04**: User can verify path extraction from string concatenation/formatting with path operands
-- [ ] **TRFM-05**: User can verify path extraction from multi-stage transforms with intermediate variable bindings
+- [x] **TRFM-01**: User can verify path extraction from filter -> sort -> map -> reshape pipeline chains
+- [x] **TRFM-02**: User can verify path extraction from chained `~>` apply operator pipelines with lambda threading
+- [x] **TRFM-03**: User can verify path extraction from array dot-notation mapping with context-relative paths
+- [x] **TRFM-04**: User can verify path extraction from string concatenation/formatting with path operands
+- [x] **TRFM-05**: User can verify path extraction from multi-stage transforms with intermediate variable bindings
 
 ### Business Rules
 
@@ -81,11 +81,11 @@
 | INFR-03 | Phase 8 | Complete |
 | INFR-04 | Phase 8 | Complete |
 | INFR-05 | Phase 8 | Complete |
-| TRFM-01 | Phase 9 | Pending |
-| TRFM-02 | Phase 9 | Pending |
-| TRFM-03 | Phase 9 | Pending |
-| TRFM-04 | Phase 9 | Pending |
-| TRFM-05 | Phase 9 | Pending |
+| TRFM-01 | Phase 9 | Complete |
+| TRFM-02 | Phase 9 | Complete |
+| TRFM-03 | Phase 9 | Complete |
+| TRFM-04 | Phase 9 | Complete |
+| TRFM-05 | Phase 9 | Complete |
 | BIZR-01 | Phase 10 | Pending |
 | BIZR-02 | Phase 10 | Pending |
 | BIZR-03 | Phase 10 | Pending |
