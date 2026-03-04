@@ -74,10 +74,10 @@ Plans:
   3. Aggregation functions over nested arrays (`$sum`, `$count`, `$average`) produce the correct nested path to the aggregated field
   4. Variable-driven object construction (bind to `$var`, reference multiple times) resolves all variable references back to source paths
   5. All tests use `assertFixture()` with confidence included in every PathResult assertion
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md -- BIZR-01 through BIZR-05 fixtures: conditionals, compound filters, aggregation, lookups, variable-driven object construction
 
 ### Phase 11: API Reshaping Tests
 **Goal**: Users can verify the analyzer correctly extracts paths from complex API payload extraction and restructuring -- nested objects, multiple root paths, context variables, and parent operators
@@ -139,7 +139,7 @@ Phases 8 first (infrastructure), then 9-12 in any order (independent test catego
 | 7. Integration Polish | v1.0 | 1/1 | Complete | 2026-03-03 |
 | 8. Test Infrastructure | v1.1 | 0/1 | Not started | - |
 | 9. Data Transformation Tests | v1.1 | 0/1 | Not started | - |
-| 10. Business Rule Tests | v1.1 | 0/? | Not started | - |
+| 10. Business Rule Tests | v1.1 | 0/1 | Not started | - |
 | 11. API Reshaping Tests | v1.1 | 0/? | Not started | - |
 | 12. Data Export Tests | v1.1 | 0/? | Not started | - |
 | 13. Edge Cases and Tech Debt | v1.1 | 0/? | Not started | - |
