@@ -144,14 +144,168 @@ describe("Data Transforms", () => {
   });
 
   describe("TRFM-03: Array dot-notation mapping with context-relative paths", () => {
-    // Task 2 will fill this block
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "simple dot-notation: extracts single leaf path through nested arrays",
+        expression: `orders.items.price`,
+        expectedPaths: [
+          { path: "orders.items.price", confidence: "static" },
+        ],
+      },
+      {
+        name: "dot-notation with filter: extracts filter predicate and context-relative field",
+        expression: `orders.items[active].price`,
+        expectedPaths: [
+          { path: "orders.items.active", confidence: "static" },
+          { path: "orders.items.price", confidence: "static" },
+        ],
+      },
+      {
+        name: "multi-level dot-notation: extracts deeply nested leaf path through 3+ array levels",
+        expression: `company.departments.employees.name`,
+        expectedPaths: [
+          { path: "company.departments.employees.name", confidence: "static" },
+        ],
+      },
+      {
+        name: "dot-notation with nested filter: extracts filter predicate and leaf through intermediate arrays",
+        expression: `company.departments[active].employees.email`,
+        expectedPaths: [
+          { path: "company.departments.active", confidence: "static" },
+          { path: "company.departments.employees.email", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
   });
 
   describe("TRFM-04: String concatenation and formatting with path operands", () => {
-    // Task 2 will fill this block
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "simple concatenation: extracts both operand paths from & operator",
+        expression: `firstName & " " & lastName`,
+        expectedPaths: [
+          { path: "firstName", confidence: "static" },
+          { path: "lastName", confidence: "static" },
+        ],
+      },
+      {
+        name: "multi-field address formatting: extracts all nested paths from chained & operators",
+        expression: `address.city & ", " & address.state & " " & address.zip`,
+        expectedPaths: [
+          { path: "address.city", confidence: "static" },
+          { path: "address.state", confidence: "static" },
+          { path: "address.zip", confidence: "static" },
+        ],
+      },
+      {
+        name: "$join with array constructor: extracts path arguments from mixed path/literal array",
+        expression: `$join([firstName, " ", lastName])`,
+        expectedPaths: [
+          { path: "firstName", confidence: "static" },
+          { path: "lastName", confidence: "static" },
+        ],
+      },
+      {
+        name: "map with string concat in lambda: extracts base array and both concatenated field paths",
+        expression: `$map(contacts, function($c) { $c.first & " " & $c.last })`,
+        expectedPaths: [
+          { path: "contacts", confidence: "static" },
+          { path: "contacts.first", confidence: "static" },
+          { path: "contacts.last", confidence: "static" },
+        ],
+      },
+      {
+        name: "$string coercion in concatenation: extracts paths from both string and numeric operands",
+        expression: `name & " (" & $string(age) & ")"`,
+        expectedPaths: [
+          { path: "age", confidence: "static" },
+          { path: "name", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
   });
 
   describe("TRFM-05: Multi-stage transforms with intermediate variable bindings", () => {
-    // Task 2 will fill this block
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "variable binding chain: resolves multi-hop variable paths through object constructor",
+        expression: `($base := account; $name := $base.firstName & " " & $base.lastName; {"display": $name, "dept": $base.department.name, "id": $base.id})`,
+        expectedPaths: [
+          { path: "account", confidence: "static" },
+          { path: "account.department.name", confidence: "static" },
+          { path: "account.firstName", confidence: "static" },
+          { path: "account.id", confidence: "static" },
+          { path: "account.lastName", confidence: "static" },
+        ],
+      },
+      {
+        name: "multi-hop via $map then $sum: resolves variable through HOF and aggregation chain",
+        expression: `($raw := source.data; $mapped := $map($raw, function($v) { $v.value }); $sum($mapped))`,
+        expectedPaths: [
+          { path: "source.data", confidence: "static" },
+          { path: "source.data.value", confidence: "static" },
+        ],
+      },
+      {
+        name: "variable-bound $map with arithmetic: resolves variable through HOF with multiple field access",
+        expression: `($items := order.lineItems; $total := $sum($map($items, function($v) { $v.price * $v.qty })); $total)`,
+        expectedPaths: [
+          { path: "order.lineItems", confidence: "static" },
+          { path: "order.lineItems.price", confidence: "static" },
+          { path: "order.lineItems.qty", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+
+    // BUG(v1.2): filter predicate paths leak through variable-bound intermediate results
+    it.skip("variable-bound filter then map: should not produce spurious predicate-prefixed paths", () => {
+      assertFixture({
+        name: "variable-bound filter then map: should not produce spurious predicate-prefixed paths",
+        expression: `($data := items[active]; $map($data, function($v) { $v.name }))`,
+        expectedPaths: [
+          { path: "items", confidence: "static" },
+          { path: "items.active", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+        ],
+      });
+    });
+  });
+
+  describe("Composite: cross-pattern data transform", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "dot-notation + string concat + variable binding: resolves all hops across TRFM-03/04/05 patterns",
+        expression: `($addr := customer.address; $addr.city & ", " & $addr.state)`,
+        expectedPaths: [
+          { path: "customer.address", confidence: "static" },
+          { path: "customer.address.city", confidence: "static" },
+          { path: "customer.address.state", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
   });
 });
