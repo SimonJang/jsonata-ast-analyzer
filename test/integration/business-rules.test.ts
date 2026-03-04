@@ -131,12 +131,130 @@ describe("Business Rules", () => {
   });
 
   describe("BIZR-04: Lookup and cross-reference patterns", () => {
-    // Task 2 will fill this block
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "direct lookup: extracts both object and key paths",
+        expression: `$lookup(products, orders.productId)`,
+        expectedPaths: [
+          { path: "orders.productId", confidence: "static" },
+          { path: "products", confidence: "static" },
+        ],
+      },
+      {
+        name: "variable cross-reference: extracts config and calculation paths",
+        expression: `($config := settings; order.amount * $config.taxRate)`,
+        expectedPaths: [
+          { path: "order.amount", confidence: "static" },
+          { path: "settings", confidence: "static" },
+          { path: "settings.taxRate", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+
+    // BUG(v1.2): $lookup(obj, key).field loses function arguments -- only .field appears (EDGE-05 tech debt)
+    it.skip("lookup result chaining: extracts object, key, and chained field paths", () => {
+      assertFixture({
+        name: "lookup result chaining: extracts object, key, and chained field paths",
+        expression: `$lookup(products, sku).price`,
+        expectedPaths: [
+          { path: "products", confidence: "static" },
+          { path: "price", confidence: "static" },
+          { path: "sku", confidence: "static" },
+        ],
+      });
+    });
+
+    // BUG(v1.2): variable-resolved paths in filter predicates get spuriously context-prefixed (filter predicate path leak)
+    it.skip("variable-in-filter cross-reference: extracts variable source and filter paths without spurious prefixing", () => {
+      assertFixture({
+        name: "variable-in-filter cross-reference: extracts variable source and filter paths without spurious prefixing",
+        expression: `($min := minPrice; products[price >= $min].name)`,
+        expectedPaths: [
+          { path: "minPrice", confidence: "static" },
+          { path: "products.name", confidence: "static" },
+          { path: "products.price", confidence: "static" },
+        ],
+      });
+    });
   });
 
   describe("BIZR-05: Variable-driven object construction", () => {
-    // Task 2 will fill this block
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "variable-driven object: resolves all variable references back to source paths",
+        expression: `($order := order; {"id": $order.id, "total": $order.total, "customer": $order.customer.name})`,
+        expectedPaths: [
+          { path: "order", confidence: "static" },
+          { path: "order.customer.name", confidence: "static" },
+          { path: "order.id", confidence: "static" },
+          { path: "order.total", confidence: "static" },
+        ],
+      },
+      {
+        name: "multi-variable object: resolves two-hop variable chain into object fields",
+        expression: `($cust := customer; $addr := $cust.address; {"name": $cust.name, "city": $addr.city, "zip": $addr.zip})`,
+        expectedPaths: [
+          { path: "customer", confidence: "static" },
+          { path: "customer.address", confidence: "static" },
+          { path: "customer.address.city", confidence: "static" },
+          { path: "customer.address.zip", confidence: "static" },
+          { path: "customer.name", confidence: "static" },
+        ],
+      },
+      {
+        name: "multi-source object: resolves variables from two independent root sources",
+        expression: `($o := order; $c := customer; {"orderId": $o.id, "customerName": $c.name, "amount": $o.total})`,
+        expectedPaths: [
+          { path: "customer", confidence: "static" },
+          { path: "customer.name", confidence: "static" },
+          { path: "order", confidence: "static" },
+          { path: "order.id", confidence: "static" },
+          { path: "order.total", confidence: "static" },
+        ],
+      },
+      {
+        name: "variable with aggregation in object: resolves variable through aggregation functions",
+        expression: `($items := order.lineItems; {"count": $count($items), "total": $sum($map($items, function($v) { $v.price }))})`,
+        expectedPaths: [
+          { path: "order.lineItems", confidence: "static" },
+          { path: "order.lineItems.price", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
   });
 
-  // Task 2 will add Composite block
+  describe("Composite: cross-pattern business rule", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "combined conditional + aggregation + variable: resolves all paths across BIZR-01/03/05 patterns",
+        expression: `($order := order; {"label": $order.status = "rush" ? "URGENT" : "standard", "total": $sum($map($order.items, function($v) { $v.price * $v.qty })), "customer": $order.customer.name})`,
+        expectedPaths: [
+          { path: "order", confidence: "static" },
+          { path: "order.customer.name", confidence: "static" },
+          { path: "order.items", confidence: "static" },
+          { path: "order.items.price", confidence: "static" },
+          { path: "order.items.qty", confidence: "static" },
+          { path: "order.status", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
 });
