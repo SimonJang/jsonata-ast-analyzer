@@ -57,11 +57,11 @@ Full details: `milestones/v1.1-ROADMAP.md`
   3. Expression `$lookup(inventory, itemCode).quantity` extracts all three paths: the lookup table, the key argument, and the chained property after the result
   4. Expression `[$x := data.source, $x.field]` resolves the variable reference in the second array element to `data.source.field` via sequential scope accumulation
   5. All 6 previously-skipped BUG(v1.2) tests for these categories are unskipped and passing, plus 40+ new regression tests across 4 test files
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 14-01: TBD
-- [ ] 14-02: TBD
+- [ ] 14-01-PLAN.md -- Fix walkPath step handling (PRNT) and walkVariable group-by (WVAR) with 20+ regression tests
+- [ ] 14-02-PLAN.md -- Fix $lookup chaining (LOOK) and array constructor scope (ARRS) with 20+ regression tests
 
 ### Phase 15: Pipeline and Apply Fixes
 **Goal**: Apply operator correctly binds inline lambda parameters and variable-resolved sort expressions extract sort key paths relative to the resolved variable
@@ -111,6 +111,6 @@ Plans:
 | 11. API Reshaping Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 12. Data Export Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
-| 14. Isolated Single-Function Fixes | v1.1.1 | 0/? | Not started | - |
+| 14. Isolated Single-Function Fixes | v1.1.1 | 0/2 | Not started | - |
 | 15. Pipeline and Apply Fixes | v1.1.1 | 0/? | Not started | - |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 0/? | Not started | - |
