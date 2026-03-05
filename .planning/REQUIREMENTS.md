@@ -69,33 +69,33 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FILT-01 | — | Pending |
-| FILT-02 | — | Pending |
-| FILT-03 | — | Pending |
-| FILT-04 | — | Pending |
-| FILT-05 | — | Pending |
-| FOCV-01 | — | Pending |
-| FOCV-02 | — | Pending |
-| FOCV-03 | — | Pending |
-| PRNT-01 | — | Pending |
-| PRNT-02 | — | Pending |
-| PRNT-03 | — | Pending |
-| LOOK-01 | — | Pending |
-| LOOK-02 | — | Pending |
-| LOOK-03 | — | Pending |
-| PIPE-01 | — | Pending |
-| PIPE-02 | — | Pending |
-| PIPE-03 | — | Pending |
-| WVAR-01 | — | Pending |
-| WVAR-02 | — | Pending |
-| ARRS-01 | — | Pending |
-| ARRS-02 | — | Pending |
+| FILT-01 | Phase 16 | Pending |
+| FILT-02 | Phase 16 | Pending |
+| FILT-03 | Phase 16 | Pending |
+| FILT-04 | Phase 16 | Pending |
+| FILT-05 | Phase 16 | Pending |
+| FOCV-01 | Phase 16 | Pending |
+| FOCV-02 | Phase 16 | Pending |
+| FOCV-03 | Phase 16 | Pending |
+| PRNT-01 | Phase 14 | Pending |
+| PRNT-02 | Phase 14 | Pending |
+| PRNT-03 | Phase 14 | Pending |
+| LOOK-01 | Phase 14 | Pending |
+| LOOK-02 | Phase 14 | Pending |
+| LOOK-03 | Phase 14 | Pending |
+| PIPE-01 | Phase 15 | Pending |
+| PIPE-02 | Phase 15 | Pending |
+| PIPE-03 | Phase 15 | Pending |
+| WVAR-01 | Phase 14 | Pending |
+| WVAR-02 | Phase 14 | Pending |
+| ARRS-01 | Phase 14 | Pending |
+| ARRS-02 | Phase 14 | Pending |
 
 **Coverage:**
 - v1.1.1 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after initial definition*
+*Last updated: 2026-03-05 after roadmap creation*
