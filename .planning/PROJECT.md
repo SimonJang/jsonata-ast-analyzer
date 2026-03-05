@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A TypeScript/Node library and CLI tool that statically analyzes JSONata expression ASTs to extract all data paths being read from the source JSON object. Given any expression — including those with variable assignments, filter predicates, lambda functions, parent operators, and dynamically computed paths — it produces a complete list of every leaf path the expression touches, each annotated with a confidence level.
+A TypeScript/Node library and CLI tool that statically analyzes JSONata expression ASTs to extract all data paths being read from the source JSON object. Given any expression — including those with variable assignments, filter predicates, lambda functions, parent operators, and dynamically computed paths — it produces a complete list of every leaf path the expression touches, each annotated with a confidence level. Validated by 200 integration and unit tests across 5 real-world scenario categories.
 
 ## Core Value
 
@@ -22,18 +22,16 @@ Given any JSONata expression, accurately identify every data path read from the 
 - ✓ Provide a CLI wrapper for command-line usage — v1.0
 - ✓ Handle parent operator (%) and context references — v1.0
 - ✓ Handle recursive descent operator (**) — v1.0
+- ✓ Exhaustive real-world integration tests (95 tests) covering multi-line expressions with complex objects — v1.1
+- ✓ Data transformation pipeline scenarios (filter, map, reshape, apply, variable transforms) — v1.1
+- ✓ Business rule expression scenarios (conditionals, lookups, cross-field calculations) — v1.1
+- ✓ API response reshaping scenarios (nested payload extraction/flattening, parent operator) — v1.1
+- ✓ Data export/format conversion scenarios (transform operator, group-by) — v1.1
+- ✓ Edge case coverage (deep variable chains, nested HOFs, custom functions, CLI round-trip) — v1.1
 
 ### Active
 
-- [ ] Exhaustive real-world integration tests (50+) covering multi-line expressions with complex objects
-- [ ] Data transformation pipeline scenarios (filter → map → reshape)
-- [ ] Business rule expression scenarios (conditionals, lookups, cross-field calculations)
-- [ ] API response reshaping scenarios (nested payload extraction/flattening)
-- [ ] Data export/format conversion scenarios
-- [ ] Deeply nested variable chain coverage (3+ levels)
-- [ ] Mixed context expressions (filter predicates referencing outer scope, parent ops inside transforms)
-- [ ] Complex object constructor coverage (computed keys, conditional fields)
-- [ ] Combination of exact path assertions and snapshot-style validation
+(None — next milestone not yet planned)
 
 ### Out of Scope
 
@@ -50,15 +48,20 @@ Given any JSONata expression, accurately identify every data path read from the 
 
 ## Context
 
-Shipped v1.0 with 1,964 LOC TypeScript (1,116 source + 848 test).
+Shipped v1.1 with 3,510 LOC TypeScript (1,116 source + 2,394 test).
 Tech stack: TypeScript, Node.js, `jsonata` parser, Vitest, tsup (ESM-only).
-105 tests covering all 23 requirements with 0 failures.
+200 tests (105 unit + 95 integration) with 0 failures and 14 skipped (documented bugs).
 
 Architecture: `parse()` adapter → recursive `walkNode()` dispatcher → `buildPathString()` → `deriveConfidence()` → `PathResult[]`
 
-Known tech debt (non-critical):
-- `$sort` higher-order semantics defined but untested (handled by walkSortTerms, not via HIGHER_ORDER_SEMANTICS)
-- `$lookup` not in HIGHER_ORDER_SEMANTICS; standalone BindNode outside block untested
+Known tech debt (14 bugs documented with `BUG(v1.2)` tracking in `it.skip` fixtures):
+- Filter predicate path leak into HOF bindings (4 instances)
+- $lookup HOF chaining loses function arguments (2 instances)
+- Focus variable @$v double-prefix (2 instances)
+- Parent operator walkPath misses object constructor/block steps (2 instances)
+- Pipeline duplicate path extraction (2 instances)
+- walkVariable missing .group property (1 instance)
+- Array constructor scope leak in standalone BindNode (1 instance)
 
 ## Constraints
 
@@ -81,19 +84,9 @@ Known tech debt (non-critical):
 | Immutable scope chain | Linked list of Maps with parent pointer, child scope per block | ✓ Good — prevents binding leakage, matches JSONata lexical scoping |
 | Post-processing confidence | Derive confidence after dedup, not during walk | ✓ Good — no walker refactor needed, clean separation |
 | Parent operator as `%` segment | Over-approximate rather than silent drop | ✓ Good — consumers can detect and handle |
-
-## Current Milestone: v1.1 Real-World Integration Tests
-
-**Goal:** Validate the path analyzer against exhaustive real-world JSONata scenarios — multi-line expressions, complex nested objects, variable chains, mixed contexts — to build confidence the library handles production-grade expressions correctly.
-
-**Target features:**
-- 50+ integration tests across 4 scenario categories
-- Data transformation pipelines (filter → map → reshape nested objects)
-- Business rule expressions (conditionals, lookups, calculations across multiple fields)
-- API response reshaping (complex payloads, nested extraction/flattening)
-- Data export/format conversion (one structure to another)
-- Deeply nested variable chains, mixed context expressions, complex object constructors
-- Combination of exact path assertions and snapshot-style baseline validation
+| IntegrationFixture discriminated union | ExactFixture vs SubsetFixture with `never` fields for compile-time enforcement | ✓ Good — zero subset-match usage across 95 integration tests |
+| BUG(v1.2) tracking via it.skip | Document correct expected output in skipped tests, not buggy actual output | ✓ Good — grep-able, shows what fix should produce |
+| execFileSync for CLI round-trip | Bypasses shell expansion of $ in JSONata expressions | ✓ Good — 3/3 CLI round-trip tests pass cleanly |
 
 ---
-*Last updated: 2026-03-03 after v1.1 milestone start*
+*Last updated: 2026-03-05 after v1.1 milestone completion*
