@@ -31,7 +31,15 @@ Given any JSONata expression, accurately identify every data path read from the 
 
 ### Active
 
-(None — next milestone not yet planned)
+- [ ] Fix filter predicate path leak into HOF bindings (4 bugs)
+- [ ] Fix $lookup HOF chaining losing function arguments (2 bugs)
+- [ ] Fix focus variable @$v double-prefix (2 bugs)
+- [ ] Fix parent operator walkPath missing object constructor/block steps (2 bugs)
+- [ ] Fix pipeline duplicate path extraction (2 bugs)
+- [ ] Fix walkVariable missing .group property (1 bug)
+- [ ] Fix array constructor scope leak in standalone BindNode (1 bug)
+- [ ] Unskip all 14 BUG(v1.2) tests and make them pass
+- [ ] Thorough regression test suite (10+ new tests per bug category)
 
 ### Out of Scope
 
@@ -88,5 +96,14 @@ Known tech debt (14 bugs documented with `BUG(v1.2)` tracking in `it.skip` fixtu
 | BUG(v1.2) tracking via it.skip | Document correct expected output in skipped tests, not buggy actual output | ✓ Good — grep-able, shows what fix should produce |
 | execFileSync for CLI round-trip | Bypasses shell expansion of $ in JSONata expressions | ✓ Good — 3/3 CLI round-trip tests pass cleanly |
 
+## Current Milestone: v1.1.1 Bug Fixes
+
+**Goal:** Fix all 14 documented BUG(v1.2) analyzer bugs and build thorough regression test suites around each fix area.
+
+**Target features:**
+- Fix all 14 tracked bugs across 7 categories (filter predicate leak, $lookup HOF chaining, focus variable double-prefix, parent operator walkPath, pipeline duplicates, walkVariable .group, array constructor scope)
+- Unskip all 14 it.skip test fixtures
+- Thorough regression coverage (10+ new tests per bug category)
+
 ---
-*Last updated: 2026-03-05 after v1.1 milestone completion*
+*Last updated: 2026-03-05 after v1.1.1 milestone started*
