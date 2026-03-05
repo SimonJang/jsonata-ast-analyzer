@@ -1,278 +1,224 @@
-# Technology Stack
+# Stack Research
 
-**Project:** JSONata AST Path Analyzer -- v1.1 Integration Testing
-**Researched:** 2026-03-03
-**Scope:** Stack additions/changes for exhaustive real-world integration testing. Base stack (TypeScript 5.9, jsonata 2.1.0, Vitest 4.0, tsup 8.5) is validated and unchanged.
+**Domain:** Bug fixes for JSONata AST path extraction walker (v1.1.1)
+**Researched:** 2026-03-05
+**Confidence:** HIGH
 
-## Recommended Stack
+## Verdict: No Stack Additions Needed
 
-### No New Dependencies Required
+All 14 bugs are logic errors in `walker.ts` and `scope.ts`. They involve incorrect scope propagation, missing AST step handling, and flawed path prefixing. The existing stack (TypeScript 5.9, Vitest 4.0, jsonata 2.1, tsup 8.5) is fully sufficient. No new dependencies, libraries, or tools are warranted.
 
-The existing stack handles everything needed for v1.1 integration testing. This section explains what capabilities to use and why no new packages are needed.
+## Current Stack (Retain As-Is)
 
-### Testing Framework (Existing -- Use More Features)
+### Core Technologies
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Vitest | 4.0.18 (installed) | Test runner, snapshots, parameterized tests | Already installed. Vitest 4.0.18 is the latest release (Feb 2026). It includes `test.for()`, `toMatchInlineSnapshot()`, `toMatchSnapshot()`, `toMatchFileSnapshot()`, custom snapshot serializers, and `describe.each()` -- all the capabilities needed for 50+ integration tests with zero additional packages. | HIGH |
-| @vitest/coverage-v8 | 4.0.18 (installed) | Code coverage | Already installed. V8-based coverage works out of the box. Useful for verifying integration tests exercise new code paths beyond what unit tests cover. | HIGH |
+| Technology | Version | Purpose | Status |
+|------------|---------|---------|--------|
+| TypeScript | 5.9.3 | Type-safe walker/scope implementation | KEEP -- strict mode catches shape errors in AST handling |
+| Node.js | 22+ (ES2022 target) | Runtime | KEEP |
+| jsonata | 2.1.0 | Parser for AST generation via `ast()` | KEEP -- parser output is correct; bugs are in our walker |
+| Vitest | 4.0.18 | Test runner with `it.skip` for bug tracking | KEEP -- all 14 bugs use `it.skip` fixtures |
+| @vitest/coverage-v8 | 4.0.18 | Code coverage via V8 | KEEP -- verify fix completeness |
+| tsup | 8.5.1 | ESM-only bundler | KEEP |
 
-### Key Vitest APIs for Integration Testing
+### Development Tools
 
-These are built-in Vitest features that should be leveraged heavily. They require no additional installation.
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| pnpm 10.30.3 | Package manager | Lockfile already stable, no changes needed |
+| `vitest run --reporter=verbose` | See individual skip/pass/fail per fixture | Already available, no config change |
+| `vitest run --coverage` | Branch coverage for walker/scope changes | Verify all new code paths are exercised after fixes |
 
-#### 1. `test.for()` -- Data-Driven Test Tables
+## Bug-by-Bug Stack Assessment
 
-**What:** Vitest-native parameterized test API. Superior to `test.each()` for TypeScript because it does not spread array arguments, giving better type inference.
+All 7 bug categories are **pure logic fixes** in existing source files. Here is why no new tooling is needed for each.
 
-**Why use it:** Each integration test scenario is a tuple of `(expression, expectedPaths)`. With 50+ scenarios, data-driven tables prevent boilerplate explosion. `test.for()` lets you define a typed array of test cases and run the same assertion logic over all of them.
+### 1. Filter Predicate Path Leak into HOF Bindings (4 bugs)
 
-**Example pattern for this project:**
+**Root cause:** When `items[active]` is the data argument to `$map()`, `walkNode(dataArg)` returns both `items` AND `items.active` (the filter predicate path). These paths are then ALL bound as the element variable (e.g., `$v`), so `$v.name` resolves to both `items.name` AND `items.active.name` (spurious).
+
+**Fix location:** `walkHigherOrderCall()` in `walker.ts` -- the `dataArgPaths` passed to `walkLambdaWithBindings()` must be filtered to only include the base collection path(s), not the filter predicate sub-paths. Alternatively, separate "binding paths" from "reported paths" when walking the data argument.
+
+**Stack needed:** None. This is a path-filtering logic change within existing functions.
+
+### 2. $lookup HOF Chaining (2 bugs)
+
+**Root cause:** `$lookup(inventory, itemCode).quantity` parses as a PathNode with steps `[FunctionNode($lookup), NameNode(quantity)]`. `walkPath()` calls `buildPathString()` which skips the FunctionNode step (it is not name/wildcard/descendant/parent), producing only `quantity`. The function arguments `inventory` and `itemCode` are never walked because `walkPath()` does not handle function-type steps.
+
+**Fix location:** `walkPath()` in `walker.ts` -- add handling for function call steps in the step-iteration loop, walking them to extract their argument paths.
+
+**Stack needed:** None. This is a missing case in the step-iteration loop.
+
+### 3. Focus Variable @$v Double-Prefix (2 bugs)
+
+**Root cause:** `orders@$o[$o.total > 100]` -- the focus variable `$o` is bound to `["orders"]` in `walkFilterStages()`. When `$o.total` is walked inside the filter, it resolves to `["orders.total"]` via the scope chain (already an absolute path). But `walkFilterStages()` then calls `prefixPaths(contextPrefix="orders", filterPaths)`, producing `orders.orders.total` -- double-prefixed.
+
+The related variant: `($cfg := config; items[$cfg.minPrice < price].name)` -- `$cfg.minPrice` resolves to `config.minPrice` (absolute), then gets prefixed with `items` context, producing `items.config.minPrice` (spurious).
+
+**Fix location:** `walkFilterStages()` in `walker.ts` -- paths originating from variable resolution (already absolute/rooted) must NOT be re-prefixed with the filter context. Only locally-relative filter paths (e.g., bare `price` from the filter expression) should be prefixed.
+
+**Stack needed:** None. Logic fix to distinguish between locally-relative and already-resolved paths.
+
+### 4. Parent Operator walkPath Missing Steps (2 bugs)
+
+**Root cause:** `orders.items.{"itemName": name, "orderDate": %.date}` -- the object constructor (`{...}`) appears as a step in `PathNode.steps`. `walkPath()` only handles `name`, `sort`, and `variable` step types in its iteration loop. Steps of type `unary` (object constructor) and `block` are skipped entirely. All inner paths (including parent references) are silently dropped.
+
+**Fix location:** `walkPath()` in `walker.ts` -- add cases for `unary` and `block` step types in the step iteration loop. Walk their inner expressions and prefix results with the context built from preceding steps.
+
+**Stack needed:** None. Missing case handling in the existing step-iteration loop.
+
+### 5. Pipeline Duplicate Paths (2 bugs)
+
+**Root cause (bug a):** `items ~> $filter(...) ~> $map(...)` -- chained applies cause the first apply's paths to be walked multiple times. The filter predicate paths leak through the HOF binding (overlaps with bug #1). The existing `Set`-based dedup in `extractPaths()` handles literal duplicates; the real issue is the spurious predicate-prefixed paths from bug #1.
+
+**Root cause (bug b):** `data ~> function($d) { $d.count }` -- `walkApply()` handles `rhs.type === "function"` but NOT `rhs.type === "lambda"`. When the RHS is a raw lambda (not a function call), it falls through to the `else` branch which walks the lambda via `walkNode()`, hitting `walkLambda()` which returns `[]` for non-thunk lambdas. The lambda's parameter is never bound to the piped data.
+
+**Fix location:** `walkApply()` in `walker.ts` -- add a `rhs.type === "lambda"` case that binds the lambda's first parameter to `lhsPaths` and walks the body. Bug (a) resolves when bug #1 is fixed.
+
+**Stack needed:** None.
+
+### 6. walkVariable Missing .group (1 bug)
+
+**Root cause:** `($r := data.records; $r{category: $sum(amount)})` -- the variable reference `$r` has a `.group` property (the group-by expression attached by the parser), but `walkVariable()` only checks for `.predicate` (filter stages). The group-by key/value expressions are silently dropped.
+
+**Fix location:** `walkVariable()` in `walker.ts` -- after handling predicates, check for `.group` on the VariableNode and walk the group-by expressions. Reuse the existing `walkGroupBy()` pattern, adapting for a VariableNode's resolved paths as the base context.
+
+**Stack needed:** None. Mirror existing `.predicate` handling to also cover `.group`.
+
+### 7. Array Constructor Scope Leak (1 bug)
+
+**Root cause:** `[$x := data.source, $x.field]` -- the array constructor (`[...]`) is handled by `walkUnary()` which uses `flatMap((e) => walkNode(e, scope))`. Each element receives the **same** scope, so `$x := data.source` (a BindNode) walks the RHS but does not propagate the binding to subsequent elements. `$x.field` in the next element fails to resolve `$x`.
+
+**Fix location:** `walkUnary()` in `walker.ts` -- for array constructors (`value === "["`) containing bind expressions, use sequential scope-accumulation (the same pattern as `walkBlock()`). Process elements sequentially, propagating bindings from bind expressions to subsequent elements.
+
+**Stack needed:** None. Reuse the sequential scope-accumulation pattern from `walkBlock()`.
+
+## Debugging Strategy (Existing Tools Only)
+
+### AST Inspection via jsonata.ast()
+
+The `jsonata` package's `ast()` method is the primary debugging tool for understanding what the parser produces. This is already available as a production dependency.
 
 ```typescript
-interface IntegrationCase {
-  name: string;
-  expression: string;
-  expected: PathResult[];
-}
+import jsonata from "jsonata";
+const ast = jsonata('items[active] ~> $map(function($v) { $v.name })').ast();
+console.log(JSON.stringify(ast, null, 2));
+```
 
-const pipelineScenarios: IntegrationCase[] = [
+Critical for bugs #2 (seeing FunctionNode in PathNode.steps), #4 (seeing unary/block in steps), #6 (seeing .group on VariableNode), and #7 (seeing BindNode inside unary expressions).
+
+### Vitest Debugging Commands
+
+| Feature | Command | Use Case |
+|---------|---------|----------|
+| Run single test | `vitest run -t "filter-map pipeline"` | Focus on one bug at a time |
+| Unskip and run | Change `it.skip` to `it` | Verify fix for specific bug |
+| Verbose output | `vitest run --reporter=verbose` | See all test names in results |
+| Coverage report | `vitest run --coverage` | Verify new code paths are exercised |
+| Watch mode | `vitest --reporter=verbose` | Rapid iteration during fixes |
+| Type checking | `pnpm typecheck` | Catch type errors after walker changes |
+
+### Regression Test Pattern (Using Existing Helpers)
+
+The existing `IntegrationFixture` type with `assertFixture()` helper is the right pattern for regression tests. Use `ExactFixture` mode (not `SubsetFixture`) since the expected output for each regression case should be fully known.
+
+```typescript
+const regressionFixtures: IntegrationFixture[] = [
   {
-    name: "filter then map with nested access",
-    expression: `Account.Order[price > 100].Product.{
-      "name": Description.Title,
-      "weight": Description.Weight
-    }`,
-    expected: [
-      { path: "Account.Order.price", confidence: "static" },
-      { path: "Account.Order.Product.Description.Title", confidence: "static" },
-      { path: "Account.Order.Product.Description.Weight", confidence: "static" },
+    name: "regression: filter predicate does not leak into $map element binding",
+    expression: `$map(items[status = "active"], function($v) { $v.price })`,
+    expectedPaths: [
+      { path: "items", confidence: "static" },
+      { path: "items.price", confidence: "static" },
+      { path: "items.status", confidence: "static" },
     ],
   },
-  // ... 49 more cases
 ];
-
-describe("Data transformation pipelines", () => {
-  test.for(pipelineScenarios)(
-    "$name",
-    ({ expression, expected }) => {
-      expect(extractPaths(expression)).toEqual(expected);
-    }
-  );
-});
 ```
-
-**Confidence:** HIGH -- `test.for()` is documented in Vitest 4.0 official API reference.
-
-#### 2. `toMatchInlineSnapshot()` -- Baseline Validation
-
-**What:** Stores the snapshot directly in the test file as a string literal. Vitest auto-updates the literal when you run `vitest -u`.
-
-**Why use it:** For complex expressions where manually specifying every expected path is tedious or error-prone, inline snapshots let you verify the output once, then lock it in. The snapshot lives right next to the test case for easy review. This is the "snapshot-style baseline validation" mentioned in the project requirements.
-
-**When to use vs. explicit assertions:**
-- Use explicit `toEqual()` when the expected paths are the point of the test (most integration tests).
-- Use `toMatchInlineSnapshot()` for complex expressions where you want to capture the full output shape and review it as a baseline, especially early in development before expected values are fully enumerated.
-
-**Example pattern:**
-
-```typescript
-it("captures all paths from a complex reshape", () => {
-  const result = extractPaths(`
-    (
-      $orders := Account.Order;
-      $orders[price > 50].{
-        "total": $sum(price * quantity),
-        "items": Product.Description.Title
-      }
-    )
-  `);
-  expect(result).toMatchInlineSnapshot();
-  // Vitest fills this in on first run:
-  // expect(result).toMatchInlineSnapshot(`
-  //   [
-  //     { "path": "Account.Order", "confidence": "static" },
-  //     ...
-  //   ]
-  // `);
-});
-```
-
-**Confidence:** HIGH -- built into Vitest since v0.x, stable API.
-
-#### 3. `toMatchSnapshot()` -- File-Based Snapshots
-
-**What:** Stores snapshots in adjacent `__snapshots__/*.snap` files.
-
-**Why use it sparingly:** For this project, inline snapshots are preferable because test cases are self-contained (expression in, paths out). File snapshots are useful when output is very large (20+ paths from a single expression), where inline snapshots would make test files hard to read.
-
-**Confidence:** HIGH -- core Vitest API.
-
-#### 4. Custom Snapshot Serializer
-
-**What:** Controls how `PathResult[]` arrays are serialized in snapshots.
-
-**Why use it:** The default pretty-format serializer outputs verbose `Object` wrappers. A custom serializer can produce a clean, readable format that makes snapshot diffs easy to review.
-
-**Example:**
-
-```typescript
-// test/setup.ts or directly in test file
-expect.addSnapshotSerializer({
-  test(val) {
-    return Array.isArray(val) && val.length > 0 && val[0]?.path !== undefined;
-  },
-  serialize(val: PathResult[]) {
-    return val
-      .map((p) => `${p.confidence === "static" ? " " : p.confidence.charAt(0).toUpperCase()} ${p.path}`)
-      .join("\n");
-  },
-});
-```
-
-This would produce snapshots like:
-
-```
-  Account.Order.price
-  Account.Order.Product.Description.Title
-D Account.Order[*].computed
-P some.%.parent.path
-```
-
-**Recommendation:** Consider but do not implement unless snapshot reviews become noisy. Explicit `toEqual()` assertions are clearer for most integration tests.
-
-**Confidence:** HIGH -- Vitest custom serializer API is stable.
-
-### Test Organization (Vitest Config Change)
-
-| Change | Current | Proposed | Why | Confidence |
-|--------|---------|----------|-----|------------|
-| Vitest include pattern | Default (`**/*.test.ts`) | Keep default -- add new files in `test/integration/` | No config change needed. Vitest's default glob picks up `test/**/*.test.ts` automatically. Separate directory provides logical separation from unit tests without requiring workspace/project config overhead. | HIGH |
-
-**Proposed test file structure:**
-
-```
-test/
-  extract-paths.test.ts           # Existing 105 unit tests (unchanged)
-  integration/
-    pipelines.test.ts             # Data transformation pipeline scenarios
-    business-rules.test.ts        # Business rule expression scenarios
-    api-reshaping.test.ts         # API response reshaping scenarios
-    export-conversion.test.ts     # Data export/format conversion scenarios
-    edge-cases.test.ts            # Complex edge cases: deep variable chains,
-                                  #   mixed contexts, complex object constructors
-```
-
-**Rationale:** Five focused integration test files (one per scenario category) rather than one monolithic file. Each file uses `test.for()` with typed test case arrays. This keeps individual files under 200 lines, makes test failures immediately locatable by category, and allows running a single category in isolation via `vitest run test/integration/pipelines.test.ts`.
-
-**Alternative considered: Vitest Projects (workspace)** -- Overkill. Projects are for different environments (browser vs node) or different configs. Integration and unit tests here share the same config, same runner, same TypeScript setup. A subdirectory provides sufficient separation.
-
-### Test Data Strategy (No Package Needed)
-
-| Approach | Recommendation | Why | Confidence |
-|----------|----------------|-----|------------|
-| Inline test data | YES -- primary approach | JSONata expressions are short strings. The expression IS the test data. Inline keeps tests self-documenting. No external fixture files needed for expressions under 10 lines. | HIGH |
-| Multi-line template literals | YES -- for complex expressions | TypeScript template literals handle multi-line JSONata cleanly. No special tooling needed. | HIGH |
-| Shared fixture constants | YES -- for reusable expression fragments | Extract common sub-expressions (e.g., a standard "order" variable binding) into a `test/fixtures.ts` constants file. Import into multiple test files. | HIGH |
-| External JSON fixture files | NO | Overkill. We are not testing with sample JSON data (static analysis does not evaluate). The only input is expression strings. | HIGH |
-| Test data generation / fuzzing | NO | JSONata expressions cannot be meaningfully auto-generated. The value is in hand-crafted real-world patterns. Random expressions would not test real scenarios. | HIGH |
-| JSONata official test suite | REFERENCE ONLY | The jsonata-js/jsonata repo has test cases organized as JSON files by feature group. These are useful as a reference for expression patterns but test evaluation, not path extraction. Do not import them as test data. | MEDIUM |
-
-### NPM Scripts Addition
-
-```jsonc
-{
-  "scripts": {
-    // Existing
-    "test": "vitest run",
-    "test:watch": "vitest",
-    // New -- optional convenience scripts
-    "test:unit": "vitest run test/extract-paths.test.ts",
-    "test:integration": "vitest run test/integration/",
-    "test:update-snapshots": "vitest run -u"
-  }
-}
-```
-
-**Confidence:** HIGH -- standard Vitest CLI usage.
-
-## Alternatives Considered
-
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Test runner | Vitest 4.0 (keep) | Jest 30 | Already using Vitest. Switching would be pointless churn. Jest offers nothing Vitest lacks for this use case. |
-| Snapshot tool | Vitest built-in snapshots | `jest-snapshot` standalone | Vitest includes its own snapshot engine. No need for external snapshot packages. |
-| Snapshot tool | Vitest inline snapshots | `snap-shot-it` or `snap-shot-core` | Third-party snapshot libraries add complexity. Vitest's built-in `toMatchInlineSnapshot()` and `toMatchSnapshot()` cover all needs. |
-| Test data | Inline expressions | External `.jsonata` fixture files | Adds file I/O complexity, makes tests harder to read, separates test intent from test data. Expressions are short strings -- keep them inline. |
-| Test data | Hand-crafted scenarios | Property-based testing (fast-check) | Cannot meaningfully generate valid JSONata expressions that represent real-world patterns. Property-based testing is excellent for parsers; it is not useful for testing an analyzer against realistic scenarios. |
-| Parameterized tests | `test.for()` | `test.each()` | Both work. `test.for()` has better TypeScript type inference because it does not spread array arguments. Prefer `test.for()` for new code. |
-| Coverage | @vitest/coverage-v8 (keep) | @vitest/coverage-istanbul | v8 coverage is faster and already installed. Istanbul is only needed for specific edge cases (e.g., browser code). |
-| Test organization | Subdirectory | Vitest workspace/projects | Workspace config is designed for multi-environment testing (browser + node). Same-environment test separation needs only a directory. |
-| Test organization | Multiple files by category | Single large integration test file | A 1000+ line test file is hard to navigate. Five 150-200 line files by scenario category is more maintainable. |
 
 ## What NOT to Add
 
-| Technology | Why Not |
-|------------|---------|
-| `fast-check` (property-based testing) | Cannot generate meaningful JSONata expressions. Hand-crafted real-world scenarios are the entire point of v1.1. |
-| `faker` / `@faker-js/faker` | No sample data generation needed. This is static analysis of expression strings, not data processing. |
-| `testcontainers` or database tools | No external services involved. Pure function testing: string in, paths out. |
-| `supertest` / `msw` | No HTTP or API mocking needed. No network calls in the library. |
-| `cypress` / `playwright` | No browser testing. This is a Node library. |
-| `nock` | No HTTP mocking. The library has no network dependencies. |
-| `sinon` / `vitest mocking` | The function under test (`extractPaths`) is a pure function. No mocking needed. Mocking the jsonata parser would defeat the purpose of integration testing. |
-| `ts-mockito` | Same as above. Pure function testing requires no mocks. |
-| `json-schema-faker` | No JSON schema involvement. Out of scope per PROJECT.md. |
-| `snapshot-diff` | Vitest's built-in snapshot diffing is sufficient. No need for a specialized diff package. |
-| Additional assertion libraries (`chai`, `should`) | Vitest's `expect` API is Jest-compatible and complete. No gaps to fill. |
-| `test-data-bot` / `fishery` | Factory libraries for generating test fixtures. Not applicable -- our "fixtures" are JSONata expression strings, not complex object trees. |
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| AST visualization libraries (`ast-types`, `recast`) | Wrong ecosystem -- those handle JS ASTs, not JSONata ASTs. Our AST is proprietary from the jsonata parser. | `JSON.stringify(ast, null, 2)` for inspection |
+| Snapshot testing (`toMatchSnapshot`) | Bug fix tests need exact assertions to document correct behavior. Snapshots hide intent and make it unclear what the correct output should be. Regression tests must state what is expected. | `ExactFixture` with `assertFixture()` |
+| Property-based testing (`fast-check`) | JSONata expressions are structured text with specific semantics. Generating valid JSONata ASTs that trigger these specific bug patterns is impractical and would not target the known bugs. | Write targeted regression fixtures for each bug variant |
+| Additional assertion libraries (`chai`, `jest-extended`) | Vitest's built-in `expect().toEqual()` is sufficient for path array comparison. The `assertFixture()` helper already handles sorting and diff messages. | Keep using `assertFixture()` |
+| Debug logging libraries (`debug`, `pino`, `winston`) | The walker is pure functional (AST in, string[] out). `console.log` with `JSON.stringify` is sufficient for temporary debugging during development. | Temporary `console.log` during fix development, remove before commit |
+| Code coverage threshold config | @vitest/coverage-v8 is already installed. Adding coverage thresholds adds friction during iterative bug fixing. Run coverage ad-hoc to verify after fixes are complete. | `vitest run --coverage` on demand |
+| Mutation testing (`stryker-mutator`) | Overkill for bug fixes. We already know the bugs exist and have exact expected outputs. Mutation testing is for discovering undertested code, not for fixing known bugs. | Write 10+ targeted regression tests per bug category |
+| Test helper libraries (`testing-library`) | No DOM or component testing. Pure function testing of `extractPaths()`. | Existing `assertFixture()` helper |
 
-## Integration Points with Existing Setup
+## Recommended Test Organization for v1.1.1
 
-### Zero Config Changes Required
+Keep regression tests alongside the existing integration tests. Add a `regression/` subdirectory for the new 70+ regression tests (10+ per bug category):
 
-The existing `vitest.config.ts` needs no modification:
-
-```typescript
-import { defineConfig } from "vitest/config";
-export default defineConfig({
-  test: {
-    globals: true,
-    passWithNoTests: true,
-  },
-});
+```
+test/
+  extract-paths.test.ts              # 105 unit tests (unchanged)
+  integration/
+    data-transforms.test.ts           # Unskip 4 BUG(v1.2) tests
+    business-rules.test.ts            # Unskip 2 BUG(v1.2) tests
+    api-reshaping.test.ts             # Unskip 4 BUG(v1.2) tests
+    data-export.test.ts               # Unskip 1 BUG(v1.2) test
+    edge-cases.test.ts                # Unskip 2 BUG(v1.2) tests + 1 sort
+    helpers.ts                        # Existing assertFixture/sortPaths
+    helpers.test.ts                   # Existing helper tests
+    regression/                       # NEW: 10+ tests per bug category
+      filter-predicate-leak.test.ts   # Variations on filter + HOF binding
+      lookup-hof-chaining.test.ts     # $lookup().field patterns
+      focus-variable-prefix.test.ts   # @$v double-prefix scenarios
+      walkpath-steps.test.ts          # Unary/block steps in paths
+      pipeline-duplicates.test.ts     # Chained ~> and lambda piping
+      variable-group.test.ts          # Variable-resolved group-by
+      array-constructor-scope.test.ts # Bind within array constructor
 ```
 
-Vitest's default `include` pattern (`**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}`) already matches files in `test/integration/*.test.ts`. No include/exclude changes needed.
+Vitest's default `include` glob already picks up `test/**/*.test.ts`. No config changes needed.
 
-### Import Pattern
+## Version Compatibility
 
-All integration tests import the same public API:
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| jsonata@2.1.0 | TypeScript 5.9 | Parser output (AST shape) is stable. Bug fixes are in our walker, not the parser. |
+| vitest@4.0.18 | @vitest/coverage-v8@4.0.18 | Already matched versions. `it.skip` to `it` is the unskip mechanism. |
+| tsup@8.5.1 | TypeScript 5.9 | ESM-only build. No changes needed for bug fixes. |
+| @types/node@25.3.3 | Node.js 22+ | Only needed for CLI (`execFileSync`). No relevance to bug fixes. |
 
-```typescript
-import { extractPaths } from "../../src/index.js";
-import type { PathResult } from "../../src/index.js";
+## Installation
+
+```bash
+# No new packages to install. Run existing setup:
+pnpm install
+pnpm build
+pnpm test
 ```
-
-This tests the library through its public interface, which is exactly what integration tests should do. No internal imports.
 
 ## Summary
 
-**Net new dev dependencies: 0**
+**Net new dependencies: 0**
 **Config changes: 0**
-**New files: 5-6 test files + optional 1 fixtures file**
+**Stack changes: 0**
+**New files: 7 regression test files in `test/integration/regression/`**
 
-The v1.0 stack is fully sufficient for v1.1. The work is in writing tests, not in adding tooling. Use `test.for()` for parameterized scenario tables, `toMatchInlineSnapshot()` for baseline captures, organize by scenario category in `test/integration/`, and keep expressions inline. No external test data sources, no mocking, no new packages.
+All 14 bugs are logic errors in `walker.ts` (12 bugs across 6 categories) and the interaction between `walkFilterStages()`/`walkVariable()`/`walkHigherOrderCall()` scope handling (bug #1 contributes to 4 bugs and overlaps with bug #5). The fixes involve:
+
+1. Separating "binding paths" from "reported paths" in HOF data argument walking
+2. Adding missing step type cases in `walkPath()` (function, unary, block)
+3. Preventing re-prefixing of already-resolved variable paths in `walkFilterStages()`
+4. Adding `rhs.type === "lambda"` handling in `walkApply()`
+5. Adding `.group` handling in `walkVariable()`
+6. Adding sequential scope accumulation in `walkUnary()` for array constructors
+
+No external tooling, libraries, or framework changes are needed. The existing test infrastructure (`assertFixture()`, `IntegrationFixture`, Vitest) handles everything.
 
 ## Sources
 
-- [Vitest Snapshot Guide](https://vitest.dev/guide/snapshot) -- `toMatchSnapshot()`, `toMatchInlineSnapshot()`, `toMatchFileSnapshot()`, custom serializers (HIGH confidence)
-- [Vitest Test API Reference](https://vitest.dev/api/) -- `test.for()`, `test.each()`, `describe.each()` documentation (HIGH confidence)
-- [Vitest 4.0 Announcement](https://vitest.dev/blog/vitest-4) -- confirms v4.0 as current stable, inline snapshots in test.for/each supported (HIGH confidence)
-- [Vitest npm](https://www.npmjs.com/package/vitest) -- v4.0.18 latest (HIGH confidence)
-- [Vitest GitHub Discussion #4675](https://github.com/vitest-dev/vitest/discussions/4675) -- separating unit and integration tests with directory structure vs workspace (HIGH confidence)
-- [Vitest GitHub Discussion #5557](https://github.com/vitest-dev/vitest/discussions/5557) -- file suffix patterns for test organization (HIGH confidence)
-- [JSONata Official Docs](https://docs.jsonata.org/) -- expression patterns and programming constructs for test case design (HIGH confidence)
-- [JSONata Exerciser](https://try.jsonata.org/) -- interactive testing of expressions for verifying test case validity (HIGH confidence)
-- [jsonata-js/jsonata GitHub](https://github.com/jsonata-js/jsonata) -- test suite structure as reference for expression patterns (MEDIUM confidence)
-- [Glance Parser Testing Infrastructure](https://deepwiki.com/lpil/glance/3-testing-system) -- snapshot-based AST testing patterns from compiler/parser community (MEDIUM confidence)
+- Codebase analysis: `src/walker.ts` (626 lines), `src/scope.ts` (97 lines), `src/types.ts` (213 lines), `src/builtins.ts` (46 lines), `src/path-builder.ts` (33 lines), `src/index.ts` (46 lines)
+- Bug documentation: 14 `it.skip` fixtures across 5 integration test files with `BUG(v1.2)` comments
+- Package versions: `pnpm list --depth 0` output confirming all installed versions (HIGH confidence)
+- No external research needed: all bugs are internal logic errors in known source files with documented expected outputs
+
+---
+*Stack research for: JSONata AST path analyzer v1.1.1 bug fixes*
+*Researched: 2026-03-05*

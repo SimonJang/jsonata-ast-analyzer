@@ -1,132 +1,271 @@
-# Feature Landscape: v1.1 Real-World Integration Test Categories
+# Feature Research
 
-**Domain:** Integration test coverage for a JSONata AST path analyzer
-**Researched:** 2026-03-03
-**Confidence:** HIGH (patterns sourced from official JSONata docs, Stedi production mappings, AWS Step Functions usage, Node-RED cookbook, and GitHub issue patterns; cross-referenced with analyzer's existing 105-test unit suite)
+**Domain:** Bug fixes in JSONata AST path extraction walker
+**Researched:** 2026-03-05
+**Confidence:** HIGH
 
-## Table Stakes
+## Feature Landscape
 
-Test categories that any production JSONata use involves. Gaps here mean the analyzer is untested against the most common real-world patterns.
+This milestone is a bug-fix-only release. All 14 "features" are corrections to existing walker behavior, verified against documented expected outputs in `it.skip` fixtures. No new capabilities are being added -- only existing ones are being made correct.
 
-| Test Category | Why Expected | Complexity | Notes |
+### Table Stakes (Must Fix -- Correctness Bugs)
+
+These bugs produce wrong output for valid JSONata expressions. A static analysis tool that reports wrong paths is worse than one that reports nothing, because consumers trust the output.
+
+| Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **API response reshaping** (nested extraction + flattening) | The single most common JSONata use case: take an API response, extract nested fields, flatten into a new shape. Every Stedi mapping, every Node-RED flow, every Step Functions transform does this. | Medium | Multi-step paths into nested objects, object constructors with mixed literal keys and data-path values, array mapping via dot operator. Tests should use 3-5 levels of nesting. |
-| **Data transformation pipelines** (filter -> sort -> map -> reshape) | Production JSONata chains operations: filter an array, sort results, map to new objects. Stedi docs, Node-RED recipes, and AWS examples all demonstrate this. | Medium-High | Combines filter predicates, sort expressions, object constructors, and variable bindings in a single multi-line expression. The analyzer must track context through each stage. |
-| **Conditional field selection** (ternary + default operators) | `condition ? fieldA : fieldB` and `field ?: default` are ubiquitous in production. Stedi's common expressions page lists conditional omission as a primary pattern. Zendesk AI agent examples use conditionals heavily. | Medium | All branches of conditionals reference different paths. The analyzer must report paths from ALL branches (over-approximate). Also tests the `?:` (elvis) and `??` (coalescing) operators which the parser models as condition nodes. |
-| **String concatenation and formatting** | `FirstName & " " & LastName` and `Address.(Street & ", " & City)` are in virtually every data mapping scenario. Stedi, Node-RED, and the official docs all show this. | Low-Med | Binary `&` operator with path operands on both sides. Tests that string literals do not produce spurious paths while field references do. |
-| **Aggregation over nested arrays** | `$sum(orders.items.price)`, `$count(products)`, `$average(scores)` -- standard analytics patterns. Every IoT, e-commerce, and reporting use case. | Low-Med | Built-in function calls with nested path arguments. The analyzer already handles this in unit tests, but integration tests should combine aggregation with filtering and variable binding. |
-| **Lookup and cross-reference patterns** | `$lookup($$, key)`, `products[id = orderId]`, referencing one array filtered by a value from another context. Stedi uses `$lookupTable`. Node-RED uses `$lookup($$, ...)` for message introspection. | Medium-High | Combines filter predicates with variable references, the `$$` root context, and potentially the `in` operator. Tests the analyzer's ability to handle cross-referencing between different data structures in one expression. |
-| **Variable-driven object construction** | `($items := data.products; {"count": $count($items), "total": $sum($items.price)})` -- bind a sub-tree to a variable, then reference it multiple times in an object constructor. This is the standard pattern for reusable sub-expressions. | Medium | Variable binding + object constructor + function calls using the same bound variable. Tests deduplication (same underlying path referenced multiple times) and variable-to-path resolution in constructor values. |
-| **Array mapping via dot operator** | `Account.Order.Product.(Price * Quantity)` -- JSONata's dot operator IS the map operation. This is not a higher-order function; it is the core language mechanic for iterating arrays. Official docs emphasize this distinction. | Medium | PathNode with an embedded binary expression evaluated per-element. The analyzer must recognize that `Price` and `Quantity` are relative to `Account.Order.Product`, not root-level fields. |
-| **Multi-field filter predicates** | `orders[status = "active" and total > threshold]` -- filter with compound boolean logic referencing multiple fields. Common in every data filtering scenario. | Medium | Filter expression with `and`/`or` binary operators. Each operand references a different field. The analyzer must extract all referenced fields from within the predicate and prefix them with the filter context. |
-| **Nested object output with mixed sources** | `{"customer": customer.name, "items": orders.items.({"sku": sku, "qty": quantity, "total": price * quantity}), "orderDate": metadata.created}` -- constructing output objects that pull from multiple root-level paths. This is the canonical "reshape" pattern. | Medium-High | Object constructor at the top level with values sourced from different root paths. Nested object constructor inside array mapping. Tests that the analyzer correctly identifies root-level vs context-relative paths. |
+| Filter predicate scope isolation | `$map(items[active], fn($v){$v.name})` must NOT produce `items.active.name` -- predicate paths are metadata about the collection, not element-level bindings | MEDIUM | 4 bugs. Root cause: `walkNode` on `items[active]` returns `["items", "items.active"]`; both get bound as element paths to `$v`. Fix: distinguish base-collection paths from predicate-derived paths before HOF binding. Needs `walkNode` to return structured results or a post-walk filter on predicate paths. Depends on: existing `walkFilterStages`, `walkHigherOrderCall`, `walkLambdaWithBindings`. |
+| Focus variable prefix deduplication | `orders@$o[$o.total > 100]` must produce `orders.total`, not `orders.orders.total` | MEDIUM | 2 bugs. Root cause: focus var `$o` bound to `["orders"]` (the context prefix), then `$o.total` resolves to `orders.total`, then `prefixPaths` re-applies `orders.` prefix. Fix: resolved-variable paths that already incorporate the context prefix must not be re-prefixed, OR bind focus variable to empty so resolution produces relative paths that correctly receive the single prefix. Depends on: `walkFilterStages`, `prefixPaths`. |
+| Parent operator walkPath for nested constructs | `orders.items.{"itemName": name, "orderDate": %.date}` must extract inner paths from object constructor and block steps within path sequences | MEDIUM | 2 bugs. Root cause: `walkPath` iterates steps looking for `name` and `sort` types only. Unary (`{...}`) and block (`(...)`) steps in a PathNode's step array are silently skipped by both `buildPathString` and `walkPath`. Fix: walk unary/block steps with context prefix from preceding path segments. Depends on: `walkPath`, `buildPathString`. |
+| $lookup HOF chaining with argument preservation | `$lookup(inventory, itemCode).quantity` must produce `inventory`, `itemCode`, AND `inventory.quantity` | MEDIUM | 2 bugs. Root cause: parser wraps `$lookup(...)` call inside a PathNode with `.quantity` as suffix step. But walkPath's step loop only handles `name` and `sort` step types -- the function-call step is silently skipped, so its arguments never get walked. Fix: walkPath must detect function-call steps and walk them, passing their result paths forward for suffix concatenation. Depends on: `walkPath`, `walkFunction`. |
+| walkVariable group-by property handling | `($r := data.records; $r{category: $sum(amount)})` must extract group key/value paths through variable resolution | LOW | 1 bug. Root cause: `walkVariable` checks `node.predicate` but never checks `node.group`. Only `walkPath` has `walkGroupBy` logic. Fix: add group-by handling to `walkVariable` mirroring `walkPath`'s approach, using resolved variable paths as the group base path. Depends on: `walkVariable`, `walkGroupBy`. |
+| Array constructor scope propagation | `[$x := data.source, $x.field]` must resolve `$x` in subsequent array elements | LOW | 1 bug. Root cause: `walkUnary` for `[` uses `flatMap(e => walkNode(e, scope))` -- every expression gets the same scope. Bind nodes inside the array create bindings that never propagate to subsequent expressions. Fix: walk array constructor elements sequentially with scope accumulation (like `walkBlock`), not independently via `flatMap`. Depends on: `walkUnary`, `walkBind`. |
+| Apply operator inline lambda binding | `data ~> function($d) { $d.count }` must bind `$d` to `["data"]` and produce `data.count` | LOW | 1 bug (counted in pipeline duplicates category). Root cause: `walkApply` checks `node.rhs.type === "function"` but inline lambdas have `type: "lambda"`. The lambda falls through to `walkNode(node.rhs)` which returns `[]` (real lambdas are definitions, not executions). Fix: handle `rhs.type === "lambda"` in `walkApply` by binding the lambda's first parameter to lhs paths and walking the body. Depends on: `walkApply`, `walkLambdaWithBindings` or similar. |
+| Variable-resolved sort path extraction | `($x := items; $x^(price))` must extract `items.price` as a sort-key path | LOW | 1 bug (counted in pipeline duplicates category). Root cause: walkPath's variable-step branch resolves `$x` to `["items"]` and builds suffix from remaining steps. But the sort node `^(price)` is not a path segment -- it is skipped by `buildPathString`. The variable branch never walks sort/filter stages on remaining steps after the variable. Fix: after resolving variable steps, iterate remaining steps for sort nodes and walk their terms with resolved base paths as context prefix. Depends on: `walkPath` variable branch, `walkSortTerms`. |
 
-## Differentiators
+### Differentiators (Regression Test Coverage)
 
-Complex patterns that prove the analyzer handles edge cases. Not every JSONata expression uses these, but they appear in production and failure to handle them would undermine trust.
+These are not bug fixes themselves, but the regression suites ensure the fixes stay correct. Building thorough regression coverage distinguishes a careful fix from a fragile patch.
 
-| Test Category | Value Proposition | Complexity | Notes |
+| Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Chained apply operator pipelines** | `data ~> $filter(fn) ~> $map(fn) ~> $reduce(fn)` -- the `~>` operator chains multiple transforms. Used in Node-RED, Stedi, and AWS Step Functions for readable multi-stage processing. | High | Each `~>` stage implicitly threads the LHS as the first argument. The analyzer must resolve lambda parameter bindings at each stage and carry context forward. |
-| **Context variable binding (`@$v`) with cross-reference** | `library.loans@$l.books@$b[$l.isbn=$b.isbn].{"title": $b.title, "customer": $l.customer}` -- the official docs' canonical example of context binding. Binds iteration context to named variables for cross-referencing across nested arrays. | High | Two simultaneous context bindings (`@$l` and `@$b`) with a filter predicate that cross-references them. The analyzer must maintain separate context scopes and resolve `$l.isbn` against the `loans` context and `$b.isbn` against the `books` context. |
-| **Parent operator in nested context** | `Account.Order.Product.{"Product": $.ProductName, "Order": %.OrderID, "Account": %.%.'Account Name'}` -- navigating to parent and grandparent objects from within a mapped context. From official JSONata path operators docs. | High | Multiple levels of `%` chaining. The analyzer already emits `%` as a path segment with `partial` confidence. Integration tests should verify multi-level `%` chains in realistic object constructor contexts. |
-| **Positional variable with conditional** | `items#$i.($i = 0 ? "first" : $i = $count(items)-1 ? "last" : "middle")` -- using positional index in complex conditional logic. Node-RED documentation shows this pattern. | Medium | Positional `#$i` binding plus conditional expressions that reference `$i`. The analyzer must recognize `$i` as non-data-path (bound to empty) and not produce spurious paths, while still extracting `items` as a data path. |
-| **Recursive/nested higher-order functions** | `$map(departments, function($dept) { $map($dept.employees, function($emp) { $emp.name & " (" & $dept.name & ")" }) })` -- nested `$map` with inner lambda capturing outer lambda's parameter. | High | Two-level lambda nesting with closure capture. The inner lambda's `$dept.name` must resolve through the outer lambda's binding back to `departments.name`. The existing unit test covers nested `$map`, but integration tests should add closure capture across levels. |
-| **Custom function definition and multi-call** | `($format := function($item) { $item.name & ": $" & $string($item.price) }; orders.items.($format($)))` -- define a function, then call it from within a mapped context. | High | Custom function binding + invocation from within a dot-mapped context where `$` is the current item. Tests the analyzer's interprocedural analysis when the call site's context differs from the definition site. |
-| **Transform operator with variable and delete** | `$ ~> \|Account.Order.Product\|{"Total": Price * Quantity, "Discounted": Price * 0.9}, ["UnitPrice"]\|` -- the full transform syntax with computed update fields and a delete clause. From official docs. | Medium-High | Transform pattern, update with multiple computed fields (accessing data paths relative to pattern), and delete clause (string literals, not paths). Tests that the analyzer correctly extracts paths from the update expression but not from the delete clause. |
-| **Group-by with aggregation** | `Account.Order.Product{`Supplier`.$sum(Price * Quantity)}` -- group by supplier, aggregate each group. The official JSONata reduce operator documentation shows this. | Medium | Group-by key and value expressions are both context-relative to the grouped array. Tests that the analyzer correctly prefixes both key and value paths. |
-| **Range operator and sequence expressions** | `[1..10].$string()` or `$map([0..$count(items)-1], function($i) { items[$i] })` -- sequence generation with range operator, often used in index-driven patterns. | Medium | The `..` range operator produces a binary node. When used with data paths (e.g., `[0..$count(items)]`), the `$count(items)` argument references data. Tests that the analyzer extracts paths from range bounds. |
-| **Regex match with path arguments** | `$match(product.description, /sale|discount/i).match` -- regex matching where the first argument is a data path and the result is navigated. | Low-Med | `$match` is a standard function; first arg is a path, second is a regex literal (no path). Integration test should verify regex literal produces no path while the data argument does. |
-| **Deeply nested variable chains (3+ levels)** | `($root := data; $orders := $root.orders; $items := $orders[status="active"].items; $prices := $items.price; $sum($prices))` -- 4-hop variable chain where each step adds more specificity. | High | Each variable references the previous one. The analyzer must resolve the full chain: `$prices` -> `$items.price` -> `$orders[status="active"].items.price` -> `$root.orders[status="active"].items.price` -> `data.orders.items.price` (plus `data.orders.status` from the filter). |
-| **Mixed static/dynamic paths in one expression** | `(data[knownField > 10][$dynamicVar].nested.path)` -- one filter uses a static field reference, the next uses an unresolvable variable producing `[*]`. | Medium | The same expression produces both `static` and `dynamic` confidence paths. Tests that the analyzer correctly annotates each path segment independently. |
-| **Function composition via `~>`** | `($uppertrim := $trim ~> $uppercase; $uppertrim(name))` -- composing two functions into a new one. From official docs. | Medium | `~>` used for function composition (not data piping). The analyzer should handle the case where `~>` connects two function references rather than a data expression and a function call. |
-| **Singleton array operator `[]`** | `Phone.number[]` -- forces result to always be an array. Common in production for defensive programming against single-element arrays. | Low | The `[]` operator adds `keepArray` flag to the AST node. Should not affect path extraction -- same paths should be produced with or without `[]`. Validates that the analyzer ignores this flag. |
-| **Computed object keys** | `data.{name: value}` vs `data.{"literal-key": value}` -- when object keys are data references vs string literals. | Medium | When the key expression in an object constructor is a path (not a string literal), it reads data. The standard `{key: value}` pair syntax treats the key as a path expression. Tests that the analyzer extracts paths from both key and value positions appropriately. |
-| **Spread and merge operations** | `$merge([$spread(base), {"override": newValue}])` -- spreading an object and merging with overrides. Node-RED cookbook shows `$spread($)` as a common pattern. | Medium | `$spread` and `$merge` are built-in functions. Arguments are data paths. Tests that the analyzer extracts from function arguments even for less common built-in functions. |
+| Predicate isolation regression suite | 10+ tests covering filter predicates with HOFs, chained applies, variable-bound intermediates, nested filters, multi-predicate paths | MEDIUM | Edge cases needed: `items[a][b]` multi-stage, nested `$map($filter(...))`, cross-variable predicate references, predicate with function call (`items[$contains(name, "x")]`), predicate on variable-resolved path |
+| Focus/context variable regression suite | 10+ tests covering `@$v` focus vars, `#$i` index vars, nested focus scopes, focus with variable cross-references | MEDIUM | Edge cases needed: nested `@$outer[@$inner[...]]`, focus var shadowing, focus on variable-resolved paths, focus combined with positional `#$i`, focus in apply chains |
+| Parent operator regression suite | 10+ tests covering `%` in object constructors, blocks, nested maps, multi-level `%.%.field`, combined with variables | MEDIUM | Edge cases needed: parent inside filter predicate, parent inside lambda body, parent with variable resolution, parent in transform update, parent at different nesting depths |
+| HOF chaining regression suite | 10+ tests covering `$lookup().field`, `$lookup().nested.field`, chained HOF results in expressions, function call as path step with various suffix depths | LOW | Narrower scope since `$lookup` is the primary case. Also test other HOFs as path steps (e.g., `$filter(...).name` if parser generates similar AST) |
+| Scope propagation regression suite | 10+ tests covering array constructor binds, variable-resolved group-by, variable-resolved sort, inline lambda apply | LOW | Covers the 4 smaller bug categories with targeted edge cases: multi-bind in array, group-by with multi-key, sort with descending, apply with multi-param lambda |
 
-## Anti-Features
+### Anti-Features (Explicitly NOT Building)
 
-Test patterns NOT worth investing in, and why.
-
-| Anti-Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| **Platform-specific function testing** (Node-RED `$globalContext`, `$flowContext`; AWS Step Functions `$states.input`; Stedi `$lookupTable`, `$omitField`) | These are runtime extensions, not part of the JSONata language. The analyzer correctly treats unknown functions as opaque (extract argument paths, skip function body). Testing each platform's extensions would be an unbounded surface area. | Write 1-2 tests confirming "unknown function passthrough" behavior. That covers all platform extensions by design. |
-| **Expression evaluation correctness** | Testing whether `$sum(items.price)` produces the correct numeric result is evaluator testing, not path analyzer testing. The analyzer only cares about which paths are read, not what values they produce. | Keep tests focused on extracted paths and confidence annotations. Never assert on computed values. |
-| **Parser error handling exhaustive coverage** | Testing every possible malformed JSONata expression to ensure graceful error messages. The parser (official `jsonata` package) handles this. The analyzer just propagates parser errors. | Keep the existing single CLI error formatting test. Add at most 2-3 more for common typos (missing closing bracket, unmatched quotes). |
-| **Performance benchmark tests** | Testing that analysis completes in under N milliseconds. JSONata expressions are typically short (under 500 chars). Performance is not a concern at this scale. | If a specific expression is suspiciously slow, investigate ad hoc. Do not maintain a benchmark suite. |
-| **Unicode/i18n field name testing** | Testing expressions with Unicode field names like `donnees.nom` or emoji field names. The JSONata parser handles this; the analyzer just concatenates string segments. | Add 1 smoke test with a non-ASCII field name. Do not build a matrix of Unicode edge cases. |
-| **Equivalent expression variations** | Testing that `$filter(items, function($v) { $v.active })` and `items[active]` produce the same paths. The analyzer already has unit tests for both patterns individually. Integration tests should focus on novel combinations, not proving equivalence between syntax alternatives. | Use whichever syntax variant is most natural for the scenario being tested. Do not duplicate tests to cover both. |
-| **Whitespace/formatting variations** | Testing that reformatted expressions (different indentation, line breaks, semicolons vs newlines) produce identical results. The parser normalizes whitespace. | Use readable multi-line formatting in integration tests for clarity. Do not test formatting variations. |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Predicate path type tagging in PathResult | Tagging paths as "predicate-derived" vs "base-path" in public output | Breaks the public API contract. Consumers would need to update integration code. Adds complexity to the PathResult type for an internal concern. | Keep PathResult unchanged (`{path, confidence}`). Handle predicate/base distinction internally during HOF binding only. |
+| Runtime-aware path resolution | Evaluating expressions to determine exact paths at runtime, avoiding over-approximation | Contradicts the core "static analysis only" constraint. Unbounded complexity. Would require input data, making the tool unusable for schema-level analysis. | Continue to over-approximate with confidence annotations. This is a design decision, not a bug. |
+| Partial bug fix release | Fixing only the "easy" bugs and deferring the 4 filter-predicate bugs to a later milestone | Creates inconsistent behavior. Users cannot predict which patterns work. All 14 bugs are documented and publicly tracked. Several share root causes, so fixing one often requires the same code change as the others. | Fix all 14 in this milestone. The shared root causes mean the total effort is less than 14 independent fixes. |
+| Scope chain refactor to dynamic scoping | Switching from lexical (immutable chain) to dynamic scoping to "simplify" HOF binding | JSONata uses lexical scoping. Dynamic scoping would break 40+ correctly-working tests that rely on proper scope isolation. | Keep immutable scope chain. Fix specific binding points (HOF element binding, array constructor, walkApply). |
+| Walker return type refactor | Changing `walkNode` to return structured objects instead of `string[]` to carry predicate metadata | Massive refactor touching every walker function (20+ functions). High risk of introducing regressions. | Find a minimal way to distinguish predicate paths from base paths, either through a naming convention, a separate return channel, or a post-processing step at the HOF binding boundary. |
 
 ## Feature Dependencies
 
 ```
-API Response Reshaping (foundation scenarios)
-  --> Data Transformation Pipelines (builds on reshaping + adds filter/sort/map chains)
-  --> Conditional Field Selection (adds branching to reshaping patterns)
-  --> Nested Object Output with Mixed Sources (complex reshaping)
+Filter predicate scope isolation (4 bugs)
+    |-- (shared root cause) --> Chained apply predicate leak (data-transforms TRFM-02 bug)
+    |-- (shared root cause) --> Variable-bound filter then map (data-transforms TRFM-05 bug)
+    |-- (related prefixing) --> Variable-in-filter cross-reference (business-rules BIZR-04 bug)
+    |
+    +-- related to --> Focus variable prefix deduplication (2 bugs)
+                          (both touch walkFilterStages + prefixPaths)
 
-Variable-Driven Object Construction (scope + constructor interaction)
-  --> Deeply Nested Variable Chains (extends to 3-4 hop resolution)
-  --> Custom Function Definition and Multi-Call (extends to interprocedural tracing)
+Parent operator walkPath (2 bugs)
+    |-- (same fix area) --> Object constructor step walking
+    |-- (same fix area) --> Block expression step walking
+    (independent of all other categories)
 
-Array Mapping via Dot Operator (context-relative path resolution)
-  --> Group-By with Aggregation (same context-relative pattern)
-  --> Chained Apply Operator Pipelines (extends to multi-stage context threading)
+$lookup HOF chaining (2 bugs)
+    (independent -- standalone fix in walkPath function-call step handling)
 
-Filter Predicates (already unit-tested in isolation)
-  --> Multi-Field Filter Predicates (compound boolean filters)
-  --> Lookup and Cross-Reference Patterns (filters with cross-context references)
-  --> Mixed Static/Dynamic Paths (filters producing different confidence levels)
+Variable-resolved sort (1 bug)
+    |-- (partially related) --> walkPath variable branch
+    (independent of predicate/prefix bugs)
 
-Higher-Order Functions (already unit-tested in isolation)
-  --> Recursive/Nested Higher-Order Functions (multi-level lambda nesting)
-  --> Context Variable Binding with Cross-Reference (@ binding + filter cross-ref)
-  --> Parent Operator in Nested Context (% in mapped object constructors)
+walkVariable .group (1 bug)
+    (independent -- standalone addition to walkVariable)
+
+Array constructor scope (1 bug)
+    (independent -- standalone change to walkUnary "[" handler)
+
+Apply operator inline lambda (1 bug)
+    (independent -- standalone addition to walkApply)
 ```
 
-## Integration Test Suite Structure Recommendation
+### Dependency Notes
 
-Prioritize by production frequency and analyzer risk:
+- **Filter predicate scope isolation is the highest-risk fix.** It touches the core data flow between `walkNode` result and HOF binding. Changes here could regress 40+ existing passing tests if the predicate/base distinction is implemented incorrectly.
+- **Filter predicate and focus variable fixes interact.** Both involve `walkFilterStages` and `prefixPaths`. The filter predicate fix may partially resolve the focus variable issue, depending on whether the approach changes how `prefixPaths` handles already-prefixed paths. These should be fixed and tested together.
+- **Parent operator walkPath is fully independent.** Its fix adds new step-type handling to `walkPath` without changing any existing code paths. Zero risk to existing tests.
+- **The 4 small fixes (sort, group, array scope, apply lambda) are fully independent** of each other and all other fixes. They can be done in any order with zero interaction risk.
 
-### Phase 1: Core Production Patterns (20-25 tests)
-1. **API response reshaping** -- 5-6 tests with varying nesting depth and mixed extraction patterns
-2. **Data transformation pipelines** -- 4-5 tests with filter/sort/map chains of increasing complexity
-3. **Conditional field selection** -- 3-4 tests covering ternary, elvis, coalescing with nested paths
-4. **String concatenation and formatting** -- 2-3 tests with multi-path concatenation in mapped contexts
-5. **Aggregation over nested arrays** -- 2-3 tests combining aggregation with filtering and variables
-6. **Variable-driven object construction** -- 3-4 tests with reused variables in constructors
+## Bug Fix Prioritization
 
-### Phase 2: Advanced Production Patterns (15-20 tests)
-1. **Chained apply operator pipelines** -- 3-4 tests with 2-4 stage pipelines
-2. **Lookup and cross-reference patterns** -- 2-3 tests with cross-array filtering
-3. **Nested higher-order functions** -- 2-3 tests with closure capture across levels
-4. **Custom function definition** -- 2-3 tests with multi-call and mapped context invocation
-5. **Deeply nested variable chains** -- 2-3 tests with 3-4 hop chains
-6. **Array mapping via dot operator** -- 2-3 tests with complex per-element expressions
+| Bug Category | Bug Count | User Impact | Fix Complexity | Risk to Existing Tests | Priority |
+|--------------|-----------|-------------|----------------|----------------------|----------|
+| Filter predicate scope isolation | 4 | HIGH -- spurious paths in every HOF+filter combo | MEDIUM -- needs predicate/base path distinction | HIGH -- touches HOF binding used by 40+ tests | P1 |
+| Focus variable prefix dedup | 2 | HIGH -- double-prefixed paths are visibly wrong | MEDIUM -- tricky prefix-awareness in walkFilterStages | MEDIUM -- changes to shared walkFilterStages | P1 |
+| Parent operator walkPath | 2 | MEDIUM -- parent operator is advanced usage | MEDIUM -- add step-type handlers to walkPath loop | LOW -- purely additive, new code paths | P2 |
+| $lookup HOF chaining | 2 | MEDIUM -- $lookup chaining is common pattern | MEDIUM -- walkPath needs function-step awareness | LOW -- new code path in walkPath | P2 |
+| Variable-resolved sort | 1 | LOW -- sort on variable-resolved path is niche | LOW -- extend walkPath variable branch | LOW -- additive change to existing branch | P3 |
+| walkVariable .group | 1 | LOW -- group-by on variable is niche | LOW -- mirror walkPath's walkGroupBy | LOW -- purely additive function | P3 |
+| Array constructor scope | 1 | LOW -- bind-inside-array-constructor is edge case | LOW -- change flatMap to sequential walk | LOW -- isolated to walkUnary "[" case | P3 |
+| Apply operator inline lambda | 1 | LOW -- inline lambda with ~> is uncommon syntax | LOW -- add lambda case to walkApply | LOW -- purely additive branch | P3 |
 
-### Phase 3: Edge Case Patterns (10-15 tests)
-1. **Context variable binding** -- 2-3 tests with `@$v` cross-referencing
-2. **Parent operator chains** -- 2-3 tests with multi-level `%` in constructors
-3. **Transform operator** -- 2-3 tests with update + delete
-4. **Mixed static/dynamic paths** -- 2 tests confirming mixed confidence output
-5. **Group-by with aggregation** -- 2 tests with key + value extraction
-6. **Remaining differentiators** -- 1-2 tests each for range, regex, singleton array, computed keys, spread/merge
+**Priority key:**
+- P1: Fix first -- highest impact, shared root causes; getting these right de-risks the rest
+- P2: Fix second -- moderate impact, independent fixes that expand walkPath capabilities
+- P3: Fix last -- low impact, simple isolated fixes, minimal risk
+
+## Recommended Phase Structure
+
+### Phase 1: Scope and Prefix Fixes (P1 -- 6 bugs)
+
+Fix the filter predicate scope isolation and focus variable prefix deduplication together. These share `walkFilterStages` and `prefixPaths` as common touch points. Fixing them together avoids rework and conflicting changes.
+
+- [ ] Filter predicate scope isolation (4 bugs)
+- [ ] Focus variable prefix deduplication (2 bugs)
+- [ ] Regression test suite: 20+ tests for predicate isolation + focus variable
+
+### Phase 2: Path Walking Gaps (P2 -- 4 bugs)
+
+Fix the parent operator and $lookup chaining. Both require `walkPath` to handle additional step types it currently ignores. These are independent of each other but grouped because they both extend the same function.
+
+- [ ] Parent operator walkPath for unary/block steps (2 bugs)
+- [ ] $lookup HOF chaining with argument preservation (2 bugs)
+- [ ] Regression test suite: 20+ tests for parent operator + HOF chaining
+
+### Phase 3: Small Independent Fixes (P3 -- 4 bugs)
+
+Fix the remaining independent single-bug categories. Each is isolated and low-risk.
+
+- [ ] Variable-resolved sort path extraction (1 bug)
+- [ ] walkVariable .group property (1 bug)
+- [ ] Array constructor scope propagation (1 bug)
+- [ ] Apply operator inline lambda binding (1 bug)
+- [ ] Regression test suite: 30+ tests covering all 4 categories
+
+## Detailed Expected Behavior
+
+### 1. Filter Predicate Scope Isolation
+
+**Expression:** `$map(items[active], function($v) { $v.name })`
+
+**Current (buggy):** `items`, `items.active`, `items.name`, `items.active.name`
+
+**Expected (correct):** `items`, `items.active`, `items.name`
+
+**Root cause:** `walkNode` called on `items[active]` (a PathNode with a filter stage) returns `["items", "items.active"]`. Both paths get bound as element paths to `$v` via `walkLambdaWithBindings`. When `$v.name` resolves, it appends `.name` to every bound path, producing both `items.name` (correct) and `items.active.name` (spurious).
+
+**Correct behavior in AST walkers:** Filter predicates are metadata reads about the collection -- they describe which elements to select but do not change the element type. When binding a HOF element parameter, only the base collection path should be bound. Predicate-derived paths should be emitted to the output (they are data reads) but NOT threaded into lambda parameter bindings.
+
+**Affected tests:**
+- `data-transforms.test.ts:53` -- `$map(items[active], function($v) { $v.name })`
+- `data-transforms.test.ts:121` -- `items ~> $filter(fn) ~> $map(fn)` (chained apply)
+- `data-transforms.test.ts:279` -- `($data := items[active]; $map($data, fn))` (variable-bound)
+- `business-rules.test.ts:174` -- `($min := minPrice; products[price >= $min].name)` (variable cross-ref in filter)
+
+### 2. Focus Variable Prefix Deduplication
+
+**Expression:** `orders@$o[$o.total > 100].id`
+
+**Current (buggy):** `orders.id`, `orders.orders.total`
+
+**Expected (correct):** `orders.id`, `orders.total`
+
+**Root cause:** In `walkFilterStages`, the focus variable `$o` is bound to `[contextPrefix]` which is `["orders"]`. Inside the filter, `$o.total` resolves via `walkNode` -> `walkPath` -> variable resolution to `orders.total`. Then `walkFilterStages` calls `prefixPaths("orders", ["orders.total"])`, producing `orders.orders.total`.
+
+**Correct behavior:** Focus variables represent "the current element in context." When `$o.total` resolves to `orders.total`, that path already includes the context prefix. Re-prefixing is incorrect. The fix should either: (a) bind focus to `[]` (empty) so `$o.total` resolves to just `total`, which then correctly receives the single prefix, or (b) detect and skip re-prefixing for paths that already start with the context prefix.
+
+**Affected tests:**
+- `api-reshaping.test.ts:150` -- `orders@$o[$o.total > 100].id`
+- `api-reshaping.test.ts:162` -- `($cfg := config; items[$cfg.minPrice < price].name)` (variable cross-ref variant)
+
+### 3. Parent Operator walkPath for Nested Constructs
+
+**Expression:** `orders.items.{"itemName": name, "orderDate": %.date}`
+
+**Current (buggy):** `orders.items` (inner paths silently dropped)
+
+**Expected (correct):** `orders.items`, `orders.items.name`, `orders.items.%.date`
+
+**Root cause:** In `walkPath`, the step iteration loop (lines 138-151) only handles `step.type === "name"` (for filter stages) and `step.type === "sort"`. A unary node (`{...}`) appearing as a path step has `type: "unary"` -- it hits no case and is silently skipped. Its inner expressions (`name`, `%.date`) are never walked. Same issue for block steps (`(expr)` appearing as a path step).
+
+**Correct behavior:** When a path contains a "computational" step (unary object constructor, block expression), the step should be walked with the context prefix from preceding path segments. The step itself does not add to the path string (correct -- `buildPathString` skips it), but its inner expressions are data reads relative to the current context.
+
+**Affected tests:**
+- `api-reshaping.test.ts:201` -- `orders.items.{"itemName": name, "orderDate": %.date}` (unary step)
+- `api-reshaping.test.ts:215` -- `orders.items.(%.orderRef & ": " & name)` (block step)
+
+### 4. $lookup HOF Chaining
+
+**Expression:** `$lookup(inventory, itemCode).quantity`
+
+**Current (buggy):** `quantity` (function arguments dropped)
+
+**Expected (correct):** `inventory`, `itemCode`, `inventory.quantity`
+
+**Root cause:** The JSONata parser wraps `$lookup(inventory, itemCode).quantity` as a PathNode with steps: `[FunctionNode($lookup(inventory, itemCode)), NameNode(quantity)]`. In `walkPath`, the step iteration loop only handles `name` and `sort` types. The function-call step (`type: "function"`) is skipped. `buildPathString` also skips it (default case returns nothing). The function's arguments (`inventory`, `itemCode`) are never walked.
+
+**Correct behavior:** When a function call appears as a step in a path, its arguments must be walked (they are data reads). The function call step itself doesn't contribute a path segment, but subsequent steps (like `.quantity`) should be suffixed onto the function's data argument paths (for over-approximation). In this case, `$lookup` takes `inventory` as its first arg, so `.quantity` gets suffixed to produce `inventory.quantity`.
+
+**Affected tests:**
+- `edge-cases.test.ts:123` -- `$lookup(inventory, itemCode).quantity`
+- `business-rules.test.ts:161` -- `$lookup(products, sku).price`
+
+### 5. walkVariable .group Property
+
+**Expression:** `($r := data.records; $r{category: $sum(amount)})`
+
+**Current (buggy):** `data.records` (group-by key/value paths dropped)
+
+**Expected (correct):** `data.records`, `data.records.amount`, `data.records.category`
+
+**Root cause:** `walkVariable` resolves `$r` to `["data.records"]` and handles `node.predicate`, but the parser places the `{category: $sum(amount)}` group-by in `node.group`. Only `walkPath` checks for `.group` via `walkGroupBy`. `walkVariable` never inspects it.
+
+**Correct behavior:** When a variable node has a `.group` property, `walkVariable` should walk the group-by key and value expressions, prefixed with the resolved variable paths, exactly as `walkPath`/`walkGroupBy` does for PathNodes.
+
+**Affected tests:**
+- `data-export.test.ts:224` -- `($r := data.records; $r{category: $sum(amount)})`
+
+### 6. Array Constructor Scope Propagation
+
+**Expression:** `[$x := data.source, $x.field]`
+
+**Current (buggy):** `data.source` (`$x.field` unresolved, silently dropped)
+
+**Expected (correct):** `data.source`, `data.source.field`
+
+**Root cause:** `walkUnary` for `[` (array constructor) uses `(node.expressions ?? []).flatMap((e) => walkNode(e, scope))`. Every expression receives the same `scope`. The bind `$x := data.source` is walked (producing `data.source`) but the binding is never added to the scope for subsequent expressions. The second expression `$x.field` cannot resolve `$x` and is silently dropped.
+
+**Correct behavior:** Array constructor expressions should be walked sequentially with scope accumulation, the same way `walkBlock` handles sequential block expressions. When a bind expression appears in an array constructor, subsequent expressions should see the binding.
+
+**Affected tests:**
+- `edge-cases.test.ts:155` -- `[$x := data.source, $x.field]`
+
+### 7. Apply Operator Inline Lambda
+
+**Expression:** `data ~> function($d) { $d.count }`
+
+**Current (buggy):** `data` (`$d.count` never resolved)
+
+**Expected (correct):** `data`, `data.count`
+
+**Root cause:** `walkApply` checks `node.rhs.type === "function"` to detect function calls on the RHS. An inline lambda has `type: "lambda"`, so it falls to the `else` branch: `walkNode(node.rhs, scope)`. `walkNode` dispatches to `walkLambda`, which returns `[]` because real lambdas (non-thunks) are definitions, not executions.
+
+**Correct behavior:** When `~>` pipes data into an inline lambda, the lambda's first parameter should be bound to the lhs paths and the body should be walked. This is effectively `walkCustomFunctionCall` with a single argument being the lhs.
+
+**Affected tests:**
+- `data-transforms.test.ts:134` -- `data ~> function($d) { $d.count }`
+
+### 8. Variable-Resolved Sort Path Extraction
+
+**Expression:** `($x := items; $x^(price))`
+
+**Current (buggy):** `items` (sort key `price` not extracted)
+
+**Expected (correct):** `items`, `items.price`
+
+**Root cause:** In `walkPath`'s variable-step branch (lines 100-128), the variable `$x` is resolved to `["items"]`. The remaining steps (suffix) are built by `buildPathString(node.steps.slice(varStepIndex + 1))`. But `buildPathString` skips the sort node (default case). The branch never walks sort terms on remaining steps after variable resolution.
+
+**Correct behavior:** After resolving variable steps, the variable branch should also iterate remaining steps looking for sort nodes and walk their term expressions with the resolved paths as context prefix, the same way the non-variable path handling iterates for sort/filter stages.
+
+**Affected tests:**
+- `data-transforms.test.ts:66` -- `($x := items; $x^(price))`
 
 ## Sources
 
-- [JSONata Official Docs - Path Operators](https://docs.jsonata.org/path-operators) - HIGH confidence, canonical source for filter, sort, group-by, wildcard, descendant, parent, context binding, positional binding syntax
-- [JSONata Official Docs - Building Result Structures](https://docs.jsonata.org/construction) - HIGH confidence, object and array constructor patterns
-- [JSONata Official Docs - Programming Constructs](https://docs.jsonata.org/programming) - HIGH confidence, variable binding, lambdas, closures, recursion, higher-order functions, partial application
-- [JSONata Official Docs - Expressions](https://docs.jsonata.org/expressions) - HIGH confidence, string/numeric/comparison/boolean operators
-- [JSONata Official Docs - Other Operators](https://docs.jsonata.org/other-operators) - HIGH confidence, transform operator, apply/chaining, conditional, concatenation, variable binding
-- [Stedi Common Mapping Expressions](https://www.stedi.com/docs/edi-platform/mappings/jsonata/common-mapping-expressions) - HIGH confidence, production JSONata patterns for EDI/API data transformation
-- [Stedi JSONata Cheatsheet](https://www.stedi.com/docs/edi-platform/mappings/jsonata/jsonata-cheatsheet) - MEDIUM confidence, summarizes common real-world patterns
-- [AWS Step Functions JSONata](https://docs.aws.amazon.com/step-functions/latest/dg/transforming-data.html) - HIGH confidence, production JSONata usage in cloud workflows
-- [SSENSE Step Functions JSONata 2025](https://medium.com/ssense-tech/step-functions-in-2025-simplify-your-development-with-jsonata-1590b6c439d3) - MEDIUM confidence, real-world production patterns and complexity examples
-- [Node-RED JSONata Recipes](https://github.com/node-red/cookbook.nodered.org/wiki/JSONata-Recipes) - MEDIUM confidence, community-sourced production patterns with message transformation, context access, array processing
-- [Node-RED Home Assistant JSONata](https://zachowj.github.io/node-red-contrib-home-assistant-websocket/guide/jsonata/) - MEDIUM confidence, IoT-specific JSONata usage patterns
-- [JSONata Kestra Article](https://medium.com/@fhussonnois/jsonata-the-swiss-army-knife-of-kestra-for-json-transformation-07c27d27988d) - MEDIUM confidence, data integration pipeline patterns
-- [Blues Wireless JSONata Examples](https://blues.com/blog/10-jsonata-examples/) - MEDIUM confidence, IoT device data transformation patterns
-- [JSONata GitHub Issues #170](https://github.com/jsonata-js/jsonata/issues/170) - MEDIUM confidence, documents path processing edge cases
-- [JSONata GitHub Issues #496](https://github.com/jsonata-js/jsonata/issues/496) - LOW confidence, documents variable binding in transform edge case
+- Source code analysis: `src/walker.ts` (626 lines), `src/scope.ts` (97 lines), `src/types.ts` (212 lines), `src/index.ts` (46 lines), `src/path-builder.ts` (33 lines), `src/builtins.ts` (46 lines)
+- Bug documentation: 14 `it.skip` fixtures across `test/integration/data-transforms.test.ts`, `test/integration/business-rules.test.ts`, `test/integration/api-reshaping.test.ts`, `test/integration/data-export.test.ts`, `test/integration/edge-cases.test.ts`
+- Project context: `.planning/PROJECT.md`, `.planning/MILESTONES.md`, `.planning/STATE.md`
+- Confidence: HIGH -- all findings derived from direct source code tracing and documented test fixture analysis. No external sources needed; these are implementation bugs in a known codebase.
+
+---
+*Feature research for: JSONata AST walker bug fixes (v1.1.1)*
+*Researched: 2026-03-05*
