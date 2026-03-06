@@ -196,9 +196,7 @@ describe("API Reshaping", () => {
       });
     }
 
-    // BUG(v1.2): walkPath does not walk value expressions inside unary (object constructor)
-    // path steps -- all inner paths including parent references are silently dropped
-    it.skip("parent in object constructor: extracts both local and parent-scoped paths", () => {
+    it("parent in object constructor: extracts both local and parent-scoped paths", () => {
       assertFixture({
         name: "parent in object constructor: extracts both local and parent-scoped paths",
         expression: `orders.items.{"itemName": name, "orderDate": %.date}`,
@@ -210,9 +208,7 @@ describe("API Reshaping", () => {
       });
     });
 
-    // BUG(v1.2): walkPath does not walk inner expressions inside block path steps -- same
-    // root cause as object constructor step
-    it.skip("parent in block path step: extracts expression paths from block within path", () => {
+    it("parent in block path step: extracts expression paths from block within path", () => {
       assertFixture({
         name: "parent in block path step: extracts expression paths from block within path",
         expression: `orders.items.(%.orderRef & ": " & name)`,
