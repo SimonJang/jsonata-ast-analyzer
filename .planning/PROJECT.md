@@ -39,7 +39,7 @@ Given any JSONata expression, accurately identify every data path read from the 
 
 ### Active
 
-(None — all known bugs fixed. Define new requirements for next milestone.)
+- [ ] CI pipeline builds before testing so CLI round-trip tests pass
 
 ### Out of Scope
 
@@ -99,4 +99,12 @@ No known tech debt. All previously-documented BUG(v1.2) issues resolved.
 | Block-terminal base suppression | Block steps are pure projections; suppress base path to avoid redundant output | ✓ Good — correct semantics for `items.(expr)` patterns |
 
 ---
-*Last updated: 2026-03-06 after v1.1.1 milestone*
+## Current Milestone: v1.1.2 CI Fix
+
+**Goal:** Fix CI pipeline so all 294 tests pass — add build step before test run.
+
+**Target features:**
+- Add `pnpm build` step to CI workflow before `pnpm test`
+
+---
+*Last updated: 2026-03-06 after v1.1.2 milestone start*
