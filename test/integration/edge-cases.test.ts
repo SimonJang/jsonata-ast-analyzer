@@ -119,8 +119,7 @@ describe("Edge Cases", () => {
   });
 
   describe("EDGE-05: $lookup HOF chaining (tech debt)", () => {
-    // BUG(v1.2): $lookup(obj, key).field loses function arguments -- only chained field path appears
-    it.skip("lookup HOF chaining: extracts object, key, and chained field paths", () => {
+    it("lookup HOF chaining: extracts object, key, and chained field paths", () => {
       assertFixture({
         name: "lookup HOF chaining: extracts object, key, and chained field paths",
         expression: `$lookup(inventory, itemCode).quantity`,

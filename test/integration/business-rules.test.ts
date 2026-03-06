@@ -157,14 +157,13 @@ describe("Business Rules", () => {
       });
     }
 
-    // BUG(v1.2): $lookup(obj, key).field loses function arguments -- only .field appears (EDGE-05 tech debt)
-    it.skip("lookup result chaining: extracts object, key, and chained field paths", () => {
+    it("lookup result chaining: extracts object, key, and chained field paths", () => {
       assertFixture({
         name: "lookup result chaining: extracts object, key, and chained field paths",
         expression: `$lookup(products, sku).price`,
         expectedPaths: [
           { path: "products", confidence: "static" },
-          { path: "price", confidence: "static" },
+          { path: "products.price", confidence: "static" },
           { path: "sku", confidence: "static" },
         ],
       });
