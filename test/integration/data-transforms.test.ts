@@ -49,8 +49,8 @@ describe("Data Transforms", () => {
       });
     }
 
-    // BUG(v1.2): filter predicate paths leak into HOF element bindings -- items[active] bound as element path to $v
-    it.skip("filter-map pipeline: should not produce spurious predicate-prefixed element paths", () => {
+    // FILT-01: filter predicate paths leak into HOF element bindings -- items[active] bound as element path to $v
+    it("filter-map pipeline: should not produce spurious predicate-prefixed element paths", () => {
       assertFixture({
         name: "filter-map pipeline: should not produce spurious predicate-prefixed element paths",
         expression: `$map(items[active], function($v) { $v.name })`,
@@ -117,8 +117,8 @@ describe("Data Transforms", () => {
       });
     }
 
-    // BUG(v1.2): chained ~> HOF inherits filter predicate paths from prior stage
-    it.skip("chained filter-then-map: should not leak filter predicate into map element binding", () => {
+    // FILT-02: chained ~> HOF inherits filter predicate paths from prior stage
+    it("chained filter-then-map: should not leak filter predicate into map element binding", () => {
       assertFixture({
         name: "chained filter-then-map: should not leak filter predicate into map element binding",
         expression: `items ~> $filter(function($v) { $v.active }) ~> $map(function($v) { $v.name })`,
@@ -275,8 +275,8 @@ describe("Data Transforms", () => {
       });
     }
 
-    // BUG(v1.2): filter predicate paths leak through variable-bound intermediate results
-    it.skip("variable-bound filter then map: should not produce spurious predicate-prefixed paths", () => {
+    // FILT-03: filter predicate paths leak through variable-bound intermediate results
+    it("variable-bound filter then map: should not produce spurious predicate-prefixed paths", () => {
       assertFixture({
         name: "variable-bound filter then map: should not produce spurious predicate-prefixed paths",
         expression: `($data := items[active]; $map($data, function($v) { $v.name }))`,

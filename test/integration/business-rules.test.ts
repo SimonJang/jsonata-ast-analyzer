@@ -169,8 +169,8 @@ describe("Business Rules", () => {
       });
     });
 
-    // BUG(v1.2): variable-resolved paths in filter predicates get spuriously context-prefixed (filter predicate path leak)
-    it.skip("variable-in-filter cross-reference: extracts variable source and filter paths without spurious prefixing", () => {
+    // FILT-04: variable-resolved paths in filter predicates get spuriously context-prefixed (filter predicate path leak)
+    it("variable-in-filter cross-reference: extracts variable source and filter paths without spurious prefixing", () => {
       assertFixture({
         name: "variable-in-filter cross-reference: extracts variable source and filter paths without spurious prefixing",
         expression: `($min := minPrice; products[price >= $min].name)`,
