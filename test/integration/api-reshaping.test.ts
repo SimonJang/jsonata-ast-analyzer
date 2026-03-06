@@ -147,7 +147,7 @@ describe("API Reshaping", () => {
 
     // BUG(v1.2): focus variable @$o double-prefixes -- $o resolves to ["orders"],
     // then filter context re-prefixes to "orders.orders.total"
-    it.skip("focus variable cross-reference: extracts focus-resolved paths without double prefix", () => {
+    it("focus variable cross-reference: extracts focus-resolved paths without double prefix", () => {
       assertFixture({
         name: "focus variable cross-reference: extracts focus-resolved paths without double prefix",
         expression: `orders@$o[$o.total > 100].id`,
@@ -159,7 +159,7 @@ describe("API Reshaping", () => {
     });
 
     // BUG(v1.2): variable-resolved paths in filter predicates get spuriously context-prefixed
-    it.skip("variable cross-reference in filter: extracts variable source and filter paths without spurious prefixing", () => {
+    it("variable cross-reference in filter: extracts variable source and filter paths without spurious prefixing", () => {
       assertFixture({
         name: "variable cross-reference in filter: extracts variable source and filter paths without spurious prefixing",
         expression: `($cfg := config; items[$cfg.minPrice < price].name)`,
