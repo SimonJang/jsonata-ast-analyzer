@@ -309,6 +309,102 @@ describe("Data Transforms", () => {
     }
   });
 
+  describe("FILT regression: filter predicate scope isolation in HOF contexts", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        // Compound predicate fields are emitted but not bound to lambda parameter
+        name: "filter+map with compound predicate: predicate fields emitted but not bound",
+        expression: `$map(items[price > 10 and active], function($v) { $v.name })`,
+        expectedPaths: [
+          { path: "items", confidence: "static" },
+          { path: "items.active", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+        ],
+      },
+      {
+        // Multi-step base path preserved through filter in HOF data arg
+        name: "filter on multi-step path: base path preserved through HOF",
+        expression: `$map(orders.items[inStock], function($v) { $v.sku })`,
+        expectedPaths: [
+          { path: "orders.items", confidence: "static" },
+          { path: "orders.items.inStock", confidence: "static" },
+          { path: "orders.items.sku", confidence: "static" },
+        ],
+      },
+      {
+        // $filter HOF also uses walkHigherOrderCall -- filter on input should not leak
+        name: "$filter HOF with predicate on input: predicate does not leak into callback",
+        expression: `$filter(items[category="electronics"], function($v) { $v.active })`,
+        expectedPaths: [
+          { path: "items", confidence: "static" },
+          { path: "items.active", confidence: "static" },
+          { path: "items.category", confidence: "static" },
+        ],
+      },
+      {
+        // $reduce accumulator binding with filtered input -- filter should not leak
+        name: "$reduce with filtered input: filter does not leak into accumulator binding",
+        expression: `$reduce(values[valid], function($acc, $v) { $acc + $v.amount }, 0)`,
+        expectedPaths: [
+          { path: "values", confidence: "static" },
+          { path: "values.amount", confidence: "static" },
+          { path: "values.valid", confidence: "static" },
+        ],
+      },
+      {
+        // Nested $map: inner HOF uses outer binding, outer filter stays isolated
+        name: "nested $map with outer filter: outer filter isolated from inner HOF",
+        expression: `$map(orders[open], function($o) { $map($o.items, function($v) { $v.name }) })`,
+        expectedPaths: [
+          { path: "orders", confidence: "static" },
+          { path: "orders.items", confidence: "static" },
+          { path: "orders.items.name", confidence: "static" },
+          { path: "orders.open", confidence: "static" },
+        ],
+      },
+      {
+        // String equality comparison in filter predicate -- should not leak into binding
+        name: "filter with string equality: predicate field emitted but not bound",
+        expression: `$map(users[role="admin"], function($u) { $u.email })`,
+        expectedPaths: [
+          { path: "users", confidence: "static" },
+          { path: "users.email", confidence: "static" },
+          { path: "users.role", confidence: "static" },
+        ],
+      },
+      {
+        // Multiple independent HOF calls each isolate their own filter predicates
+        name: "multiple HOFs with different filtered inputs: each independently isolates predicates",
+        expression: `$map(items[active], function($v) { $v.name }) & $map(users[verified], function($u) { $u.email })`,
+        expectedPaths: [
+          { path: "items", confidence: "static" },
+          { path: "items.active", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          { path: "users", confidence: "static" },
+          { path: "users.email", confidence: "static" },
+          { path: "users.verified", confidence: "static" },
+        ],
+      },
+      {
+        // Variable-bound then map -- similar to FILT-03 with different expression shape
+        name: "variable-bound filtered data then $map: predicate paths not leaked through variable",
+        expression: `($x := orders[active]; $map($x, function($v) { $v.total }))`,
+        expectedPaths: [
+          { path: "orders", confidence: "static" },
+          { path: "orders.active", confidence: "static" },
+          { path: "orders.total", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
+
   describe("PIPE: Pipeline and apply operator regression tests", () => {
     describe("Apply/lambda regressions", () => {
       const fixtures: IntegrationFixture[] = [

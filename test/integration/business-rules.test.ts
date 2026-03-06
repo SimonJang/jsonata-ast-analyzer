@@ -303,6 +303,48 @@ describe("Business Rules", () => {
     }
   });
 
+  describe("FILT regression: filter predicate scope isolation in business rule contexts", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        // Variable cross-ref in filter with aggregation -- variable should not be context-prefixed
+        name: "variable cross-ref in filter with $sum: variable path not spuriously prefixed",
+        expression: `($threshold := minQty; $sum(items[qty >= $threshold].price))`,
+        expectedPaths: [
+          { path: "items.price", confidence: "static" },
+          { path: "items.qty", confidence: "static" },
+          { path: "minQty", confidence: "static" },
+        ],
+      },
+      {
+        // Chained apply with filter on LHS -- filter predicate stays isolated
+        name: "chained apply with filter: filter on apply LHS does not leak into map binding",
+        expression: `orders[active] ~> $map(function($v) { $v.total })`,
+        expectedPaths: [
+          { path: "orders", confidence: "static" },
+          { path: "orders.active", confidence: "static" },
+          { path: "orders.total", confidence: "static" },
+        ],
+      },
+      {
+        // Multiple variables in filter predicate -- none should get context-prefixed
+        name: "multiple variables in filter: both variable paths stay absolute",
+        expression: `($lo := minPrice; $hi := maxPrice; products[price >= $lo and price <= $hi].name)`,
+        expectedPaths: [
+          { path: "maxPrice", confidence: "static" },
+          { path: "minPrice", confidence: "static" },
+          { path: "products.name", confidence: "static" },
+          { path: "products.price", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
+
   describe("Composite: cross-pattern business rule", () => {
     const fixtures: IntegrationFixture[] = [
       {
