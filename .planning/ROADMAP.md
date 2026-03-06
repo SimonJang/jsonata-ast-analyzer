@@ -111,6 +111,6 @@ Plans:
 | 11. API Reshaping Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 12. Data Export Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
-| 14. Isolated Single-Function Fixes | 2/2 | Complete   | 2026-03-06 | - |
+| 14. Isolated Single-Function Fixes | 2/2 | Complete    | 2026-03-06 | - |
 | 15. Pipeline and Apply Fixes | v1.1.1 | 0/? | Not started | - |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 0/? | Not started | - |
