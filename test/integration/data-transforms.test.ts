@@ -62,8 +62,8 @@ describe("Data Transforms", () => {
       });
     });
 
-    // BUG(v1.2): variable-resolved sort paths not extracted -- $x^(price) misses sort term
-    it.skip("variable-resolved sort: should extract sort key paths through variable binding", () => {
+    // FIXED(v1.2): variable-resolved sort paths now extracted -- $x^(price) walks sort terms
+    it("variable-resolved sort: should extract sort key paths through variable binding", () => {
       assertFixture({
         name: "variable-resolved sort: should extract sort key paths through variable binding",
         expression: `($x := items; $x^(price))`,
