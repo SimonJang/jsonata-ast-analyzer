@@ -113,4 +113,4 @@ Plans:
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 14. Isolated Single-Function Fixes | v1.1.1 | 2/2 | Complete | 2026-03-06 |
 | 15. Pipeline and Apply Fixes | v1.1.1 | 1/1 | Complete | 2026-03-06 |
-| 16. Filter Predicate Scope-Awareness | 2/2 | Complete   | 2026-03-06 | - |
+| 16. Filter Predicate Scope-Awareness | 2/2 | Complete    | 2026-03-06 | - |
