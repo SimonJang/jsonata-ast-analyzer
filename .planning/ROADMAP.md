@@ -65,7 +65,7 @@ Full details: `milestones/v1.1.1-ROADMAP.md`
   1. CI workflow YAML includes a `pnpm build` step after `pnpm typecheck` and before `pnpm test`
   2. CI pipeline passes all 294 tests on both Node 20 and Node 22 (including 3 CLI round-trip tests that require `dist/cli.js`)
   3. No existing CI steps (checkout, pnpm setup, node setup, install, typecheck, test) are removed or broken
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
 - [ ] 17-01: Add build step to CI workflow
