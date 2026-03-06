@@ -112,5 +112,5 @@ Plans:
 | 12. Data Export Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 14. Isolated Single-Function Fixes | v1.1.1 | 2/2 | Complete | 2026-03-06 |
-| 15. Pipeline and Apply Fixes | 1/1 | Complete   | 2026-03-06 | - |
+| 15. Pipeline and Apply Fixes | 1/1 | Complete    | 2026-03-06 | - |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 0/? | Not started | - |
