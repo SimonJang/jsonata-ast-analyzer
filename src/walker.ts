@@ -294,30 +294,34 @@ function walkFilterStages(
       }
     }
 
-    // Filter predicate -- walk expression and selectively prefix results
-    // Variable-resolved paths are already absolute and must NOT be re-prefixed.
-    // To distinguish: walk once with full scope, once with a "local-only" scope
-    // where parent variables (non-focus) resolve to nothing.
-    const filterPaths = walkNode(filterStage.expr, filterScope);
+    // Two-pass scope-aware prefixing:
+    // 1. Walk with empty scope (no variables) -> bare field names only
+    // 2. Walk with focus-only scope (focus binding, no parent vars) -> bare + focus-resolved
+    // Bare field names (from empty walk) need context prefixing.
+    // Focus-variable-resolved paths (in focus walk but not empty) are already
+    // absolute from focus binding to contextPrefix -- emit as-is.
+    // External-variable-resolved paths are NOT emitted here -- they were
+    // already captured at the variable binding site.
+    const emptyScope = childScope(createScope());
+    const localPaths = walkNode(filterStage.expr, emptyScope);
 
-    // Build a local-only scope: child of an empty scope with only focus binding
-    let localScope = childScope(createScope());
+    // Prefix local field paths (bare field names need context)
+    paths.push(...prefixPaths(contextPrefix, localPaths));
+
+    // If focus variable present, also emit focus-resolved paths (not in empty walk)
     if (focus) {
-      localScope = bindVariable(
-        localScope,
+      let focusOnlyScope = childScope(createScope());
+      focusOnlyScope = bindVariable(
+        focusOnlyScope,
         focus,
         contextPrefix ? [contextPrefix] : [],
       );
-    }
-    const localPaths = new Set(walkNode(filterStage.expr, localScope));
-
-    for (const fp of filterPaths) {
-      if (localPaths.has(fp)) {
-        // Local path (bare field name or focus variable) -- prefix it
-        paths.push(...prefixPaths(contextPrefix, [fp]));
-      } else {
-        // Externally-resolved variable path -- already absolute, don't prefix
-        paths.push(fp);
+      const focusPaths = walkNode(filterStage.expr, focusOnlyScope);
+      const localSet = new Set(localPaths);
+      for (const fp of focusPaths) {
+        if (!localSet.has(fp)) {
+          paths.push(fp); // focus-resolved, already absolute
+        }
       }
     }
   }
