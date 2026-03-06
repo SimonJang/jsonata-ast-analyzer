@@ -127,10 +127,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     return [];
   }
 
-  // Build the base path first (existing behavior)
+  // Build the base path first (existing behavior).
+  // When a path terminates with a block step (e.g., items.(expr)), suppress
+  // the base path -- the block is a pure projection whose inner expressions
+  // fully describe the accessed paths once prefixed.
   const paths: string[] = [];
+  const lastStep = node.steps[node.steps.length - 1];
+  const suppressBase = lastStep?.type === "block";
   const basePath = buildPathString(node.steps);
-  if (basePath) {
+  if (basePath && !suppressBase) {
     paths.push(basePath);
   }
 
@@ -147,6 +152,26 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     } else if (step.type === "sort") {
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       paths.push(...walkSortTerms(step as SortNode, contextPrefix, scope));
+    } else if (step.type === "unary" && (step as UnaryNode).value === "{") {
+      // Object constructor step in path: orders.items.{"key": val}
+      // Walk value expressions and prefix with path up to this step
+      const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const unaryStep = step as UnaryNode;
+      if (unaryStep.lhs) {
+        for (const [_key, val] of unaryStep.lhs) {
+          const valPaths = walkNode(val, scope);
+          paths.push(...prefixPaths(contextPrefix, valPaths));
+        }
+      }
+    } else if (step.type === "block") {
+      // Block expression step in path: orders.items.(expr)
+      // Walk all expressions and prefix with path up to this step
+      const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const blockStep = step as BlockNode;
+      for (const expr of blockStep.expressions) {
+        const exprPaths = walkNode(expr, scope);
+        paths.push(...prefixPaths(contextPrefix, exprPaths));
+      }
     }
   }
 
