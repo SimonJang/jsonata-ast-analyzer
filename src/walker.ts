@@ -420,6 +420,23 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
       }
     }
 
+    // Handle group-by on variable node (mirrors walkGroupBy for PathNode)
+    if (node.group) {
+      const groupNode = node.group as unknown as GroupByNode;
+      const groupBasePath = resolved.length > 0 ? resolved[0] : "";
+      if (groupNode.lhs) {
+        for (const pair of groupNode.lhs) {
+          const [keyExpr, valExpr] = pair;
+          if (keyExpr) {
+            paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
+          }
+          if (valExpr) {
+            paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
+          }
+        }
+      }
+    }
+
     return paths;
   }
 

@@ -96,6 +96,7 @@ export interface VariableNode {
   position: number;
   predicate?: AstNode[]; // filter stages (same structure as NameNode.stages but different property name)
   focus?: string; // context variable name from @$v (without $)
+  group?: AstNode; // group-by expression (mirrors PathNode.group)
 }
 
 export interface RegexNode {
