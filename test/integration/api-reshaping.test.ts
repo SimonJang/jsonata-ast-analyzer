@@ -371,4 +371,129 @@ describe("API Reshaping", () => {
       });
     }
   });
+
+  describe("FOCV regression: focus variable prefix handling and variable-in-filter scope", () => {
+    const fixtures: IntegrationFixture[] = [
+      // Edge 1: Simple focus variable without filter -- baseline: focus var alone should not cause issues
+      {
+        name: "FOCV-R01: simple focus variable without filter produces path continuation only",
+        expression: `orders@$o.id`,
+        expectedPaths: [
+          { path: "orders.id", confidence: "static" },
+        ],
+      },
+      // Edge 2: Focus variable with compound predicate -- multiple focus-var references in AND predicate
+      {
+        name: "FOCV-R02: focus variable with compound AND predicate resolves both branches without double prefix",
+        expression: `items@$i[$i.price > 50 and $i.active].name`,
+        expectedPaths: [
+          { path: "items.active", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+        ],
+      },
+      // Edge 3: Nested focus variables -- each resolves to own context
+      {
+        name: "FOCV-R03: nested focus variables each resolve to their own context prefix",
+        expression: `departments@$d.employees@$e[$e.salary > 50000].name`,
+        expectedPaths: [
+          { path: "departments.employees.name", confidence: "static" },
+          { path: "departments.employees.salary", confidence: "static" },
+        ],
+      },
+      // Edge 4: Focus variable with bare field in same filter -- mix of focus-var (no prefix) and bare (prefix)
+      {
+        name: "FOCV-R04: focus variable path and bare field name coexist in same filter predicate",
+        expression: `items@$i[$i.category = type].name`,
+        expectedPaths: [
+          { path: "items.category", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          { path: "items.type", confidence: "static" },
+        ],
+      },
+      // Edge 5: External variable cross-ref with focus -- external var not re-emitted from filter
+      {
+        name: "FOCV-R05: external variable cross-ref with focus variable in filter does not re-emit external path",
+        expression: `($min := threshold; orders@$o[$o.total > $min].id)`,
+        expectedPaths: [
+          { path: "orders.id", confidence: "static" },
+          { path: "orders.total", confidence: "static" },
+          { path: "threshold", confidence: "static" },
+        ],
+      },
+      // Edge 6: Variable-in-filter with no focus variable -- bare field prefixed, external var not re-emitted
+      {
+        name: "FOCV-R06: variable-in-filter without focus variable prefixes bare fields and suppresses variable paths",
+        expression: `($x := limit; products[price > $x].name)`,
+        expectedPaths: [
+          { path: "limit", confidence: "static" },
+          { path: "products.name", confidence: "static" },
+          { path: "products.price", confidence: "static" },
+        ],
+      },
+      // Edge 7: Multiple filter stages with variable -- variable cross-ref in sequential filters
+      {
+        name: "FOCV-R07: multiple sequential filter stages with variable cross-ref prefix correctly",
+        expression: `($cfg := config; items[price > $cfg.min][price < $cfg.max].name)`,
+        expectedPaths: [
+          { path: "config", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+        ],
+      },
+      // Edge 8: Focus variable used outside filter -- focus var in path continuation only
+      {
+        name: "FOCV-R08: focus variable in path continuation (no filter) resolves correctly",
+        expression: `orders@$o.items.name`,
+        expectedPaths: [
+          { path: "orders.items.name", confidence: "static" },
+        ],
+      },
+      // Edge 9: Cross-referenced focus variables in nested contexts
+      {
+        name: "FOCV-R09: cross-referenced focus variables in nested filter resolve inner focus correctly",
+        expression: `library.loans@$l.books@$b[$l.isbn = $b.isbn].title`,
+        expectedPaths: [
+          { path: "library.loans.books.isbn", confidence: "static" },
+          { path: "library.loans.books.title", confidence: "static" },
+        ],
+      },
+      // Edge 10: Chained apply with focus variable input -- combines focus filter with HOF
+      {
+        name: "FOCV-R10: chained apply with focus variable filter combines correctly with HOF",
+        expression: `orders@$o[$o.active] ~> $map(function($v) { $v.total })`,
+        expectedPaths: [
+          { path: "orders", confidence: "static" },
+          { path: "orders.active", confidence: "static" },
+          { path: "orders.total", confidence: "static" },
+        ],
+      },
+      // Edge 11: Focus variable with string comparison in filter -- string literal produces no paths
+      {
+        name: "FOCV-R11: focus variable with string literal comparison in filter handles literals correctly",
+        expression: `users@$u[$u.role = "admin"].email`,
+        expectedPaths: [
+          { path: "users.email", confidence: "static" },
+          { path: "users.role", confidence: "static" },
+        ],
+      },
+      // Edge 12: Multiple external variables in filter without focus -- all suppressed from filter
+      {
+        name: "FOCV-R12: multiple external variables in filter all suppressed from filter output",
+        expression: `($lo := bounds.low; $hi := bounds.high; data[value >= $lo and value <= $hi].label)`,
+        expectedPaths: [
+          { path: "bounds.low", confidence: "static" },
+          { path: "bounds.high", confidence: "static" },
+          { path: "data.label", confidence: "static" },
+          { path: "data.value", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
 });
