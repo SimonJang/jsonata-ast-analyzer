@@ -121,6 +121,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Concatenate resolved paths with suffix
       paths.push(...resolved.map((p) => (suffix ? `${p}.${suffix}` : p)));
 
+      // Walk sort terms in remaining steps, prefixed with resolved paths
+      for (const remainStep of suffixSteps) {
+        if (remainStep.type === "sort") {
+          for (const resolvedPath of resolved) {
+            paths.push(...walkSortTerms(remainStep as SortNode, resolvedPath, scope));
+          }
+        }
+      }
+
       return paths;
     }
     // Unresolvable variable in path: drop the entire path (silent skip)
