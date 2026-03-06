@@ -9,11 +9,11 @@ Requirements for bug fix release. Each maps to roadmap phases.
 
 ### Filter Predicate Scope
 
-- [ ] **FILT-01**: Filter predicate paths inside HOF callbacks do not leak into the lambda parameter binding (e.g., `$map(orders[status="active"], fn)` does not bind `status` to the lambda parameter)
-- [ ] **FILT-02**: Filter predicates on HOF input arrays produce correct context-relative paths (e.g., `orders.status` not `orders.orders.status`)
-- [ ] **FILT-03**: Compound filter predicates with multiple fields all resolve correctly without prefix duplication
-- [ ] **FILT-04**: Nested HOF with filtered input (e.g., `$map($filter(items[active], fn1), fn2)`) produces correct paths at each level
-- [ ] **FILT-05**: Thorough regression suite (10+ tests) covering filter predicate scope isolation in HOF contexts
+- [x] **FILT-01**: Filter predicate paths inside HOF callbacks do not leak into the lambda parameter binding (e.g., `$map(orders[status="active"], fn)` does not bind `status` to the lambda parameter)
+- [x] **FILT-02**: Filter predicates on HOF input arrays produce correct context-relative paths (e.g., `orders.status` not `orders.orders.status`)
+- [x] **FILT-03**: Compound filter predicates with multiple fields all resolve correctly without prefix duplication
+- [x] **FILT-04**: Nested HOF with filtered input (e.g., `$map($filter(items[active], fn1), fn2)`) produces correct paths at each level
+- [x] **FILT-05**: Thorough regression suite (10+ tests) covering filter predicate scope isolation in HOF contexts
 
 ### Focus Variable
 
@@ -69,11 +69,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FILT-01 | Phase 16 | Pending |
-| FILT-02 | Phase 16 | Pending |
-| FILT-03 | Phase 16 | Pending |
-| FILT-04 | Phase 16 | Pending |
-| FILT-05 | Phase 16 | Pending |
+| FILT-01 | Phase 16 | Complete |
+| FILT-02 | Phase 16 | Complete |
+| FILT-03 | Phase 16 | Complete |
+| FILT-04 | Phase 16 | Complete |
+| FILT-05 | Phase 16 | Complete |
 | FOCV-01 | Phase 16 | Pending |
 | FOCV-02 | Phase 16 | Pending |
 | FOCV-03 | Phase 16 | Pending |
