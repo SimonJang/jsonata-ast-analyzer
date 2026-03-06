@@ -29,9 +29,9 @@ Requirements for bug fix release. Each maps to roadmap phases.
 
 ### Lookup HOF Chaining
 
-- [ ] **LOOK-01**: `$lookup(table, key)` function arguments are extracted as data paths
-- [ ] **LOOK-02**: Path continuation after `$lookup` result (e.g., `$lookup(inventory, itemCode).quantity`) extracts both arguments and the chained property
-- [ ] **LOOK-03**: Thorough regression suite (10+ tests) covering $lookup patterns and HOF chaining
+- [x] **LOOK-01**: `$lookup(table, key)` function arguments are extracted as data paths
+- [x] **LOOK-02**: Path continuation after `$lookup` result (e.g., `$lookup(inventory, itemCode).quantity`) extracts both arguments and the chained property
+- [x] **LOOK-03**: Thorough regression suite (10+ tests) covering $lookup patterns and HOF chaining
 
 ### Pipeline Deduplication
 
@@ -46,8 +46,8 @@ Requirements for bug fix release. Each maps to roadmap phases.
 
 ### Array Constructor Scope
 
-- [ ] **ARRS-01**: Variable bindings inside array constructors accumulate scope sequentially (e.g., `[$x := data.source, $x.field]` resolves `$x.field` to `data.source.field`)
-- [ ] **ARRS-02**: Thorough regression suite (10+ tests) covering array constructor scope isolation and variable resolution
+- [x] **ARRS-01**: Variable bindings inside array constructors accumulate scope sequentially (e.g., `[$x := data.source, $x.field]` resolves `$x.field` to `data.source.field`)
+- [x] **ARRS-02**: Thorough regression suite (10+ tests) covering array constructor scope isolation and variable resolution
 
 ## Future Requirements
 
@@ -80,16 +80,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PRNT-01 | Phase 14 | Complete |
 | PRNT-02 | Phase 14 | Complete |
 | PRNT-03 | Phase 14 | Complete |
-| LOOK-01 | Phase 14 | Pending |
-| LOOK-02 | Phase 14 | Pending |
-| LOOK-03 | Phase 14 | Pending |
+| LOOK-01 | Phase 14 | Complete |
+| LOOK-02 | Phase 14 | Complete |
+| LOOK-03 | Phase 14 | Complete |
 | PIPE-01 | Phase 15 | Pending |
 | PIPE-02 | Phase 15 | Pending |
 | PIPE-03 | Phase 15 | Pending |
 | WVAR-01 | Phase 14 | Complete |
 | WVAR-02 | Phase 14 | Complete |
-| ARRS-01 | Phase 14 | Pending |
-| ARRS-02 | Phase 14 | Pending |
+| ARRS-01 | Phase 14 | Complete |
+| ARRS-02 | Phase 14 | Complete |
 
 **Coverage:**
 - v1.1.1 requirements: 21 total

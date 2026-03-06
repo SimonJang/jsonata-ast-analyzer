@@ -41,7 +41,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 
 **Milestone Goal:** Fix all 14 documented BUG(v1.2) analyzer bugs across 7 categories and build thorough regression test suites around each fix area. Ordered by ascending regression risk: isolated additive fixes first, coupled filter/focus fixes last.
 
-- [ ] **Phase 14: Isolated Single-Function Fixes** - Fix walkPath steps, walkVariable .group, $lookup chaining, and array constructor scope (8 bugs, 10 requirements)
+- [x] **Phase 14: Isolated Single-Function Fixes** - Fix walkPath steps, walkVariable .group, $lookup chaining, and array constructor scope (8 bugs, 10 requirements) (completed 2026-03-06)
 - [ ] **Phase 15: Pipeline and Apply Fixes** - Fix inline lambda apply binding and variable-resolved sort extraction (2 bugs, 3 requirements)
 - [ ] **Phase 16: Filter Predicate Scope-Awareness** - Fix filter predicate leak into HOF bindings and focus variable double-prefix (4+2 bugs, 8 requirements)
 
@@ -111,6 +111,6 @@ Plans:
 | 11. API Reshaping Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 12. Data Export Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
-| 14. Isolated Single-Function Fixes | 1/2 | In Progress|  | - |
+| 14. Isolated Single-Function Fixes | 2/2 | Complete   | 2026-03-06 | - |
 | 15. Pipeline and Apply Fixes | v1.1.1 | 0/? | Not started | - |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 0/? | Not started | - |
