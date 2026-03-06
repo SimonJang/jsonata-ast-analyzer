@@ -60,8 +60,8 @@ Full details: `milestones/v1.1-ROADMAP.md`
 **Plans**: 2 plans
 
 Plans:
-- [ ] 14-01-PLAN.md -- Fix walkPath step handling (PRNT) and walkVariable group-by (WVAR) with 20+ regression tests
-- [ ] 14-02-PLAN.md -- Fix $lookup chaining (LOOK) and array constructor scope (ARRS) with 20+ regression tests
+- [x] 14-01-PLAN.md -- Fix walkPath step handling (PRNT) and walkVariable group-by (WVAR) with 20+ regression tests
+- [x] 14-02-PLAN.md -- Fix $lookup chaining (LOOK) and array constructor scope (ARRS) with 20+ regression tests
 
 ### Phase 15: Pipeline and Apply Fixes
 **Goal**: Apply operator correctly binds inline lambda parameters and variable-resolved sort expressions extract sort key paths relative to the resolved variable
@@ -71,10 +71,10 @@ Plans:
   1. Expression `data ~> function($d) { $d.count }` binds `$d` to `data` and extracts `data.count` -- not a duplicate unresolved `$d.count`
   2. Expression `$x := items; $x^(price)` extracts the sort key path `items.price` relative to the resolved variable, not bare `price`
   3. Both previously-skipped BUG(v1.2) pipeline tests are unskipped and passing, plus 10+ new regression tests covering apply and sort patterns
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 15-01: TBD
+- [ ] 15-01-PLAN.md -- Fix walkApply inline lambda binding and walkPath variable-resolved sort extraction with 12+ regression tests
 
 ### Phase 16: Filter Predicate Scope-Awareness
 **Goal**: Filter predicates in HOF contexts produce correct scope-aware paths without leaking into lambda parameter bindings, and focus variable bindings do not cause double-prefixed paths
@@ -111,6 +111,6 @@ Plans:
 | 11. API Reshaping Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 12. Data Export Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
-| 14. Isolated Single-Function Fixes | 2/2 | Complete    | 2026-03-06 | - |
-| 15. Pipeline and Apply Fixes | v1.1.1 | 0/? | Not started | - |
+| 14. Isolated Single-Function Fixes | v1.1.1 | 2/2 | Complete | 2026-03-06 |
+| 15. Pipeline and Apply Fixes | v1.1.1 | 0/1 | Not started | - |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 0/? | Not started | - |
