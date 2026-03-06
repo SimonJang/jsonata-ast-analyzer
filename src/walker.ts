@@ -135,7 +135,21 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   const lastStep = node.steps[node.steps.length - 1];
   const suppressBase = lastStep?.type === "block";
   const basePath = buildPathString(node.steps);
-  if (basePath && !suppressBase) {
+  const funcStepIndex = node.steps.findIndex((s) => s.type === "function");
+  if (basePath && funcStepIndex >= 0) {
+    // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
+    // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
+    const funcStep = node.steps[funcStepIndex] as FunctionNode;
+    if (funcStep.arguments.length > 0) {
+      const firstArgPaths = walkNode(funcStep.arguments[0], scope);
+      if (firstArgPaths.length > 0) {
+        paths.push(...prefixPaths(firstArgPaths[0], [basePath]));
+      }
+      // Don't push bare basePath -- it's not a standalone data path
+    } else {
+      paths.push(basePath);
+    }
+  } else if (basePath && !suppressBase) {
     paths.push(basePath);
   }
 
@@ -172,6 +186,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         const exprPaths = walkNode(expr, scope);
         paths.push(...prefixPaths(contextPrefix, exprPaths));
       }
+    } else if (step.type === "function") {
+      // Function call step (e.g., $lookup(obj, key) in $lookup(obj, key).field)
+      // Walk the function call to extract argument paths
+      paths.push(...walkFunction(step as FunctionNode, scope));
     }
   }
 
