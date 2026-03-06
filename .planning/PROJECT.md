@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A TypeScript/Node library and CLI tool that statically analyzes JSONata expression ASTs to extract all data paths being read from the source JSON object. Given any expression — including those with variable assignments, filter predicates, lambda functions, parent operators, and dynamically computed paths — it produces a complete list of every leaf path the expression touches, each annotated with a confidence level. Validated by 200 integration and unit tests across 5 real-world scenario categories.
+A TypeScript/Node library and CLI tool that statically analyzes JSONata expression ASTs to extract all data paths being read from the source JSON object. Given any expression — including those with variable assignments, filter predicates, lambda functions, parent operators, higher-order functions, and dynamically computed paths — it produces a complete list of every leaf path the expression touches, each annotated with a confidence level. Validated by 294 tests (unit + integration) across 7 bug fix categories and 5 real-world scenario categories with zero known analyzer bugs.
 
 ## Core Value
 
@@ -28,18 +28,18 @@ Given any JSONata expression, accurately identify every data path read from the 
 - ✓ API response reshaping scenarios (nested payload extraction/flattening, parent operator) — v1.1
 - ✓ Data export/format conversion scenarios (transform operator, group-by) — v1.1
 - ✓ Edge case coverage (deep variable chains, nested HOFs, custom functions, CLI round-trip) — v1.1
+- ✓ Filter predicate scope isolation in HOF contexts (4 bugs fixed) — v1.1.1
+- ✓ Focus variable @$v double-prefix prevention (2 bugs fixed) — v1.1.1
+- ✓ Parent operator walkPath through object constructor/block steps (2 bugs fixed) — v1.1.1
+- ✓ $lookup HOF chaining with function argument extraction (2 bugs fixed) — v1.1.1
+- ✓ Pipeline apply operator lambda binding and sort extraction (2 bugs fixed) — v1.1.1
+- ✓ walkVariable .group property handling (1 bug fixed) — v1.1.1
+- ✓ Array constructor sequential scope accumulation (1 bug fixed) — v1.1.1
+- ✓ All 14 BUG(v1.2) tests unskipped and passing with 80+ regression tests — v1.1.1
 
 ### Active
 
-- [ ] Fix filter predicate path leak into HOF bindings (4 bugs)
-- [ ] Fix $lookup HOF chaining losing function arguments (2 bugs)
-- [ ] Fix focus variable @$v double-prefix (2 bugs)
-- [ ] Fix parent operator walkPath missing object constructor/block steps (2 bugs)
-- [ ] Fix pipeline duplicate path extraction (2 bugs)
-- [ ] Fix walkVariable missing .group property (1 bug)
-- [ ] Fix array constructor scope leak in standalone BindNode (1 bug)
-- [ ] Unskip all 14 BUG(v1.2) tests and make them pass
-- [ ] Thorough regression test suite (10+ new tests per bug category)
+(None — all known bugs fixed. Define new requirements for next milestone.)
 
 ### Out of Scope
 
@@ -56,20 +56,18 @@ Given any JSONata expression, accurately identify every data path read from the 
 
 ## Context
 
-Shipped v1.1 with 3,510 LOC TypeScript (1,116 source + 2,394 test).
+Shipped v1.1.1 with 4,547 LOC TypeScript (1,189 source + 3,358 test).
 Tech stack: TypeScript, Node.js, `jsonata` parser, Vitest, tsup (ESM-only).
-200 tests (105 unit + 95 integration) with 0 failures and 14 skipped (documented bugs).
+294 tests (all passing, 0 skipped, 0 known bugs).
 
-Architecture: `parse()` adapter → recursive `walkNode()` dispatcher → `buildPathString()` → `deriveConfidence()` → `PathResult[]`
+Architecture: `parse()` adapter -> recursive `walkNode()` dispatcher -> `buildPathString()` -> `deriveConfidence()` -> `PathResult[]`
 
-Known tech debt (14 bugs documented with `BUG(v1.2)` tracking in `it.skip` fixtures):
-- Filter predicate path leak into HOF bindings (4 instances)
-- $lookup HOF chaining loses function arguments (2 instances)
-- Focus variable @$v double-prefix (2 instances)
-- Parent operator walkPath misses object constructor/block steps (2 instances)
-- Pipeline duplicate path extraction (2 instances)
-- walkVariable missing .group property (1 instance)
-- Array constructor scope leak in standalone BindNode (1 instance)
+Key helpers added in v1.1.1:
+- `extractBasePaths()` — structural base path extraction for HOF lambda binding
+- `filterToBasePaths()` — prefix-based path deduplication
+- Three-tier scope-aware `walkFilterStages` — empty scope (bare fields), focus-only scope, full scope
+
+No known tech debt. All previously-documented BUG(v1.2) issues resolved.
 
 ## Constraints
 
@@ -95,15 +93,10 @@ Known tech debt (14 bugs documented with `BUG(v1.2)` tracking in `it.skip` fixtu
 | IntegrationFixture discriminated union | ExactFixture vs SubsetFixture with `never` fields for compile-time enforcement | ✓ Good — zero subset-match usage across 95 integration tests |
 | BUG(v1.2) tracking via it.skip | Document correct expected output in skipped tests, not buggy actual output | ✓ Good — grep-able, shows what fix should produce |
 | execFileSync for CLI round-trip | Bypasses shell expansion of $ in JSONata expressions | ✓ Good — 3/3 CLI round-trip tests pass cleanly |
-
-## Current Milestone: v1.1.1 Bug Fixes
-
-**Goal:** Fix all 14 documented BUG(v1.2) analyzer bugs and build thorough regression test suites around each fix area.
-
-**Target features:**
-- Fix all 14 tracked bugs across 7 categories (filter predicate leak, $lookup HOF chaining, focus variable double-prefix, parent operator walkPath, pipeline duplicates, walkVariable .group, array constructor scope)
-- Unskip all 14 it.skip test fixtures
-- Thorough regression coverage (10+ new tests per bug category)
+| Ascending regression risk ordering | Fix isolated bugs first (Phase 14), pipeline second (Phase 15), coupled filter/focus last (Phase 16) | ✓ Good — each phase built on stable base, zero regressions |
+| extractBasePaths for HOF binding | Structural base path extraction avoids filter predicate leak into lambda parameters | ✓ Good — clean separation of collection identity vs filter content |
+| Three-tier scope-aware filter | Empty scope (bare fields), focus-only scope, full scope distinguishes path types in walkFilterStages | ✓ Good — eliminates both double-prefix and predicate leak bugs |
+| Block-terminal base suppression | Block steps are pure projections; suppress base path to avoid redundant output | ✓ Good — correct semantics for `items.(expr)` patterns |
 
 ---
-*Last updated: 2026-03-05 after v1.1.1 milestone started*
+*Last updated: 2026-03-06 after v1.1.1 milestone*

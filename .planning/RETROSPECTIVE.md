@@ -92,6 +92,50 @@
 
 ---
 
+## Milestone: v1.1.1 — Bug Fixes
+
+**Shipped:** 2026-03-06
+**Phases:** 3 | **Plans:** 5 | **Tests:** 294 (all passing, 0 skipped)
+
+### What Was Built
+- Fixed all 14 BUG(v1.2) analyzer bugs across 7 categories with 80+ new regression tests
+- walkPath now handles object constructor, block expression, and function steps in path traversal
+- walkVariable handles .group property for variable-resolved group-by expressions
+- walkApply correctly binds inline lambda parameters from apply operator lhs
+- extractBasePaths/filterToBasePaths helpers for structural HOF base path extraction
+- Three-tier scope-aware walkFilterStages: empty scope (bare fields), focus-only scope, full scope
+
+### What Worked
+- Ascending regression risk ordering: isolated fixes first (Phase 14), pipeline second (Phase 15), coupled filter/focus last (Phase 16) — each phase built on a stable base
+- BUG(v1.2) skip convention from v1.1: every fix had ready-made acceptance criteria as executable tests — just unskip and verify
+- TDD red-green cycle: unskip test (RED), implement fix (GREEN), add regression tests — zero regressions across all 5 plans
+- Small focused plans: avg 4.6 min/plan execution — entire 14-bug milestone completed in ~23 min execution time
+- Auto-fix pattern: deviations from plan caught and fixed immediately during GREEN phase without scope creep
+
+### What Was Inefficient
+- Phase 16 Plan 01's plan underspecified the walkFilterStages change — required 2 auto-fixes during execution for variable-in-filter prefix and PathNode variable step handling
+- The two-walk approach designed in 16-01 had to be upgraded to three-tier in 16-02 because focus-resolved paths appeared in both walks — could have been caught in research
+
+### Patterns Established
+- extractBasePaths: structural base path extraction for any AST node type without filter stage content
+- filterToBasePaths: prefix-based deduplication keeping only root paths from a path set
+- Three-tier filter prefixing: empty scope -> focus-only scope -> full scope for walkFilterStages
+- Function step in walkPath: walk arguments via walkFunction, prefix trailing basePath with first arg
+- Array constructor scope: sequential accumulation with bindVariable (mirrors walkBlock pattern)
+
+### Key Lessons
+1. Ascending regression risk ordering works — fix isolated bugs first to build a stable base for coupled fixes
+2. BUG(v1.2) executable skip fixtures eliminate the "what should the fix produce?" question — v1.1's investment paid off immediately
+3. Filter predicate scope isolation required three separate conceptual tiers (bare field, focus-resolved, external-resolved) — two-tier thinking was insufficient
+4. Auto-fix during GREEN phase is the right time to discover plan gaps — the test is already failing so the scope of the fix is bounded
+
+### Cost Observations
+- Model mix: quality profile (opus for execution)
+- Sessions: 1 session, ~23 min total execution
+- Notable: 4.6 min/plan avg; entire 14-bug milestone done in single session — BUG(v1.2) skip convention made each fix trivial
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -100,6 +144,7 @@
 |-----------|----------|--------|------------|
 | v1.0 | ~5 | 7 | Initial release — established TDD, GSD verification, audit-driven gap closure |
 | v1.1 | ~3 | 6 | Integration test suite — established fixture-driven testing, BUG tracking, pre-verification |
+| v1.1.1 | 1 | 3 | Bug fix release — ascending risk ordering, BUG skip fixtures as instant acceptance criteria |
 
 ### Cumulative Quality
 
@@ -107,10 +152,12 @@
 |-----------|-------|-----------|------------|-----------|
 | v1.0 | 105 | 1,116 | 848 | 4 non-critical items |
 | v1.1 | 200 | 1,116 | 2,394 | 14 documented bugs (BUG(v1.2)) |
+| v1.1.1 | 294 | 1,189 | 3,358 | 0 known bugs |
 
 ### Top Lessons (Verified Across Milestones)
 
-1. Integration audit after all phases reveals gaps invisible to per-phase verification
-2. Small, focused plans (< 5 min each) with TDD produce zero regressions
-3. Pre-verifying expressions before writing test fixtures eliminates the debugging cycle (confirmed v1.1)
-4. Documenting bugs as skipped tests with correct expected output creates executable acceptance criteria (established v1.1)
+1. Integration audit after all phases reveals gaps invisible to per-phase verification (v1.0, v1.1)
+2. Small, focused plans (< 5 min each) with TDD produce zero regressions (v1.0, v1.1, v1.1.1)
+3. Pre-verifying expressions before writing test fixtures eliminates the debugging cycle (v1.1)
+4. Documenting bugs as skipped tests with correct expected output creates executable acceptance criteria (v1.1 -> v1.1.1: all 14 skips became instant acceptance tests)
+5. Ascending regression risk ordering for bug fixes builds stable base for coupled changes (v1.1.1)

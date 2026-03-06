@@ -1,5 +1,28 @@
 # Milestones
 
+## v1.1.1 Bug Fixes (Shipped: 2026-03-06)
+
+**Phases:** 3 | **Plans:** 5 | **Tasks:** 13 | **Tests:** 294 (all passing, 0 skipped)
+**Source:** 4,547 LOC TypeScript (1,189 source + 3,358 test)
+**Timeline:** 2 days (2026-03-05 planning, 2026-03-06 execution)
+**Git range:** `test(14-01)` -> `docs(phase-16)` (36 commits)
+
+**Delivered:** Fixed all 14 documented BUG(v1.2) analyzer bugs across 7 categories (filter predicate leak, $lookup chaining, focus variable double-prefix, parent operator walkPath, pipeline duplicates, walkVariable .group, array constructor scope) with 80+ new regression tests and zero regressions across the full 294-test suite.
+
+**Key accomplishments:**
+1. Fixed walkPath to handle object constructor, block expression, and function steps for parent operator and $lookup chaining (PRNT + LOOK)
+2. Fixed walkVariable group-by and array constructor sequential scope accumulation (WVAR + ARRS)
+3. Fixed walkApply inline lambda parameter binding and variable-resolved sort extraction (PIPE)
+4. Created extractBasePaths/filterToBasePaths helpers for structural HOF base path extraction
+5. Fixed filter predicate scope isolation with three-tier scope-aware walkFilterStages (FILT + FOCV)
+6. All 14 BUG(v1.2) tests unskipped and passing, 80+ new regression tests, zero regressions
+
+**Tech debt resolved:** All 14 `it.skip` BUG(v1.2) fixtures from v1.1 are now unskipped and passing. Zero known analyzer bugs remain.
+
+**Archives:** `milestones/v1.1.1-ROADMAP.md`, `milestones/v1.1.1-REQUIREMENTS.md`
+
+---
+
 ## v1.1 Real-World Integration Tests (Shipped: 2026-03-05)
 
 **Phases:** 6 | **Plans:** 6 | **Tests:** 200 (186 passing + 14 skipped)
