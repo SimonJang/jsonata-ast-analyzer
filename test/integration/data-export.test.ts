@@ -263,4 +263,106 @@ describe("Data Export", () => {
       });
     }
   });
+
+  describe("WVAR Regression: walkVariable group-by handling", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "WVAR-R01: simple variable group-by extracts resolved group key and aggregation paths",
+        expression: `($d := sales; $d{region: $sum(revenue)})`,
+        expectedPaths: [
+          { path: "sales", confidence: "static" },
+          { path: "sales.region", confidence: "static" },
+          { path: "sales.revenue", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R02: variable group-by with nested key path extracts deep key path",
+        expression: `($r := data; $r{category.sub: $count(items)})`,
+        expectedPaths: [
+          { path: "data", confidence: "static" },
+          { path: "data.category.sub", confidence: "static" },
+          { path: "data.items", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R03: variable group-by after filter extracts filter predicate and group paths",
+        expression: `($items := products[active]; $items{category: $sum(price)})`,
+        expectedPaths: [
+          { path: "products", confidence: "static" },
+          { path: "products.active", confidence: "static" },
+          { path: "products.category", confidence: "static" },
+          { path: "products.price", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R04: chained variable then group-by resolves multi-hop variable path",
+        expression: `($a := source.data; $b := $a; $b{type: $count(id)})`,
+        expectedPaths: [
+          { path: "source.data", confidence: "static" },
+          { path: "source.data.id", confidence: "static" },
+          { path: "source.data.type", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R05: variable group-by with string literal key extracts only value paths",
+        expression: `($r := data; $r{"total": $sum(amount)})`,
+        expectedPaths: [
+          { path: "data", confidence: "static" },
+          { path: "data.amount", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R06: variable group-by with nested base path extracts prefixed group paths",
+        expression: `($d := data.items; $d{type: $average(score)})`,
+        expectedPaths: [
+          { path: "data.items", confidence: "static" },
+          { path: "data.items.score", confidence: "static" },
+          { path: "data.items.type", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R07: variable group-by with multiple aggregations in array value",
+        expression: `($r := sales; $r{month: [$sum(revenue), $count(transactions)]})`,
+        expectedPaths: [
+          { path: "sales", confidence: "static" },
+          { path: "sales.month", confidence: "static" },
+          { path: "sales.revenue", confidence: "static" },
+          { path: "sales.transactions", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R08: variable group-by with simple name value (no aggregation function)",
+        expression: `($r := data; $r{status: name})`,
+        expectedPaths: [
+          { path: "data", confidence: "static" },
+          { path: "data.name", confidence: "static" },
+          { path: "data.status", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R09: variable group-by with $sum extracts dept and salary paths",
+        expression: `($r := records; $r{dept: $sum(salary)})`,
+        expectedPaths: [
+          { path: "records", confidence: "static" },
+          { path: "records.dept", confidence: "static" },
+          { path: "records.salary", confidence: "static" },
+        ],
+      },
+      {
+        name: "WVAR-R10: variable group-by matches direct PathNode group-by behavior",
+        expression: `($r := data.records; $r{category: $sum(amount)})`,
+        expectedPaths: [
+          { path: "data.records", confidence: "static" },
+          { path: "data.records.amount", confidence: "static" },
+          { path: "data.records.category", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
 });

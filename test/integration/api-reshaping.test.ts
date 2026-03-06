@@ -251,4 +251,124 @@ describe("API Reshaping", () => {
       });
     }
   });
+
+  describe("PRNT Regression: walkPath step handling", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "PRNT-R01: single-field object constructor in path extracts base and inner field",
+        expression: `data.item.{"label": name}`,
+        expectedPaths: [
+          { path: "data.item", confidence: "static" },
+          { path: "data.item.name", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R02: multi-field object constructor extracts all inner fields prefixed",
+        expression: `orders.line.{"qty": quantity, "cost": unitPrice}`,
+        expectedPaths: [
+          { path: "orders.line", confidence: "static" },
+          { path: "orders.line.quantity", confidence: "static" },
+          { path: "orders.line.unitPrice", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R03: deeply nested path before object constructor applies correct deep prefix",
+        expression: `a.b.c.d.{"x": value}`,
+        expectedPaths: [
+          { path: "a.b.c.d", confidence: "static" },
+          { path: "a.b.c.d.value", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R04: object constructor with binary expression in value extracts both operand paths",
+        expression: `items.{"total": price * quantity}`,
+        expectedPaths: [
+          { path: "items", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+          { path: "items.quantity", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R05: object constructor with function call in value extracts argument path",
+        expression: `records.{"avg": $average(scores)}`,
+        expectedPaths: [
+          { path: "records", confidence: "static" },
+          { path: "records.scores", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R06: block step with single expression extracts prefixed field path",
+        expression: `users.(name)`,
+        expectedPaths: [
+          { path: "users.name", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R07: block step with concatenation extracts both operand paths",
+        expression: `items.(category & "-" & code)`,
+        expectedPaths: [
+          { path: "items.category", confidence: "static" },
+          { path: "items.code", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R08: block step with parent operator extracts partial-confidence path",
+        expression: `data.nested.(%.parentField)`,
+        expectedPaths: [
+          { path: "data.nested.%.parentField", confidence: "partial" },
+        ],
+      },
+      {
+        name: "PRNT-R09: path with filter then object constructor extracts filter and inner object paths",
+        expression: `orders[status="active"].{"id": orderId, "val": amount}`,
+        expectedPaths: [
+          { path: "orders", confidence: "static" },
+          { path: "orders.amount", confidence: "static" },
+          { path: "orders.orderId", confidence: "static" },
+          { path: "orders.status", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R10: object constructor with nested path in value extracts deep prefixed path",
+        expression: `people.{"addr": address.city}`,
+        expectedPaths: [
+          { path: "people", confidence: "static" },
+          { path: "people.address.city", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R11: block step with conditional extracts condition and then-branch paths",
+        expression: `items.(active ? name : "N/A")`,
+        expectedPaths: [
+          { path: "items.active", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R12: object constructor with arithmetic and comparison in values",
+        expression: `data.records.{"key": id, "label": meta.name, "active": status = "on"}`,
+        expectedPaths: [
+          { path: "data.records", confidence: "static" },
+          { path: "data.records.id", confidence: "static" },
+          { path: "data.records.meta.name", confidence: "static" },
+          { path: "data.records.status", confidence: "static" },
+        ],
+      },
+      {
+        name: "PRNT-R13: object constructor with addition in value extracts both operand paths",
+        expression: `items.{"total": price + tax}`,
+        expectedPaths: [
+          { path: "items", confidence: "static" },
+          { path: "items.price", confidence: "static" },
+          { path: "items.tax", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
 });
