@@ -130,8 +130,8 @@ describe("Data Transforms", () => {
       });
     });
 
-    // BUG(v1.2): inline lambda with ~> apply loses parameter binding -- $d never bound to data paths
-    it.skip("inline lambda with apply: should bind lambda parameter to piped data paths", () => {
+    // FIXED(v1.2): inline lambda with ~> apply -- parameter now bound to piped data paths
+    it("inline lambda with apply: should bind lambda parameter to piped data paths", () => {
       assertFixture({
         name: "inline lambda with apply: should bind lambda parameter to piped data paths",
         expression: `data ~> function($d) { $d.count }`,
