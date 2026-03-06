@@ -93,4 +93,4 @@ Phase 17
 | 14. Isolated Single-Function Fixes | v1.1.1 | 2/2 | Complete | 2026-03-06 |
 | 15. Pipeline and Apply Fixes | v1.1.1 | 1/1 | Complete | 2026-03-06 |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 2/2 | Complete | 2026-03-06 |
-| 17. CI Build Step | 1/1 | Complete   | 2026-03-06 | - |
+| 17. CI Build Step | 1/1 | Complete    | 2026-03-06 | - |
