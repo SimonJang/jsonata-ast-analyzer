@@ -690,8 +690,16 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
     };
     // walkFunction will re-walk the lhs arg, but dedup in extractPaths handles it
     paths.push(...walkFunction(augmentedFunc, scope));
+  } else if (node.rhs.type === "lambda") {
+    // Inline lambda application: bind first parameter to lhs paths
+    const lambda = node.rhs as LambdaNode;
+    let lambdaScope = childScope(scope);
+    if (lambda.arguments.length > 0) {
+      lambdaScope = bindVariable(lambdaScope, lambda.arguments[0].value, lhsPaths);
+    }
+    paths.push(...walkNode(lambda.body, lambdaScope));
   } else {
-    // Unusual: rhs is not a function node. Walk it normally.
+    // Fallback: unusual RHS (e.g., variable reference)
     paths.push(...walkNode(node.rhs, scope));
   }
 
