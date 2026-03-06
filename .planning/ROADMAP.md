@@ -74,7 +74,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 15-01-PLAN.md -- Fix walkApply inline lambda binding and walkPath variable-resolved sort extraction with 12+ regression tests
+- [x] 15-01-PLAN.md -- Fix walkApply inline lambda binding and walkPath variable-resolved sort extraction with 12+ regression tests
 
 ### Phase 16: Filter Predicate Scope-Awareness
 **Goal**: Filter predicates in HOF contexts produce correct scope-aware paths without leaking into lambda parameter bindings, and focus variable bindings do not cause double-prefixed paths
@@ -86,11 +86,11 @@ Plans:
   3. Nested HOF with filtered input `$map($filter(items[active], fn1), fn2)` produces correct paths at each nesting level without predicate leak or prefix duplication
   4. Expression `library.loans@$l.books@$b[$l.isbn=$b.isbn]` with cross-referenced focus variables resolves both variables correctly without prefix errors
   5. All 6 previously-skipped BUG(v1.2) filter/focus tests are unskipped and passing, plus 20+ new regression tests covering predicate isolation and focus variable prefix handling
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 16-01: TBD
-- [ ] 16-02: TBD
+- [ ] 16-01-PLAN.md -- Fix walkHigherOrderCall filter predicate leak with extractBasePaths helper and 10+ FILT regression tests
+- [ ] 16-02-PLAN.md -- Fix walkFilterStages focus variable double-prefix with two-pass scope-aware prefixing and 10+ FOCV regression tests
 
 ## Progress
 
@@ -112,5 +112,5 @@ Plans:
 | 12. Data Export Tests | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 14. Isolated Single-Function Fixes | v1.1.1 | 2/2 | Complete | 2026-03-06 |
-| 15. Pipeline and Apply Fixes | 1/1 | Complete    | 2026-03-06 | - |
-| 16. Filter Predicate Scope-Awareness | v1.1.1 | 0/? | Not started | - |
+| 15. Pipeline and Apply Fixes | v1.1.1 | 1/1 | Complete | 2026-03-06 |
+| 16. Filter Predicate Scope-Awareness | v1.1.1 | 0/2 | Not started | - |
