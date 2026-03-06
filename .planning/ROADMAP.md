@@ -53,7 +53,7 @@ Full details: `milestones/v1.1.1-ROADMAP.md`
 
 **Milestone Goal:** Fix CI pipeline so all 294 tests pass by adding a build step before the test run.
 
-- [ ] **Phase 17: CI Build Step** - Add `pnpm build` to CI workflow so `dist/cli.js` exists for CLI round-trip tests
+- [x] **Phase 17: CI Build Step** - Add `pnpm build` to CI workflow so `dist/cli.js` exists for CLI round-trip tests (completed 2026-03-06)
 
 ## Phase Details
 
@@ -93,4 +93,4 @@ Phase 17
 | 14. Isolated Single-Function Fixes | v1.1.1 | 2/2 | Complete | 2026-03-06 |
 | 15. Pipeline and Apply Fixes | v1.1.1 | 1/1 | Complete | 2026-03-06 |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 2/2 | Complete | 2026-03-06 |
-| 17. CI Build Step | v1.1.2 | 0/1 | Not started | - |
+| 17. CI Build Step | 1/1 | Complete   | 2026-03-06 | - |

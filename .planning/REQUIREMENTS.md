@@ -7,7 +7,7 @@
 
 ### CI Pipeline
 
-- [ ] **CI-01**: CI workflow builds project before running tests so `dist/cli.js` exists for CLI round-trip tests
+- [x] **CI-01**: CI workflow builds project before running tests so `dist/cli.js` exists for CLI round-trip tests
 
 ## Future Requirements
 
@@ -24,7 +24,7 @@ None.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CI-01 | Phase 17 | Pending |
+| CI-01 | Phase 17 | Complete |
 
 **Coverage:**
 - v1.1.2 requirements: 1 total
