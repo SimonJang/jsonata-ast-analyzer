@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
+milestone: v1.1.2
+milestone_name: CI Fix
 status: completed
-stopped_at: Completed 17-01-PLAN.md
-last_updated: "2026-03-06T12:16:37.856Z"
-last_activity: 2026-03-06 -- Completed 17-01 CI build step
+stopped_at: Milestone v1.1.2 archived
+last_updated: "2026-03-06T13:00:00.000Z"
+last_activity: 2026-03-06 -- Completed v1.1.2 milestone
 progress:
   total_phases: 1
   completed_phases: 1
@@ -21,16 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-06)
 
 **Core value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
-**Current focus:** Phase 17 -- CI Build Step
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 17 of 17 (CI Build Step) -- 1 phase in v1.1.2
-Plan: 1 of 1 in current phase
-Status: Phase 17 complete
-Last activity: 2026-03-06 -- Completed 17-01 CI build step
+Milestone v1.1.2 CI Fix: SHIPPED 2026-03-06
+All milestones through v1.1.2 complete.
+Next: `/gsd:new-milestone` to start next milestone cycle.
 
-Progress: [██████████] 100%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
@@ -38,14 +37,13 @@ Progress: [██████████] 100%
 - v1.0: 7 phases, 11 plans, 105 tests, 1,964 LOC
 - v1.1: 6 phases, 6 plans, 200 tests, 3,510 LOC
 - v1.1.1: 3 phases, 5 plans, 294 tests, 4,547 LOC
-- v1.1.2: 1 phase, 1 plan, 294 tests, 4,547 LOC
+- v1.1.2: 1 phase, 1 plan, 294 tests, 4,531 LOC
 
 ## Accumulated Context
 
 ### Decisions
 
 All decisions documented in PROJECT.md Key Decisions table.
-- [Phase 17]: Single-line pnpm build insertion -- minimal diff, matches existing CI workflow style
 
 ### Pending Todos
 
@@ -53,10 +51,10 @@ None.
 
 ### Blockers/Concerns
 
-None -- CI fix is a straightforward workflow YAML change.
+None.
 
 ## Session Continuity
 
-Last session: 2026-03-06T12:14:12.626Z
-Stopped at: Completed 17-01-PLAN.md
+Last session: 2026-03-06
+Stopped at: Milestone v1.1.2 archived
 Resume file: None

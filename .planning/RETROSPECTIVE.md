@@ -136,6 +136,37 @@
 
 ---
 
+## Milestone: v1.1.2 — CI Fix
+
+**Shipped:** 2026-03-06
+**Phases:** 1 | **Plans:** 1 | **Tests:** 294 (all passing)
+
+### What Was Built
+- Added `pnpm build` step to CI workflow between typecheck and test
+- Enables all 294 tests (including 3 CLI round-trip tests) to pass in GitHub Actions
+
+### What Worked
+- Minimal-diff approach: single line insertion matching existing workflow style
+- Clear root cause: `dist/cli.js` missing because build was never run in CI
+- Fast execution: 1 min total for the single plan
+
+### What Was Inefficient
+- This could have been caught during v1.1 when CLI round-trip tests were first added — CI wasn't tested with the new tests
+
+### Patterns Established
+- CI pipeline order: checkout, pnpm setup, node setup, install, typecheck, build, test
+
+### Key Lessons
+1. When adding tests that depend on build artifacts (like CLI round-trip), verify CI includes the build step immediately
+2. Tiny fix milestones (1 phase, 1 plan) are efficient for urgent CI/infra fixes — GSD overhead is minimal
+
+### Cost Observations
+- Model mix: quality profile (opus for execution)
+- Sessions: 1 session, ~1 min execution
+- Notable: Fastest milestone yet — single YAML line change
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -145,6 +176,7 @@
 | v1.0 | ~5 | 7 | Initial release — established TDD, GSD verification, audit-driven gap closure |
 | v1.1 | ~3 | 6 | Integration test suite — established fixture-driven testing, BUG tracking, pre-verification |
 | v1.1.1 | 1 | 3 | Bug fix release — ascending risk ordering, BUG skip fixtures as instant acceptance criteria |
+| v1.1.2 | 1 | 1 | CI fix — single-line YAML change, fastest milestone |
 
 ### Cumulative Quality
 
@@ -153,6 +185,7 @@
 | v1.0 | 105 | 1,116 | 848 | 4 non-critical items |
 | v1.1 | 200 | 1,116 | 2,394 | 14 documented bugs (BUG(v1.2)) |
 | v1.1.1 | 294 | 1,189 | 3,358 | 0 known bugs |
+| v1.1.2 | 294 | 1,189 | 3,342 | 0 known bugs, CI fixed |
 
 ### Top Lessons (Verified Across Milestones)
 

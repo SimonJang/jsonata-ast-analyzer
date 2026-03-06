@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.1.2 CI Fix (Shipped: 2026-03-06)
+
+**Phases:** 1 | **Plans:** 1 | **Tasks:** 2 | **Tests:** 294 (all passing)
+**Source:** 4,531 LOC TypeScript (unchanged from v1.1.1)
+**Timeline:** 1 day (2026-03-06)
+**Git range:** `fix(17-01)` (6 commits)
+
+**Delivered:** Added `pnpm build` step to CI workflow so `dist/cli.js` exists before test execution, enabling all 294 tests (including 3 CLI round-trip tests) to pass in GitHub Actions.
+
+**Key accomplishments:**
+1. Inserted `pnpm build` step in `.github/workflows/ci.yml` after typecheck and before test
+2. All 294 tests pass in CI including 3 CLI round-trip tests that depend on `dist/cli.js`
+
+**Archives:** `milestones/v1.1.2-ROADMAP.md`, `milestones/v1.1.2-REQUIREMENTS.md`
+
+---
+
 ## v1.1.1 Bug Fixes (Shipped: 2026-03-06)
 
 **Phases:** 3 | **Plans:** 5 | **Tasks:** 13 | **Tests:** 294 (all passing, 0 skipped)

@@ -36,10 +36,11 @@ Given any JSONata expression, accurately identify every data path read from the 
 - ✓ walkVariable .group property handling (1 bug fixed) — v1.1.1
 - ✓ Array constructor sequential scope accumulation (1 bug fixed) — v1.1.1
 - ✓ All 14 BUG(v1.2) tests unskipped and passing with 80+ regression tests — v1.1.1
+- ✓ CI pipeline builds before testing so CLI round-trip tests pass — v1.1.2
 
 ### Active
 
-- [ ] CI pipeline builds before testing so CLI round-trip tests pass
+(None -- all requirements shipped)
 
 ### Out of Scope
 
@@ -56,9 +57,10 @@ Given any JSONata expression, accurately identify every data path read from the 
 
 ## Context
 
-Shipped v1.1.1 with 4,547 LOC TypeScript (1,189 source + 3,358 test).
+Shipped v1.1.2 with 4,531 LOC TypeScript (1,189 source + 3,342 test).
 Tech stack: TypeScript, Node.js, `jsonata` parser, Vitest, tsup (ESM-only).
 294 tests (all passing, 0 skipped, 0 known bugs).
+CI pipeline: GitHub Actions with Node 20+22 matrix, pnpm, typecheck/build/test.
 
 Architecture: `parse()` adapter -> recursive `walkNode()` dispatcher -> `buildPathString()` -> `deriveConfidence()` -> `PathResult[]`
 
@@ -97,14 +99,7 @@ No known tech debt. All previously-documented BUG(v1.2) issues resolved.
 | extractBasePaths for HOF binding | Structural base path extraction avoids filter predicate leak into lambda parameters | ✓ Good — clean separation of collection identity vs filter content |
 | Three-tier scope-aware filter | Empty scope (bare fields), focus-only scope, full scope distinguishes path types in walkFilterStages | ✓ Good — eliminates both double-prefix and predicate leak bugs |
 | Block-terminal base suppression | Block steps are pure projections; suppress base path to avoid redundant output | ✓ Good — correct semantics for `items.(expr)` patterns |
+| CI build-before-test ordering | Build step between typecheck and test ensures dist/ artifacts exist | ✓ Good — all 294 tests pass in CI including CLI round-trip |
 
 ---
-## Current Milestone: v1.1.2 CI Fix
-
-**Goal:** Fix CI pipeline so all 294 tests pass — add build step before test run.
-
-**Target features:**
-- Add `pnpm build` step to CI workflow before `pnpm test`
-
----
-*Last updated: 2026-03-06 after v1.1.2 milestone start*
+*Last updated: 2026-03-06 after v1.1.2 milestone*
