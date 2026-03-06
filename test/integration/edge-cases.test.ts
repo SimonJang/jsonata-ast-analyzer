@@ -149,11 +149,9 @@ describe("Edge Cases", () => {
       });
     }
 
-    // BUG(v1.2): standalone BindNode does not propagate variable to subsequent
-    // expressions in array constructor -- $x.field unresolved
-    it.skip("array constructor scope leak: propagates bind variable to subsequent array elements", () => {
+    it("array constructor scope accumulation: propagates bind variable to subsequent array elements", () => {
       assertFixture({
-        name: "array constructor scope leak: propagates bind variable to subsequent array elements",
+        name: "array constructor scope accumulation: propagates bind variable to subsequent array elements",
         expression: `[$x := data.source, $x.field]`,
         expectedPaths: [
           { path: "data.source", confidence: "static" },
