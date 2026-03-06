@@ -219,9 +219,7 @@ describe("Data Export", () => {
       });
     }
 
-    // BUG(v1.2): walkVariable does not handle .group property -- group-by
-    // key/value paths dropped when grouping on a variable-resolved path
-    it.skip("variable-resolved group-by: extracts group key and value paths through variable", () => {
+    it("variable-resolved group-by: extracts group key and value paths through variable", () => {
       assertFixture({
         name: "variable-resolved group-by: extracts group key and value paths through variable",
         expression: `($r := data.records; $r{category: $sum(amount)})`,
