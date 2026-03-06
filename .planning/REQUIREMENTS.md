@@ -35,9 +35,9 @@ Requirements for bug fix release. Each maps to roadmap phases.
 
 ### Pipeline Deduplication
 
-- [ ] **PIPE-01**: Apply operator with inline lambda (e.g., `data ~> function($d) { $d.count }`) correctly binds lambda parameter and extracts body paths
-- [ ] **PIPE-02**: Variable-resolved sort (e.g., `$x := items; $x^(price)`) extracts sort key paths relative to the resolved variable
-- [ ] **PIPE-03**: Thorough regression suite (10+ tests) covering pipeline and apply operator path extraction
+- [x] **PIPE-01**: Apply operator with inline lambda (e.g., `data ~> function($d) { $d.count }`) correctly binds lambda parameter and extracts body paths
+- [x] **PIPE-02**: Variable-resolved sort (e.g., `$x := items; $x^(price)`) extracts sort key paths relative to the resolved variable
+- [x] **PIPE-03**: Thorough regression suite (10+ tests) covering pipeline and apply operator path extraction
 
 ### Walk Variable Property
 
@@ -83,9 +83,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LOOK-01 | Phase 14 | Complete |
 | LOOK-02 | Phase 14 | Complete |
 | LOOK-03 | Phase 14 | Complete |
-| PIPE-01 | Phase 15 | Pending |
-| PIPE-02 | Phase 15 | Pending |
-| PIPE-03 | Phase 15 | Pending |
+| PIPE-01 | Phase 15 | Complete |
+| PIPE-02 | Phase 15 | Complete |
+| PIPE-03 | Phase 15 | Complete |
 | WVAR-01 | Phase 14 | Complete |
 | WVAR-02 | Phase 14 | Complete |
 | ARRS-01 | Phase 14 | Complete |
