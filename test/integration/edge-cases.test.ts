@@ -194,6 +194,163 @@ describe("Edge Cases", () => {
     });
   });
 
+  describe("LOOK Regression: $lookup edge cases", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "lookup with deep chained property: extracts first-arg-prefixed deep chain",
+        expression: `$lookup(inventory, code).details.weight`,
+        expectedPaths: [
+          { path: "code", confidence: "static" },
+          { path: "inventory", confidence: "static" },
+          { path: "inventory.details.weight", confidence: "static" },
+        ],
+      },
+      {
+        name: "lookup with computed key (binary expression): extracts both sides of key",
+        expression: `$lookup(ref, a & b).result`,
+        expectedPaths: [
+          { path: "a", confidence: "static" },
+          { path: "b", confidence: "static" },
+          { path: "ref", confidence: "static" },
+          { path: "ref.result", confidence: "static" },
+        ],
+      },
+      {
+        name: "nested lookup chaining: two-level $lookup produces all argument and chained paths",
+        expression: `$lookup($lookup(outer, key1).inner, key2).value`,
+        expectedPaths: [
+          { path: "key1", confidence: "static" },
+          { path: "key2", confidence: "static" },
+          { path: "outer", confidence: "static" },
+          { path: "outer.inner", confidence: "static" },
+          { path: "outer.inner.value", confidence: "static" },
+        ],
+      },
+      {
+        name: "lookup chaining with deep first argument: nested first arg path used as prefix",
+        expression: `$lookup(config.tables.data, key).status`,
+        expectedPaths: [
+          { path: "config.tables.data", confidence: "static" },
+          { path: "config.tables.data.status", confidence: "static" },
+          { path: "key", confidence: "static" },
+        ],
+      },
+      {
+        name: "lookup chaining with path key argument: both args extracted with chained property",
+        expression: `$lookup(products, order.sku).description`,
+        expectedPaths: [
+          { path: "order.sku", confidence: "static" },
+          { path: "products", confidence: "static" },
+          { path: "products.description", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
+
+  describe("ARRS Regression: array constructor scope", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "single bind followed by reference: basic scope accumulation",
+        expression: `[$x := data.source, $x.field]`,
+        expectedPaths: [
+          { path: "data.source", confidence: "static" },
+          { path: "data.source.field", confidence: "static" },
+        ],
+      },
+      {
+        name: "multi-bind chain: resolves through sequential variable bindings",
+        expression: `[$a := source.x, $b := $a.y, $b.z]`,
+        expectedPaths: [
+          { path: "source.x", confidence: "static" },
+          { path: "source.x.y", confidence: "static" },
+          { path: "source.x.y.z", confidence: "static" },
+        ],
+      },
+      {
+        name: "bind with multi-segment path suffix: appends suffix to resolved variable",
+        expression: `[$x := records, $x.items.name]`,
+        expectedPaths: [
+          { path: "records", confidence: "static" },
+          { path: "records.items.name", confidence: "static" },
+        ],
+      },
+      {
+        name: "non-bind interleaved: non-bind elements unaffected by subsequent bindings",
+        expression: `[first.path, $x := data, $x.field, other.path]`,
+        expectedPaths: [
+          { path: "data", confidence: "static" },
+          { path: "data.field", confidence: "static" },
+          { path: "first.path", confidence: "static" },
+          { path: "other.path", confidence: "static" },
+        ],
+      },
+      {
+        name: "single bind with multiple references: all references resolve to same source",
+        expression: `[$x := data, $x.a, $x.b, $x.c]`,
+        expectedPaths: [
+          { path: "data", confidence: "static" },
+          { path: "data.a", confidence: "static" },
+          { path: "data.b", confidence: "static" },
+          { path: "data.c", confidence: "static" },
+        ],
+      },
+      {
+        name: "bind without subsequent reference: bind paths extracted, other unaffected",
+        expression: `[$x := data.source, other.field]`,
+        expectedPaths: [
+          { path: "data.source", confidence: "static" },
+          { path: "other.field", confidence: "static" },
+        ],
+      },
+      {
+        name: "nested array constructors: inner scope does not leak to outer",
+        expression: `[[$x := inner, $x.a], outer.b]`,
+        expectedPaths: [
+          { path: "inner", confidence: "static" },
+          { path: "inner.a", confidence: "static" },
+          { path: "outer.b", confidence: "static" },
+        ],
+      },
+      {
+        name: "bind with function call RHS: function call walked normally as bind value",
+        expression: `[$x := $count(items), other.path]`,
+        expectedPaths: [
+          { path: "items", confidence: "static" },
+          { path: "other.path", confidence: "static" },
+        ],
+      },
+      {
+        name: "bind with object constructor RHS: object constructor RHS walked for paths",
+        expression: `[$x := {"a": data.field}]`,
+        expectedPaths: [
+          { path: "data.field", confidence: "static" },
+        ],
+      },
+      {
+        name: "empty array constructor: produces no paths (regression guard)",
+        expression: `[]`,
+        expectedPaths: [],
+      },
+      {
+        name: "array constructor with all literals: produces no paths (regression guard)",
+        expression: `[1, "text", true]`,
+        expectedPaths: [],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
+
   describe("Composite: cross-pattern edge case", () => {
     const fixtures: IntegrationFixture[] = [
       {

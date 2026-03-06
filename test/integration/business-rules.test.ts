@@ -234,6 +234,75 @@ describe("Business Rules", () => {
     }
   });
 
+  describe("LOOK Regression: $lookup chaining patterns", () => {
+    const fixtures: IntegrationFixture[] = [
+      {
+        name: "lookup with variable key: extracts variable source, lookup table, and chained property",
+        expression: `($k := order.productId; $lookup(catalog, $k).name)`,
+        expectedPaths: [
+          { path: "catalog", confidence: "static" },
+          { path: "catalog.name", confidence: "static" },
+          { path: "order.productId", confidence: "static" },
+        ],
+      },
+      {
+        name: "lookup in object constructor value: extracts lookup paths within object constructor",
+        expression: `{"price": $lookup(products, sku).price}`,
+        expectedPaths: [
+          { path: "products", confidence: "static" },
+          { path: "products.price", confidence: "static" },
+          { path: "sku", confidence: "static" },
+        ],
+      },
+      {
+        name: "multiple lookups with concat: both lookups extract all paths correctly",
+        expression: `$lookup(tableA, key1).fieldA & $lookup(tableB, key2).fieldB`,
+        expectedPaths: [
+          { path: "key1", confidence: "static" },
+          { path: "key2", confidence: "static" },
+          { path: "tableA", confidence: "static" },
+          { path: "tableA.fieldA", confidence: "static" },
+          { path: "tableB", confidence: "static" },
+          { path: "tableB.fieldB", confidence: "static" },
+        ],
+      },
+      {
+        name: "lookup with nested first argument: deep first argument path used for chaining prefix",
+        expression: `$lookup(db.inventory, code).available`,
+        expectedPaths: [
+          { path: "code", confidence: "static" },
+          { path: "db.inventory", confidence: "static" },
+          { path: "db.inventory.available", confidence: "static" },
+        ],
+      },
+      {
+        name: "standalone lookup (regression guard): no chaining, existing behavior preserved",
+        expression: `$lookup(products, orders.productId)`,
+        expectedPaths: [
+          { path: "orders.productId", confidence: "static" },
+          { path: "products", confidence: "static" },
+        ],
+      },
+      {
+        name: "lookup chaining in conditional then-branch: extracts lookup paths in ternary context",
+        expression: `status = "found" ? $lookup(cache, id).value : default`,
+        expectedPaths: [
+          { path: "cache", confidence: "static" },
+          { path: "cache.value", confidence: "static" },
+          { path: "default", confidence: "static" },
+          { path: "id", confidence: "static" },
+          { path: "status", confidence: "static" },
+        ],
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      it(fixture.name, () => {
+        assertFixture(fixture);
+      });
+    }
+  });
+
   describe("Composite: cross-pattern business rule", () => {
     const fixtures: IntegrationFixture[] = [
       {
