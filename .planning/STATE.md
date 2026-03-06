@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-03-06T10:00:04.126Z"
-last_activity: 2026-03-06 -- Completed Phase 16 Plan 01
+status: completed
+stopped_at: Completed 16-02-PLAN.md (Phase 16 complete, v1.1.1 milestone complete)
+last_updated: "2026-03-06T10:08:22.322Z"
+last_activity: 2026-03-06 -- Completed Phase 16 Plan 02 (final plan)
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -25,19 +25,19 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Current Position
 
-Phase: 16 of 16 (Filter Predicate Scope Awareness) -- IN PROGRESS
-Plan: 1 of 2 -- COMPLETE
-Status: Executing
-Last activity: 2026-03-06 -- Completed Phase 16 Plan 01
+Phase: 16 of 16 (Filter Predicate Scope Awareness) -- COMPLETE
+Plan: 2 of 2 -- COMPLETE
+Status: Complete
+Last activity: 2026-03-06 -- Completed Phase 16 Plan 02 (final plan)
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Cumulative:**
 - v1.0: 7 phases, 11 plans, 105 tests, 1,964 LOC
 - v1.1: 6 phases, 6 plans, 200 tests, 3,510 LOC
-- v1.1.1: 3 phases, 4 plans complete (14-01: 6min, 3 tasks, 4 files | 14-02: 5min, 3 tasks, 3 files | 15-01: 3min, 3 tasks, 2 files | 16-01: 4min, 2 tasks, 3 files)
+- v1.1.1: 3 phases, 5 plans complete (14-01: 6min, 3 tasks, 4 files | 14-02: 5min, 3 tasks, 3 files | 15-01: 3min, 3 tasks, 2 files | 16-01: 4min, 2 tasks, 3 files | 16-02: 5min, 2 tasks, 2 files)
 
 ## Accumulated Context
 
@@ -54,6 +54,10 @@ Recent: Research recommends ascending regression risk ordering -- isolated fixes
 - extractBasePaths uses buildPathString for PathNode, filterToBasePaths for VariableNode, recursive lhs for ApplyNode
 - walkFilterStages uses two-walk approach to distinguish external variable paths from local field names
 - Variable steps in PathNode handled by extractBasePaths via resolution + filterToBasePaths + suffix
+- Three-tier scope walk in walkFilterStages: empty scope (bare fields), focus-only scope (focus-resolved), full scope (external-resolved)
+- External variable paths suppressed from filter output (already captured at binding site)
+- [Phase 16]: Three-tier scope walk in walkFilterStages: empty scope (bare fields), focus-only scope (focus-resolved), full scope (external-resolved)
+- [Phase 16]: External variable paths suppressed from filter output (already captured at binding site)
 
 ### Pending Todos
 
@@ -61,10 +65,10 @@ None.
 
 ### Blockers/Concerns
 
-None -- extractBasePaths design validated, zero regressions across 280 tests.
+None -- all 6 BUG(v1.2) tests fixed, zero regressions across 294 tests. v1.1.1 milestone complete.
 
 ## Session Continuity
 
-Last session: 2026-03-06T10:00:04.124Z
-Stopped at: Completed 16-01-PLAN.md
+Last session: 2026-03-06T10:08:17.672Z
+Stopped at: Completed 16-02-PLAN.md (Phase 16 complete, v1.1.1 milestone complete)
 Resume file: None

@@ -17,9 +17,9 @@ Requirements for bug fix release. Each maps to roadmap phases.
 
 ### Focus Variable
 
-- [ ] **FOCV-01**: Focus variable binding (`@$v`) does not cause double-prefixing of paths (e.g., `orders@$o[$o.total > 100]` produces `orders.total` not `orders.orders.total`)
-- [ ] **FOCV-02**: Cross-referencing focus variables in nested contexts resolves correctly (e.g., `library.loans@$l.books@$b[$l.isbn=$b.isbn]`)
-- [ ] **FOCV-03**: Thorough regression suite (10+ tests) covering focus variable prefix handling
+- [x] **FOCV-01**: Focus variable binding (`@$v`) does not cause double-prefixing of paths (e.g., `orders@$o[$o.total > 100]` produces `orders.total` not `orders.orders.total`)
+- [x] **FOCV-02**: Cross-referencing focus variables in nested contexts resolves correctly (e.g., `library.loans@$l.books@$b[$l.isbn=$b.isbn]`)
+- [x] **FOCV-03**: Thorough regression suite (10+ tests) covering focus variable prefix handling
 
 ### Parent Operator
 
@@ -74,9 +74,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FILT-03 | Phase 16 | Complete |
 | FILT-04 | Phase 16 | Complete |
 | FILT-05 | Phase 16 | Complete |
-| FOCV-01 | Phase 16 | Pending |
-| FOCV-02 | Phase 16 | Pending |
-| FOCV-03 | Phase 16 | Pending |
+| FOCV-01 | Phase 16 | Complete |
+| FOCV-02 | Phase 16 | Complete |
+| FOCV-03 | Phase 16 | Complete |
 | PRNT-01 | Phase 14 | Complete |
 | PRNT-02 | Phase 14 | Complete |
 | PRNT-03 | Phase 14 | Complete |

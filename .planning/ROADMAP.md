@@ -43,7 +43,7 @@ Full details: `milestones/v1.1-ROADMAP.md`
 
 - [x] **Phase 14: Isolated Single-Function Fixes** - Fix walkPath steps, walkVariable .group, $lookup chaining, and array constructor scope (8 bugs, 10 requirements) (completed 2026-03-06)
 - [x] **Phase 15: Pipeline and Apply Fixes** - Fix inline lambda apply binding and variable-resolved sort extraction (2 bugs, 3 requirements) (completed 2026-03-06)
-- [ ] **Phase 16: Filter Predicate Scope-Awareness** - Fix filter predicate leak into HOF bindings and focus variable double-prefix (4+2 bugs, 8 requirements)
+- [x] **Phase 16: Filter Predicate Scope-Awareness** - Fix filter predicate leak into HOF bindings and focus variable double-prefix (4+2 bugs, 8 requirements) (completed 2026-03-06)
 
 ## Phase Details
 
@@ -113,4 +113,4 @@ Plans:
 | 13. Edge Cases and Tech Debt | v1.1 | 1/1 | Complete | 2026-03-04 |
 | 14. Isolated Single-Function Fixes | v1.1.1 | 2/2 | Complete | 2026-03-06 |
 | 15. Pipeline and Apply Fixes | v1.1.1 | 1/1 | Complete | 2026-03-06 |
-| 16. Filter Predicate Scope-Awareness | 1/2 | In Progress|  | - |
+| 16. Filter Predicate Scope-Awareness | 2/2 | Complete   | 2026-03-06 | - |
