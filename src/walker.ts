@@ -404,9 +404,23 @@ function walkUnary(node: UnaryNode, scope: ScopeTracker): string[] {
     case "-":
       // Negation: -expr -> walk the expression
       return node.expression ? walkNode(node.expression, scope) : [];
-    case "[":
-      // Array constructor: [a, b, c] -> walk all expressions
-      return (node.expressions ?? []).flatMap((e) => walkNode(e, scope));
+    case "[": {
+      // Array constructor with sequential scope accumulation
+      // (mirrors walkBlock pattern: bind expressions update scope for subsequent elements)
+      const paths: string[] = [];
+      let currentScope = scope;
+      for (const expr of node.expressions ?? []) {
+        if (expr.type === "bind") {
+          const bindNode = expr as BindNode;
+          const rhsPaths = walkNode(bindNode.rhs, currentScope);
+          paths.push(...rhsPaths);
+          currentScope = bindVariable(currentScope, bindNode.lhs.value, rhsPaths);
+        } else {
+          paths.push(...walkNode(expr, currentScope));
+        }
+      }
+      return paths;
+    }
     case "{":
       // Object constructor: {"key": value} -> walk values only
       return (node.lhs ?? []).flatMap(([_key, val]) => walkNode(val, scope));
