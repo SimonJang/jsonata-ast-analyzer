@@ -23,9 +23,9 @@ Requirements for bug fix release. Each maps to roadmap phases.
 
 ### Parent Operator
 
-- [ ] **PRNT-01**: Parent operator walkPath handles object constructor steps (e.g., `orders.items.{"itemName": name, "orderDate": %.date}` extracts inner paths)
-- [ ] **PRNT-02**: Parent operator walkPath handles block expression steps (e.g., `data.(expr1; expr2)` walks inner expressions)
-- [ ] **PRNT-03**: Thorough regression suite (10+ tests) covering parent operator through nested constructs
+- [x] **PRNT-01**: Parent operator walkPath handles object constructor steps (e.g., `orders.items.{"itemName": name, "orderDate": %.date}` extracts inner paths)
+- [x] **PRNT-02**: Parent operator walkPath handles block expression steps (e.g., `data.(expr1; expr2)` walks inner expressions)
+- [x] **PRNT-03**: Thorough regression suite (10+ tests) covering parent operator through nested constructs
 
 ### Lookup HOF Chaining
 
@@ -41,8 +41,8 @@ Requirements for bug fix release. Each maps to roadmap phases.
 
 ### Walk Variable Property
 
-- [ ] **WVAR-01**: walkVariable handles `.group` property on variable nodes (e.g., `$r{category: $sum(amount)}` extracts both group key and value paths)
-- [ ] **WVAR-02**: Thorough regression suite (10+ tests) covering walkVariable property traversal including group-by
+- [x] **WVAR-01**: walkVariable handles `.group` property on variable nodes (e.g., `$r{category: $sum(amount)}` extracts both group key and value paths)
+- [x] **WVAR-02**: Thorough regression suite (10+ tests) covering walkVariable property traversal including group-by
 
 ### Array Constructor Scope
 
@@ -77,17 +77,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOCV-01 | Phase 16 | Pending |
 | FOCV-02 | Phase 16 | Pending |
 | FOCV-03 | Phase 16 | Pending |
-| PRNT-01 | Phase 14 | Pending |
-| PRNT-02 | Phase 14 | Pending |
-| PRNT-03 | Phase 14 | Pending |
+| PRNT-01 | Phase 14 | Complete |
+| PRNT-02 | Phase 14 | Complete |
+| PRNT-03 | Phase 14 | Complete |
 | LOOK-01 | Phase 14 | Pending |
 | LOOK-02 | Phase 14 | Pending |
 | LOOK-03 | Phase 14 | Pending |
 | PIPE-01 | Phase 15 | Pending |
 | PIPE-02 | Phase 15 | Pending |
 | PIPE-03 | Phase 15 | Pending |
-| WVAR-01 | Phase 14 | Pending |
-| WVAR-02 | Phase 14 | Pending |
+| WVAR-01 | Phase 14 | Complete |
+| WVAR-02 | Phase 14 | Complete |
 | ARRS-01 | Phase 14 | Pending |
 | ARRS-02 | Phase 14 | Pending |
 
