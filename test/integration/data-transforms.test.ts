@@ -308,4 +308,135 @@ describe("Data Transforms", () => {
       });
     }
   });
+
+  describe("PIPE: Pipeline and apply operator regression tests", () => {
+    describe("Apply/lambda regressions", () => {
+      const fixtures: IntegrationFixture[] = [
+        {
+          name: "multi-arg inline lambda: only first param bound to piped data",
+          expression: `data ~> function($a, $b) { $a.x }`,
+          expectedPaths: [
+            { path: "data", confidence: "static" },
+            { path: "data.x", confidence: "static" },
+          ],
+        },
+        {
+          name: "inline lambda with binary expression body",
+          expression: `data ~> function($d) { $d.a + $d.b }`,
+          expectedPaths: [
+            { path: "data", confidence: "static" },
+            { path: "data.a", confidence: "static" },
+            { path: "data.b", confidence: "static" },
+          ],
+        },
+        {
+          name: "inline lambda with object constructor body",
+          expression: `data ~> function($d) { {"name": $d.x, "val": $d.y} }`,
+          expectedPaths: [
+            { path: "data", confidence: "static" },
+            { path: "data.x", confidence: "static" },
+            { path: "data.y", confidence: "static" },
+          ],
+        },
+        {
+          name: "inline lambda with no params (guard test)",
+          expression: `data ~> function() { 42 }`,
+          expectedPaths: [
+            { path: "data", confidence: "static" },
+          ],
+        },
+        {
+          name: "apply with literal lhs produces no data paths",
+          expression: `42 ~> function($x) { $x }`,
+          expectedPaths: [],
+        },
+      ];
+
+      for (const fixture of fixtures) {
+        it(fixture.name, () => {
+          assertFixture(fixture);
+        });
+      }
+    });
+
+    describe("Sort regressions", () => {
+      const fixtures: IntegrationFixture[] = [
+        {
+          name: "multi-term variable-resolved sort",
+          expression: `($x := items; $x^(>price, <date))`,
+          expectedPaths: [
+            { path: "items", confidence: "static" },
+            { path: "items.date", confidence: "static" },
+            { path: "items.price", confidence: "static" },
+          ],
+        },
+        {
+          name: "variable-resolved sort then property access",
+          expression: `($x := items; $x^(price).name)`,
+          expectedPaths: [
+            { path: "items", confidence: "static" },
+            { path: "items.name", confidence: "static" },
+            { path: "items.price", confidence: "static" },
+          ],
+        },
+        {
+          name: "variable-resolved sort with deep path sort key",
+          expression: `($x := records; $x^(details.score))`,
+          expectedPaths: [
+            { path: "records", confidence: "static" },
+            { path: "records.details.score", confidence: "static" },
+          ],
+        },
+        {
+          name: "multi-hop variable with sort",
+          expression: `($a := data.items; $b := $a; $b^(price))`,
+          expectedPaths: [
+            { path: "data.items", confidence: "static" },
+            { path: "data.items.price", confidence: "static" },
+          ],
+        },
+        {
+          name: "variable-resolved descending sort",
+          expression: `($x := items; $x^(>price))`,
+          expectedPaths: [
+            { path: "items", confidence: "static" },
+            { path: "items.price", confidence: "static" },
+          ],
+        },
+      ];
+
+      for (const fixture of fixtures) {
+        it(fixture.name, () => {
+          assertFixture(fixture);
+        });
+      }
+    });
+
+    describe("Existing behavior verification", () => {
+      const fixtures: IntegrationFixture[] = [
+        {
+          name: "apply with HOF preserves existing behavior",
+          expression: `orders ~> $map(function($v) { $v.total })`,
+          expectedPaths: [
+            { path: "orders", confidence: "static" },
+            { path: "orders.total", confidence: "static" },
+          ],
+        },
+        {
+          name: "non-variable sort preserves existing behavior",
+          expression: `items^(price).name`,
+          expectedPaths: [
+            { path: "items.name", confidence: "static" },
+            { path: "items.price", confidence: "static" },
+          ],
+        },
+      ];
+
+      for (const fixture of fixtures) {
+        it(fixture.name, () => {
+          assertFixture(fixture);
+        });
+      }
+    });
+  });
 });
