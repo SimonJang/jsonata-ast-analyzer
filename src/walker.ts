@@ -294,9 +294,32 @@ function walkFilterStages(
       }
     }
 
-    // Filter predicate -- walk expression and prefix results
+    // Filter predicate -- walk expression and selectively prefix results
+    // Variable-resolved paths are already absolute and must NOT be re-prefixed.
+    // To distinguish: walk once with full scope, once with a "local-only" scope
+    // where parent variables (non-focus) resolve to nothing.
     const filterPaths = walkNode(filterStage.expr, filterScope);
-    paths.push(...prefixPaths(contextPrefix, filterPaths));
+
+    // Build a local-only scope: child of an empty scope with only focus binding
+    let localScope = childScope(createScope());
+    if (focus) {
+      localScope = bindVariable(
+        localScope,
+        focus,
+        contextPrefix ? [contextPrefix] : [],
+      );
+    }
+    const localPaths = new Set(walkNode(filterStage.expr, localScope));
+
+    for (const fp of filterPaths) {
+      if (localPaths.has(fp)) {
+        // Local path (bare field name or focus variable) -- prefix it
+        paths.push(...prefixPaths(contextPrefix, [fp]));
+      } else {
+        // Externally-resolved variable path -- already absolute, don't prefix
+        paths.push(fp);
+      }
+    }
   }
 
   return paths;
@@ -550,10 +573,78 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
 }
 
 /**
+ * Filter a set of paths to keep only "base" paths -- paths where no other
+ * path in the set is a proper dot-prefix. This strips predicate-derived
+ * suffix paths from variable-resolved path sets.
+ *
+ * Example: ["items", "items.active"] -> ["items"]
+ * Example: ["orders.items", "orders.items.price"] -> ["orders.items"]
+ */
+function filterToBasePaths(paths: string[]): string[] {
+  return paths.filter(
+    (p) => !paths.some((other) => other !== p && p.startsWith(other + ".")),
+  );
+}
+
+/**
+ * Extract only the collection-identity (base) paths from a data argument node,
+ * excluding filter predicate paths. Used specifically for HOF lambda parameter
+ * binding to prevent predicate paths from leaking into element bindings.
+ *
+ * For PathNode: uses buildPathString to get the structural base path (skips filter stages)
+ * For ApplyNode: recursively extracts from the lhs (chained apply base identity)
+ * For VariableNode: resolves and filters to base paths only
+ * For NameNode: returns the name value directly
+ * Default: falls back to walkNode (no filter stages to strip)
+ */
+function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+  if (node.type === "path") {
+    const pathNode = node as PathNode;
+    // Check for variable steps (e.g., $v.children) -- must resolve variable
+    const varStepIndex = pathNode.steps.findIndex((s) => s.type === "variable");
+    if (varStepIndex >= 0) {
+      const varStep = pathNode.steps[varStepIndex] as VariableNode;
+      const resolved = resolveVariable(scope, varStep.value);
+      if (resolved && resolved.length > 0) {
+        const basePaths = filterToBasePaths([...resolved]);
+        const suffixSteps = pathNode.steps.slice(varStepIndex + 1);
+        const suffix = buildPathString(suffixSteps);
+        return basePaths.map((p) => (suffix ? `${p}.${suffix}` : p));
+      }
+      return [];
+    }
+    const basePath = buildPathString(pathNode.steps);
+    return basePath ? [basePath] : [];
+  }
+  if (node.type === "apply") {
+    // Chained apply base identity comes from the leftmost operand
+    return extractBasePaths((node as ApplyNode).lhs, scope);
+  }
+  if (node.type === "variable") {
+    const varNode = node as VariableNode;
+    const resolved = resolveVariable(scope, varNode.value);
+    if (resolved && resolved.length > 0) {
+      // Filter to only root paths -- strip predicate-derived suffix paths
+      return filterToBasePaths([...resolved]);
+    }
+    return [];
+  }
+  if (node.type === "name") {
+    return [(node as NameNode).value];
+  }
+  // For other node types, walkNode is fine (no filter stages to strip)
+  return walkNode(node, scope);
+}
+
+/**
  * Handle calls to higher-order built-in functions ($map, $filter, $reduce, etc.).
  *
  * Extracts paths from the data argument, then walks the lambda body with
  * parameter bindings according to the function's semantic role mapping.
+ *
+ * IMPORTANT: The full walkNode paths (including predicates) are emitted via
+ * the for-loop for non-lambda args. Only the BINDING paths to lambda parameters
+ * are restricted to base paths via extractBasePaths.
  */
 function walkHigherOrderCall(
   node: FunctionNode,
@@ -564,6 +655,7 @@ function walkHigherOrderCall(
   const paths: string[] = [];
 
   // Extract paths from all non-lambda arguments (they're data reads)
+  // This emits ALL paths including filter predicates (correct -- they are data reads)
   for (const arg of args) {
     if (arg.type !== "lambda") {
       paths.push(...walkNode(arg, scope));
@@ -576,9 +668,10 @@ function walkHigherOrderCall(
     | undefined;
 
   if (lambdaArg) {
-    // Get the data argument (first non-lambda arg) paths for binding
+    // Get the data argument (first non-lambda arg) BASE paths for binding
+    // Uses extractBasePaths to exclude filter predicate paths from binding
     const dataArg = args.find((a) => a.type !== "lambda");
-    const dataArgPaths = dataArg ? walkNode(dataArg, scope) : [];
+    const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
 
     // Walk lambda body with parameter bindings
     paths.push(
