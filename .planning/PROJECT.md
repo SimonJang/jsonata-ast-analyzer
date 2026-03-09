@@ -40,7 +40,20 @@ Given any JSONata expression, accurately identify every data path read from the 
 
 ### Active
 
-(None -- all requirements shipped)
+- [ ] Comprehensive README.md documentation (overview, install, API reference, CLI usage, examples, architecture, limitations)
+
+## Current Milestone: v1.1.3 Documentation
+
+**Goal:** Add comprehensive developer documentation to the README.md
+
+**Target features:**
+- Project overview and what it does
+- Installation instructions
+- API reference (extractPaths, PathResult, Confidence)
+- CLI usage (jsonata-paths)
+- Usage examples with real JSONata expressions
+- How it works (architecture overview)
+- Limitations and design decisions
 
 ### Out of Scope
 
@@ -102,4 +115,4 @@ No known tech debt. All previously-documented BUG(v1.2) issues resolved.
 | CI build-before-test ordering | Build step between typecheck and test ensures dist/ artifacts exist | ✓ Good — all 294 tests pass in CI including CLI round-trip |
 
 ---
-*Last updated: 2026-03-06 after v1.1.2 milestone*
+*Last updated: 2026-03-09 after v1.1.3 milestone started*
