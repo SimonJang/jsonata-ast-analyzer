@@ -78,7 +78,10 @@ Full details: `milestones/v1.1.2-ROADMAP.md`
   2. A quick example (JSONata expression in, path list out) appears before installation instructions so developers see value before committing to install
   3. README shows pnpm, npm, and yarn install commands and prominently notes ESM-only (no CommonJS/require)
   4. README includes a license section at the bottom
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 18-01-PLAN.md -- Write README with overview, quick example, installation, skeleton headings, and license; fix package.json license field
 
 ### Phase 19: API Reference
 **Goal**: A developer can understand the complete programmatic API without reading source code
@@ -145,7 +148,7 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 15. Pipeline and Apply Fixes | v1.1.1 | 1/1 | Complete | 2026-03-06 |
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 2/2 | Complete | 2026-03-06 |
 | 17. CI Build Step | v1.1.2 | 1/1 | Complete | 2026-03-06 |
-| 18. Overview and Installation | v1.1.3 | 0/0 | Not started | - |
+| 18. Overview and Installation | v1.1.3 | 0/1 | Not started | - |
 | 19. API Reference | v1.1.3 | 0/0 | Not started | - |
 | 20. CLI Documentation | v1.1.3 | 0/0 | Not started | - |
 | 21. Progressive Examples | v1.1.3 | 0/0 | Not started | - |
