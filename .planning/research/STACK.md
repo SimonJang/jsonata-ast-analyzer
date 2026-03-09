@@ -1,224 +1,222 @@
 # Stack Research
 
-**Domain:** Bug fixes for JSONata AST path extraction walker (v1.1.1)
-**Researched:** 2026-03-05
+**Domain:** README documentation for TypeScript/Node.js library (jsonata-ast-analyzer)
+**Researched:** 2026-03-09
 **Confidence:** HIGH
 
-## Verdict: No Stack Additions Needed
+## Recommended Stack
 
-All 14 bugs are logic errors in `walker.ts` and `scope.ts`. They involve incorrect scope propagation, missing AST step handling, and flawed path prefixing. The existing stack (TypeScript 5.9, Vitest 4.0, jsonata 2.1, tsup 8.5) is fully sufficient. No new dependencies, libraries, or tools are warranted.
-
-## Current Stack (Retain As-Is)
+This is a documentation milestone -- the "stack" here is not runtime dependencies but rather the tools, services, conventions, and structural patterns needed to produce a high-quality README that drives developer adoption.
 
 ### Core Technologies
 
-| Technology | Version | Purpose | Status |
-|------------|---------|---------|--------|
-| TypeScript | 5.9.3 | Type-safe walker/scope implementation | KEEP -- strict mode catches shape errors in AST handling |
-| Node.js | 22+ (ES2022 target) | Runtime | KEEP |
-| jsonata | 2.1.0 | Parser for AST generation via `ast()` | KEEP -- parser output is correct; bugs are in our walker |
-| Vitest | 4.0.18 | Test runner with `it.skip` for bug tracking | KEEP -- all 14 bugs use `it.skip` fixtures |
-| @vitest/coverage-v8 | 4.0.18 | Code coverage via V8 | KEEP -- verify fix completeness |
-| tsup | 8.5.1 | ESM-only bundler | KEEP |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| Shields.io badges | N/A (hosted service) | Visual at-a-glance project status indicators | De facto standard for open-source badges; recognized instantly by developers scanning npm/GitHub. Used by nearly every well-regarded TypeScript library (Zod, ky, Vitest, tsup). |
+| GitHub-native workflow badge | N/A (built-in) | CI status indicator | GitHub provides a first-party badge URL for Actions workflows, no third-party dependency. More reliable than Shields.io CI badges since it queries GitHub directly. |
+| Hand-written Markdown | N/A | README content format | For a focused library with a single exported function, hand-written documentation is superior to generated docs. TypeDoc is overkill here -- the API surface is tiny (1 function, 2 types). |
+| GitHub Flavored Markdown (GFM) | N/A | Rendering target | GitHub and npm both render GFM. Use fenced code blocks with `typescript` language tag, pipe tables, and anchor links for TOC. |
+
+### Supporting Libraries
+
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| markdown-toc | ^1.2.0 | Auto-generate table of contents from Markdown headings | Only if the README grows beyond ~8 sections. For v1.1.3, manual TOC is sufficient and avoids a dev dependency. Used by NASA/OpenMCT, Prisma, Prettier, Mocha, and thousands of others. |
+| doctoc | ^2.2.0 | Alternative TOC generator, auto-updates in-place | If you want CI-enforced TOC freshness (doctoc can be run as a pre-commit hook). Heavier than markdown-toc. |
+| TypeDoc | ^0.27+ | API reference generation from TSDoc comments | Do NOT use for this milestone. The API surface is 1 function and 2 types. TypeDoc shines for libraries with 20+ exports. Adds complexity without proportional value here. |
 
 ### Development Tools
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| pnpm 10.30.3 | Package manager | Lockfile already stable, no changes needed |
-| `vitest run --reporter=verbose` | See individual skip/pass/fail per fixture | Already available, no config change |
-| `vitest run --coverage` | Branch coverage for walker/scope changes | Verify all new code paths are exercised after fixes |
+| Shields.io URL builder | Badge URL construction | Use `https://img.shields.io/badge/LABEL-MESSAGE-COLOR` for static badges. Dynamic badges use endpoint-specific URLs (e.g., `/npm/v/PACKAGE`). |
+| GitHub Actions badge URL | CI status badge | Format: `https://github.com/OWNER/REPO/actions/workflows/FILENAME/badge.svg`. For this repo: `https://github.com/SimonJang/jsonata-ast-analyzer/actions/workflows/ci.yml/badge.svg` |
+| Code fence syntax highlighting | Example formatting | Use ` ```typescript ` for import/usage examples and ` ```bash ` for CLI commands. GitHub and npm renderers both support this. |
 
-## Bug-by-Bug Stack Assessment
+## Badge Recommendations
 
-All 7 bug categories are **pure logic fixes** in existing source files. Here is why no new tooling is needed for each.
+### Badges to Include (in this order, left to right)
 
-### 1. Filter Predicate Path Leak into HOF Bindings (4 bugs)
+These are the badges that provide genuine signal for a TypeScript/Node library:
 
-**Root cause:** When `items[active]` is the data argument to `$map()`, `walkNode(dataArg)` returns both `items` AND `items.active` (the filter predicate path). These paths are then ALL bound as the element variable (e.g., `$v`), so `$v.name` resolves to both `items.name` AND `items.active.name` (spurious).
+| Badge | URL Pattern | Why |
+|-------|-------------|-----|
+| CI Status | `[![CI](https://github.com/SimonJang/jsonata-ast-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/SimonJang/jsonata-ast-analyzer/actions/workflows/ci.yml)` | Most important badge. Developers check this first. Links to workflow runs. |
+| TypeScript | `![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript&logoColor=white)` | Signals first-class TypeScript support with bundled types. Critical for TS developers evaluating the library. |
+| Node.js | `![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-green?logo=node.js&logoColor=white)` | Communicates minimum supported version. This project tests on Node 20 and 22. |
+| ESM Only | `![ESM Only](https://img.shields.io/badge/module-ESM%20only-yellow)` | Important caveat -- saves CJS users from a bad experience. Yellow color signals "pay attention." |
+| License | `![License: MIT](https://img.shields.io/badge/License-MIT-green)` | Standard trust signal. MIT is maximally permissive. |
 
-**Fix location:** `walkHigherOrderCall()` in `walker.ts` -- the `dataArgPaths` passed to `walkLambdaWithBindings()` must be filtered to only include the base collection path(s), not the filter predicate sub-paths. Alternatively, separate "binding paths" from "reported paths" when walking the data argument.
+### Badges to NOT Include
 
-**Stack needed:** None. This is a path-filtering logic change within existing functions.
+| Badge | Why Not |
+|-------|---------|
+| npm version | Package is not published to npm yet. Add this badge when/if published. |
+| npm downloads | Same -- not published. |
+| Code coverage percentage | Not currently exported from CI. Only add when you have real coverage reporting. Fake coverage badges erode trust. |
+| Bundle size (bundlephobia) | Only relevant for browser-targeted libraries. This is a Node.js analysis tool. |
+| "PRs Welcome" | Unnecessary for a small focused library. |
+| Dependency count | Misleading -- the single `jsonata` dependency is intentional and correct. |
 
-### 2. $lookup HOF Chaining (2 bugs)
+## README Section Structure
 
-**Root cause:** `$lookup(inventory, itemCode).quantity` parses as a PathNode with steps `[FunctionNode($lookup), NameNode(quantity)]`. `walkPath()` calls `buildPathString()` which skips the FunctionNode step (it is not name/wildcard/descendant/parent), producing only `quantity`. The function arguments `inventory` and `itemCode` are never walked because `walkPath()` does not handle function-type steps.
+### Recommended Order (evidence-based)
 
-**Fix location:** `walkPath()` in `walker.ts` -- add handling for function call steps in the step-iteration loop, walking them to extract their argument paths.
+Based on analysis of well-regarded TypeScript libraries (Zod, ky, p-queue, changesets, taze), the optimal README section order for this project is:
 
-**Stack needed:** None. This is a missing case in the step-iteration loop.
+| Order | Section | Purpose | Rationale |
+|-------|---------|---------|-----------|
+| 1 | Title + one-line description | What is this? | First thing developers see on GitHub and npm. |
+| 2 | Badges | Trust signals at a glance | CI passing, TypeScript, Node version, license. |
+| 3 | Quick example | "Show, don't tell" | A single copy-paste code block that demonstrates the core value proposition in under 10 lines. This is the most important section for adoption -- developers who see a relevant example keep reading. |
+| 4 | Table of Contents | Navigation aid | Manual anchor links to each section. Required once you have 6+ sections. |
+| 5 | Installation | How to get it | `pnpm add` / `npm install` commands. Note ESM-only requirement. |
+| 6 | API Reference | What does it export? | `extractPaths()` signature, `PathResult` interface, `Confidence` type. Keep it tight -- this is 1 function and 2 types. |
+| 7 | CLI Usage | Command-line interface | `jsonata-paths` binary with both argument and stdin modes. Include real examples with output. |
+| 8 | Examples | Deeper usage patterns | Progressive complexity: simple path, nested path, variable assignment, filter predicate, wildcard/dynamic, parent operator. Each example shows expression -> output mapping. |
+| 9 | How It Works | Architecture overview | Brief description of the analysis pipeline: parse -> walk -> resolve -> deduplicate -> annotate. For developers who want to understand or contribute. |
+| 10 | Limitations | Honest about boundaries | Static analysis only, over-approximation, dynamic paths, parent operator. Builds trust by setting correct expectations. |
+| 11 | License | Legal | One-liner with link to LICENSE file. |
 
-### 3. Focus Variable @$v Double-Prefix (2 bugs)
+### Critical Ordering Insight
 
-**Root cause:** `orders@$o[$o.total > 100]` -- the focus variable `$o` is bound to `["orders"]` in `walkFilterStages()`. When `$o.total` is walked inside the filter, it resolves to `["orders.total"]` via the scope chain (already an absolute path). But `walkFilterStages()` then calls `prefixPaths(contextPrefix="orders", filterPaths)`, producing `orders.orders.total` -- double-prefixed.
+The quick example MUST come before installation. Rationale from ky, p-queue, and Zod patterns: developers evaluate whether a library is worth installing BEFORE they look at install commands. Leading with a compelling example reduces bounce rate. The pattern is: "Here's what it does" -> "Want it? Here's how to install."
 
-The related variant: `($cfg := config; items[$cfg.minPrice < price].name)` -- `$cfg.minPrice` resolves to `config.minPrice` (absolute), then gets prefixed with `items` context, producing `items.config.minPrice` (spurious).
+## Content Conventions
 
-**Fix location:** `walkFilterStages()` in `walker.ts` -- paths originating from variable resolution (already absolute/rooted) must NOT be re-prefixed with the filter context. Only locally-relative filter paths (e.g., bare `price` from the filter expression) should be prefixed.
+### Code Examples Format
 
-**Stack needed:** None. Logic fix to distinguish between locally-relative and already-resolved paths.
+Every code example should follow this pattern used by top TypeScript libraries:
 
-### 4. Parent Operator walkPath Missing Steps (2 bugs)
-
-**Root cause:** `orders.items.{"itemName": name, "orderDate": %.date}` -- the object constructor (`{...}`) appears as a step in `PathNode.steps`. `walkPath()` only handles `name`, `sort`, and `variable` step types in its iteration loop. Steps of type `unary` (object constructor) and `block` are skipped entirely. All inner paths (including parent references) are silently dropped.
-
-**Fix location:** `walkPath()` in `walker.ts` -- add cases for `unary` and `block` step types in the step iteration loop. Walk their inner expressions and prefix results with the context built from preceding steps.
-
-**Stack needed:** None. Missing case handling in the existing step-iteration loop.
-
-### 5. Pipeline Duplicate Paths (2 bugs)
-
-**Root cause (bug a):** `items ~> $filter(...) ~> $map(...)` -- chained applies cause the first apply's paths to be walked multiple times. The filter predicate paths leak through the HOF binding (overlaps with bug #1). The existing `Set`-based dedup in `extractPaths()` handles literal duplicates; the real issue is the spurious predicate-prefixed paths from bug #1.
-
-**Root cause (bug b):** `data ~> function($d) { $d.count }` -- `walkApply()` handles `rhs.type === "function"` but NOT `rhs.type === "lambda"`. When the RHS is a raw lambda (not a function call), it falls through to the `else` branch which walks the lambda via `walkNode()`, hitting `walkLambda()` which returns `[]` for non-thunk lambdas. The lambda's parameter is never bound to the piped data.
-
-**Fix location:** `walkApply()` in `walker.ts` -- add a `rhs.type === "lambda"` case that binds the lambda's first parameter to `lhsPaths` and walks the body. Bug (a) resolves when bug #1 is fixed.
-
-**Stack needed:** None.
-
-### 6. walkVariable Missing .group (1 bug)
-
-**Root cause:** `($r := data.records; $r{category: $sum(amount)})` -- the variable reference `$r` has a `.group` property (the group-by expression attached by the parser), but `walkVariable()` only checks for `.predicate` (filter stages). The group-by key/value expressions are silently dropped.
-
-**Fix location:** `walkVariable()` in `walker.ts` -- after handling predicates, check for `.group` on the VariableNode and walk the group-by expressions. Reuse the existing `walkGroupBy()` pattern, adapting for a VariableNode's resolved paths as the base context.
-
-**Stack needed:** None. Mirror existing `.predicate` handling to also cover `.group`.
-
-### 7. Array Constructor Scope Leak (1 bug)
-
-**Root cause:** `[$x := data.source, $x.field]` -- the array constructor (`[...]`) is handled by `walkUnary()` which uses `flatMap((e) => walkNode(e, scope))`. Each element receives the **same** scope, so `$x := data.source` (a BindNode) walks the RHS but does not propagate the binding to subsequent elements. `$x.field` in the next element fails to resolve `$x`.
-
-**Fix location:** `walkUnary()` in `walker.ts` -- for array constructors (`value === "["`) containing bind expressions, use sequential scope-accumulation (the same pattern as `walkBlock()`). Process elements sequentially, propagating bindings from bind expressions to subsequent elements.
-
-**Stack needed:** None. Reuse the sequential scope-accumulation pattern from `walkBlock()`.
-
-## Debugging Strategy (Existing Tools Only)
-
-### AST Inspection via jsonata.ast()
-
-The `jsonata` package's `ast()` method is the primary debugging tool for understanding what the parser produces. This is already available as a production dependency.
-
-```typescript
-import jsonata from "jsonata";
-const ast = jsonata('items[active] ~> $map(function($v) { $v.name })').ast();
-console.log(JSON.stringify(ast, null, 2));
+```
+1. Show the import statement (so developers know what to import)
+2. Show the function call with a realistic input
+3. Show the output (as a comment or separate block)
 ```
 
-Critical for bugs #2 (seeing FunctionNode in PathNode.steps), #4 (seeing unary/block in steps), #6 (seeing .group on VariableNode), and #7 (seeing BindNode inside unary expressions).
+For this project specifically:
+- Use `typescript` code fence for library usage
+- Use `bash` code fence for CLI usage
+- Show the JSONata expression as a string literal (developers need to see the expression)
+- Show the output as an inline comment `// =>` or as a JSON block
 
-### Vitest Debugging Commands
+### API Reference Format
 
-| Feature | Command | Use Case |
-|---------|---------|----------|
-| Run single test | `vitest run -t "filter-map pipeline"` | Focus on one bug at a time |
-| Unskip and run | Change `it.skip` to `it` | Verify fix for specific bug |
-| Verbose output | `vitest run --reporter=verbose` | See all test names in results |
-| Coverage report | `vitest run --coverage` | Verify new code paths are exercised |
-| Watch mode | `vitest --reporter=verbose` | Rapid iteration during fixes |
-| Type checking | `pnpm typecheck` | Catch type errors after walker changes |
+For a library this small, use inline TypeScript signatures with descriptions rather than a table:
 
-### Regression Test Pattern (Using Existing Helpers)
+```markdown
+### `extractPaths(expression: string): PathResult[]`
 
-The existing `IntegrationFixture` type with `assertFixture()` helper is the right pattern for regression tests. Use `ExactFixture` mode (not `SubsetFixture`) since the expected output for each regression case should be fully known.
+Description of what it does.
 
-```typescript
-const regressionFixtures: IntegrationFixture[] = [
-  {
-    name: "regression: filter predicate does not leak into $map element binding",
-    expression: `$map(items[status = "active"], function($v) { $v.price })`,
-    expectedPaths: [
-      { path: "items", confidence: "static" },
-      { path: "items.price", confidence: "static" },
-      { path: "items.status", confidence: "static" },
-    ],
-  },
-];
+### `PathResult`
+
+\`\`\`typescript
+interface PathResult {
+  path: string;
+  confidence: Confidence;
+}
+\`\`\`
+
+### `Confidence`
+
+\`\`\`typescript
+type Confidence = "static" | "dynamic" | "partial";
+\`\`\`
+
+With a table explaining what each confidence level means.
 ```
 
-## What NOT to Add
+This format is used by p-queue, ky, and similar focused libraries. It keeps types visible and copy-pasteable.
+
+### What Belongs in README vs. Separate Docs
+
+| In README | NOT in README (separate file or docs site) |
+|-----------|-------------------------------------------|
+| Quick start and core usage | Full AST node type documentation |
+| API reference for public exports | Internal architecture deep-dive |
+| CLI usage with examples | Contributing guidelines (CONTRIBUTING.md) |
+| 5-8 progressive examples | Changelog (CHANGELOG.md) |
+| Brief "how it works" paragraph | Test fixture documentation |
+| Limitations section | Development setup instructions |
+| License one-liner | Design decision history |
+
+For this project: everything fits in the README. The API surface is tiny (1 function, 2 types, 1 CLI command), and the library is focused enough that a single well-structured README is the right choice. Splitting into a docs site or wiki would fragment the developer experience for no benefit.
+
+## Alternatives Considered
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| Hand-written Markdown README | TypeDoc-generated API docs | When you have 20+ exported functions/types. TypeDoc excels at large API surfaces. For 1 function and 2 types, it adds complexity without value. |
+| Manual TOC with anchor links | markdown-toc / doctoc auto-generation | When README exceeds ~15 sections or changes frequently. For a stable README with 10 sections, manual TOC is simpler and has no tooling dependency. |
+| Shields.io static badges | badgen.net | When you need faster badge response times. Badgen is slightly faster but less recognized. Shields.io is the community standard. |
+| GitHub Actions native badge | Shields.io GitHub Actions badge | When you need custom styling on the CI badge. Native badge is more reliable but less customizable. |
+| Inline code examples in README | Separate /examples directory with runnable scripts | When examples need to be tested/validated automatically. For a README with 5-8 short examples, inline is cleaner and keeps everything in one place. |
+
+## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| AST visualization libraries (`ast-types`, `recast`) | Wrong ecosystem -- those handle JS ASTs, not JSONata ASTs. Our AST is proprietary from the jsonata parser. | `JSON.stringify(ast, null, 2)` for inspection |
-| Snapshot testing (`toMatchSnapshot`) | Bug fix tests need exact assertions to document correct behavior. Snapshots hide intent and make it unclear what the correct output should be. Regression tests must state what is expected. | `ExactFixture` with `assertFixture()` |
-| Property-based testing (`fast-check`) | JSONata expressions are structured text with specific semantics. Generating valid JSONata ASTs that trigger these specific bug patterns is impractical and would not target the known bugs. | Write targeted regression fixtures for each bug variant |
-| Additional assertion libraries (`chai`, `jest-extended`) | Vitest's built-in `expect().toEqual()` is sufficient for path array comparison. The `assertFixture()` helper already handles sorting and diff messages. | Keep using `assertFixture()` |
-| Debug logging libraries (`debug`, `pino`, `winston`) | The walker is pure functional (AST in, string[] out). `console.log` with `JSON.stringify` is sufficient for temporary debugging during development. | Temporary `console.log` during fix development, remove before commit |
-| Code coverage threshold config | @vitest/coverage-v8 is already installed. Adding coverage thresholds adds friction during iterative bug fixing. Run coverage ad-hoc to verify after fixes are complete. | `vitest run --coverage` on demand |
-| Mutation testing (`stryker-mutator`) | Overkill for bug fixes. We already know the bugs exist and have exact expected outputs. Mutation testing is for discovering undertested code, not for fixing known bugs. | Write 10+ targeted regression tests per bug category |
-| Test helper libraries (`testing-library`) | No DOM or component testing. Pure function testing of `extractPaths()`. | Existing `assertFixture()` helper |
+| TypeDoc for this project | API surface is 1 function + 2 types. TypeDoc generates multi-page HTML sites. The setup cost (tsconfig integration, output directory, hosting) far exceeds the documentation value for this surface area. | Hand-written Markdown API reference directly in README. |
+| ts-readme (auto-generation from JSDoc) | Generates Markdown from source code comments, but output formatting is mechanical and lacks the narrative flow that drives adoption. Good for reference, bad for storytelling. | Write the README by hand with curated examples. |
+| README-only documentation site (Docusaurus, VitePress) | These are documentation site generators. This library does not need a documentation site. The entire API fits in a single README page. Using a site generator would signal the project is more complex than it is. | Single README.md file. |
+| Badgen.net badges | Less widely recognized than Shields.io. Developers have trained visual recognition for Shields.io badge shapes. | Shields.io badges. |
+| npm badge / download badge | Package is not published to npm. Displaying these badges would show errors or zeros, which harms credibility. | Add these badges only after npm publication. |
 
-## Recommended Test Organization for v1.1.1
+## Exemplary READMEs to Reference
 
-Keep regression tests alongside the existing integration tests. Add a `regression/` subdirectory for the new 70+ regression tests (10+ per bug category):
+These TypeScript/Node libraries have READMEs that match the profile of jsonata-ast-analyzer (focused library, small API, CLI tool):
 
-```
-test/
-  extract-paths.test.ts              # 105 unit tests (unchanged)
-  integration/
-    data-transforms.test.ts           # Unskip 4 BUG(v1.2) tests
-    business-rules.test.ts            # Unskip 2 BUG(v1.2) tests
-    api-reshaping.test.ts             # Unskip 4 BUG(v1.2) tests
-    data-export.test.ts               # Unskip 1 BUG(v1.2) test
-    edge-cases.test.ts                # Unskip 2 BUG(v1.2) tests + 1 sort
-    helpers.ts                        # Existing assertFixture/sortPaths
-    helpers.test.ts                   # Existing helper tests
-    regression/                       # NEW: 10+ tests per bug category
-      filter-predicate-leak.test.ts   # Variations on filter + HOF binding
-      lookup-hof-chaining.test.ts     # $lookup().field patterns
-      focus-variable-prefix.test.ts   # @$v double-prefix scenarios
-      walkpath-steps.test.ts          # Unary/block steps in paths
-      pipeline-duplicates.test.ts     # Chained ~> and lambda piping
-      variable-group.test.ts          # Variable-resolved group-by
-      array-constructor-scope.test.ts # Bind within array constructor
+| Library | Why It Is a Good Model | Key Pattern to Adopt |
+|---------|----------------------|---------------------|
+| [ky](https://github.com/sindresorhus/ky) | Small API, clear badges, benefits list, progressive examples, comprehensive API reference | Comparative code example early ("here's what it replaces"), then detailed API |
+| [p-queue](https://github.com/sindresorhus/p-queue) | Single-purpose library, TypeScript-first, excellent progressive complexity in examples | Each API method documented with signature + description + example |
+| [taze](https://github.com/antfu-collective/taze) | CLI tool with library API, clean zero-friction "just run it" examples | CLI-first presentation, configuration section for power users |
+| [changesets](https://github.com/changesets/changesets) | Badges as trust signals, tiered entry points for different audiences | "Getting Started" section with links to deeper docs |
+| [picocolors](https://github.com/alexeyraspopov/picocolors) | Tiny focused library, comparison-driven README | Benchmark table demonstrating value proposition |
+
+## Project-Specific Badge URLs
+
+Pre-built badge Markdown for this project (copy-paste ready):
+
+```markdown
+[![CI](https://github.com/SimonJang/jsonata-ast-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/SimonJang/jsonata-ast-analyzer/actions/workflows/ci.yml)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-green?logo=node.js&logoColor=white)
+![ESM Only](https://img.shields.io/badge/module-ESM%20only-yellow)
+![License: MIT](https://img.shields.io/badge/License-MIT-green)
 ```
 
-Vitest's default `include` glob already picks up `test/**/*.test.ts`. No config changes needed.
+## Installation
+
+```bash
+# No new packages to install for the documentation milestone.
+# The README is hand-written Markdown -- no build tools, generators, or plugins needed.
+```
 
 ## Version Compatibility
 
 | Package | Compatible With | Notes |
 |---------|-----------------|-------|
-| jsonata@2.1.0 | TypeScript 5.9 | Parser output (AST shape) is stable. Bug fixes are in our walker, not the parser. |
-| vitest@4.0.18 | @vitest/coverage-v8@4.0.18 | Already matched versions. `it.skip` to `it` is the unskip mechanism. |
-| tsup@8.5.1 | TypeScript 5.9 | ESM-only build. No changes needed for bug fixes. |
-| @types/node@25.3.3 | Node.js 22+ | Only needed for CLI (`execFileSync`). No relevance to bug fixes. |
-
-## Installation
-
-```bash
-# No new packages to install. Run existing setup:
-pnpm install
-pnpm build
-pnpm test
-```
-
-## Summary
-
-**Net new dependencies: 0**
-**Config changes: 0**
-**Stack changes: 0**
-**New files: 7 regression test files in `test/integration/regression/`**
-
-All 14 bugs are logic errors in `walker.ts` (12 bugs across 6 categories) and the interaction between `walkFilterStages()`/`walkVariable()`/`walkHigherOrderCall()` scope handling (bug #1 contributes to 4 bugs and overlaps with bug #5). The fixes involve:
-
-1. Separating "binding paths" from "reported paths" in HOF data argument walking
-2. Adding missing step type cases in `walkPath()` (function, unary, block)
-3. Preventing re-prefixing of already-resolved variable paths in `walkFilterStages()`
-4. Adding `rhs.type === "lambda"` handling in `walkApply()`
-5. Adding `.group` handling in `walkVariable()`
-6. Adding sequential scope accumulation in `walkUnary()` for array constructors
-
-No external tooling, libraries, or framework changes are needed. The existing test infrastructure (`assertFixture()`, `IntegrationFixture`, Vitest) handles everything.
+| Shields.io badges | Any Markdown renderer | Static SVGs served via img.shields.io. Work on GitHub, npm, and any GFM renderer. |
+| GitHub Actions badge | GitHub-rendered Markdown | Uses GitHub's internal badge.svg endpoint. Only works when repo is public or viewer has access. |
+| GFM code fences | GitHub + npm + most renderers | `typescript` and `bash` language tags are universally supported. |
 
 ## Sources
 
-- Codebase analysis: `src/walker.ts` (626 lines), `src/scope.ts` (97 lines), `src/types.ts` (213 lines), `src/builtins.ts` (46 lines), `src/path-builder.ts` (33 lines), `src/index.ts` (46 lines)
-- Bug documentation: 14 `it.skip` fixtures across 5 integration test files with `BUG(v1.2)` comments
-- Package versions: `pnpm list --depth 0` output confirming all installed versions (HIGH confidence)
-- No external research needed: all bugs are internal logic errors in known source files with documented expected outputs
+- [Shields.io official documentation](https://shields.io/) -- badge URL formats, customization options (HIGH confidence)
+- [GitHub Actions badge docs](https://docs.github.com/en/actions/monitoring-and-troubleshooting-workflows/monitoring-workflows/adding-a-workflow-status-badge) -- native workflow status badge format (HIGH confidence)
+- [npm README documentation](https://docs.npmjs.com/about-package-readme-files/) -- npm README rendering requirements (HIGH confidence)
+- [ky README](https://github.com/sindresorhus/ky) -- structural patterns for small TypeScript library (HIGH confidence, direct analysis)
+- [p-queue README](https://github.com/sindresorhus/p-queue) -- API reference formatting patterns (HIGH confidence, direct analysis)
+- [Zod README](https://github.com/colinhacks/zod) -- progressive example patterns (HIGH confidence, direct analysis)
+- [taze README](https://github.com/antfu-collective/taze) -- CLI documentation patterns (HIGH confidence, direct analysis)
+- [changesets README](https://github.com/changesets/changesets) -- badge and tiered documentation patterns (HIGH confidence, direct analysis)
+- [markdown-toc](https://github.com/jonschlinkert/markdown-toc) -- TOC generation tool (MEDIUM confidence, WebSearch)
+- [How to Write an Awesome README](https://dev.to/documatic/how-to-write-an-awesome-readme-cfl) -- general README best practices (MEDIUM confidence, WebSearch)
+- [Writing the Perfect README for Your Node Library](https://blog.bitsrc.io/writing-the-perfect-reademe-for-your-node-library-2d5f24dc1c06) -- Node-specific README guidance (MEDIUM confidence, WebSearch)
+- [README documentation splitting guidance](https://colinhacks.com/essays/docs-the-smart-way) -- when to split README vs docs site (MEDIUM confidence, WebSearch)
 
 ---
-*Stack research for: JSONata AST path analyzer v1.1.1 bug fixes*
-*Researched: 2026-03-05*
+*Stack research for: README documentation for jsonata-ast-analyzer TypeScript library*
+*Researched: 2026-03-09*
