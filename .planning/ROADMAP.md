@@ -152,7 +152,7 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 2/2 | Complete | 2026-03-06 |
 | 17. CI Build Step | v1.1.2 | 1/1 | Complete | 2026-03-06 |
 | 18. Overview and Installation | 1/1 | Complete    | 2026-03-09 | - |
-| 19. API Reference | 1/1 | Complete   | 2026-03-09 | - |
+| 19. API Reference | 1/1 | Complete    | 2026-03-09 | - |
 | 20. CLI Documentation | v1.1.3 | 0/0 | Not started | - |
 | 21. Progressive Examples | v1.1.3 | 0/0 | Not started | - |
 | 22. Architecture and Limitations | v1.1.3 | 0/0 | Not started | - |
