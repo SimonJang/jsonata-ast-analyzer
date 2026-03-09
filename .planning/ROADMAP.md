@@ -91,7 +91,10 @@ Plans:
   1. README documents `extractPaths(expression)` with its TypeScript signature, parameter description, return type, and error behavior (what happens with invalid expressions)
   2. README shows the `PathResult` interface with both `path` and `confidence` fields as a TypeScript code block
   3. README includes a confidence level table explaining `static`, `dynamic`, and `partial` with meaning, cause, and a concrete example expression for each level
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 19-01-PLAN.md -- Write API Reference content: extractPaths documentation, PathResult/Confidence types, and confidence level table
 
 ### Phase 20: CLI Documentation
 **Goal**: A developer can use jsonata-paths from the command line for both one-off queries and piped workflows
@@ -149,7 +152,7 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 16. Filter Predicate Scope-Awareness | v1.1.1 | 2/2 | Complete | 2026-03-06 |
 | 17. CI Build Step | v1.1.2 | 1/1 | Complete | 2026-03-06 |
 | 18. Overview and Installation | 1/1 | Complete    | 2026-03-09 | - |
-| 19. API Reference | v1.1.3 | 0/0 | Not started | - |
+| 19. API Reference | v1.1.3 | 0/1 | Not started | - |
 | 20. CLI Documentation | v1.1.3 | 0/0 | Not started | - |
 | 21. Progressive Examples | v1.1.3 | 0/0 | Not started | - |
 | 22. Architecture and Limitations | v1.1.3 | 0/0 | Not started | - |
