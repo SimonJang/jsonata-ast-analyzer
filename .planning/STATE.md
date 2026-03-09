@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 19 context gathered
-last_updated: "2026-03-09T14:12:35.990Z"
-last_activity: 2026-03-09 -- Completed 18-01 Overview and Installation
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-03-09T14:28:16.433Z"
+last_activity: 2026-03-09 -- Completed 19-01 API Reference
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
-**Current focus:** Phase 18 - Overview and Installation
+**Current focus:** Phase 19 - API Reference
 
 ## Current Position
 
-Phase: 18 (first of 5 in v1.1.3: Phases 18-22)
+Phase: 19 (second of 5 in v1.1.3: Phases 18-22)
 Plan: 01 complete (1/1 plans)
-Status: Phase 18 complete
-Last activity: 2026-03-09 -- Completed 18-01 Overview and Installation
+Status: Phase 19 complete
+Last activity: 2026-03-09 -- Completed 19-01 API Reference
 
 Progress: [██████████] 100%
 
@@ -39,7 +39,7 @@ Progress: [██████████] 100%
 - v1.1: 6 phases, 6 plans, 200 tests, 3,510 LOC
 - v1.1.1: 3 phases, 5 plans, 294 tests, 4,547 LOC
 - v1.1.2: 1 phase, 1 plan, 294 tests, 4,531 LOC
-- v1.1.3: 5 phases, 1 plan completed (documentation milestone -- no code changes expected)
+- v1.1.3: 5 phases, 2 plans completed (documentation milestone -- no code changes expected)
 
 ## Accumulated Context
 
@@ -49,6 +49,7 @@ All decisions documented in PROJECT.md Key Decisions table.
 
 - Phase 18-01: One-liner uses plain language (no AST jargon) to describe library value
 - Phase 18-01: Quick example uses filter expression to demonstrate hidden path discovery
+- [Phase 19]: Phase 19-01: Confidence table examples chosen for clarity: account.name (static), item[$field] (dynamic), orders.items.%.orderRef (partial)
 
 ### Pending Todos
 
@@ -60,6 +61,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09T14:12:35.988Z
-Stopped at: Phase 19 context gathered
-Resume file: .planning/phases/19-api-reference/19-CONTEXT.md
+Last session: 2026-03-09T14:28:16.431Z
+Stopped at: Completed 19-01-PLAN.md
+Resume file: None

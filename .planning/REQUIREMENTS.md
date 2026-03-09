@@ -19,9 +19,9 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ### API Reference
 
-- [ ] **API-01**: README documents the `extractPaths(expression)` function with signature, parameters, return type, and error behavior
-- [ ] **API-02**: README documents the `PathResult` interface (`path` + `confidence` fields)
-- [ ] **API-03**: README documents the `Confidence` type with a table explaining `static`, `dynamic`, and `partial` levels with examples
+- [x] **API-01**: README documents the `extractPaths(expression)` function with signature, parameters, return type, and error behavior
+- [x] **API-02**: README documents the `PathResult` interface (`path` + `confidence` fields)
+- [x] **API-03**: README documents the `Confidence` type with a table explaining `static`, `dynamic`, and `partial` levels with examples
 
 ### CLI
 
@@ -72,9 +72,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INST-01 | Phase 18 | Complete |
 | INST-02 | Phase 18 | Complete |
 | LIC-01 | Phase 18 | Complete |
-| API-01 | Phase 19 | Pending |
-| API-02 | Phase 19 | Pending |
-| API-03 | Phase 19 | Pending |
+| API-01 | Phase 19 | Complete |
+| API-02 | Phase 19 | Complete |
+| API-03 | Phase 19 | Complete |
 | CLI-01 | Phase 20 | Pending |
 | CLI-02 | Phase 20 | Pending |
 | CLI-03 | Phase 20 | Pending |
