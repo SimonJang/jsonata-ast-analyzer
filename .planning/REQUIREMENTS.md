@@ -1,7 +1,7 @@
 # Requirements: JSONata AST Path Analyzer
 
 **Defined:** 2026-03-09
-**Core Value:** Given any JSONata expression, accurately identify every data path read from the input object — including paths accessed through variable assignments, filter predicates, and function arguments.
+**Core Value:** Given any JSONata expression, accurately identify every data path read from the input object -- including paths accessed through variable assignments, filter predicates, and function arguments.
 
 ## v1.1.3 Requirements
 
@@ -10,7 +10,7 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 ### Overview
 
 - [ ] **OVVW-01**: README opens with a clear one-line description of what the library does and who it's for
-- [ ] **OVVW-02**: README includes a quick example (expression → output) before installation instructions
+- [ ] **OVVW-02**: README includes a quick example (expression -> output) before installation instructions
 
 ### Installation
 
@@ -35,7 +35,7 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ### Architecture
 
-- [ ] **ARCH-01**: README includes a "How it works" section with ASCII pipeline diagram showing expression → parse → walk → extract → classify flow
+- [ ] **ARCH-01**: README includes a "How it works" section with ASCII pipeline diagram showing expression -> parse -> walk -> extract -> classify flow
 - [ ] **ARCH-02**: README explains the over-approximation design principle (superset of actual paths)
 
 ### Limitations
@@ -48,7 +48,7 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ## Future Requirements
 
-None — documentation milestone is self-contained.
+None -- documentation milestone is self-contained.
 
 ## Out of Scope
 
@@ -56,7 +56,7 @@ None — documentation milestone is self-contained.
 |---------|--------|
 | Badges (CI, TypeScript, Node, ESM) | User chose clean content without badges |
 | Table of contents | User chose clean content without TOC |
-| Separate docs site (TypeDoc/Docusaurus) | API surface is 1 function + 2 types — overkill |
+| Separate docs site (TypeDoc/Docusaurus) | API surface is 1 function + 2 types -- overkill |
 | Mermaid diagrams | npm doesn't render Mermaid; ASCII art is universal |
 | test:readme script | Nice-to-have but out of scope for this milestone |
 | Contributing guide | Single-maintainer project, not needed yet |
@@ -67,27 +67,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OVVW-01 | — | Pending |
-| OVVW-02 | — | Pending |
-| INST-01 | — | Pending |
-| INST-02 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
-| API-03 | — | Pending |
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| EXMP-01 | — | Pending |
-| ARCH-01 | — | Pending |
-| ARCH-02 | — | Pending |
-| LMTS-01 | — | Pending |
-| LIC-01 | — | Pending |
+| OVVW-01 | Phase 18 | Pending |
+| OVVW-02 | Phase 18 | Pending |
+| INST-01 | Phase 18 | Pending |
+| INST-02 | Phase 18 | Pending |
+| LIC-01 | Phase 18 | Pending |
+| API-01 | Phase 19 | Pending |
+| API-02 | Phase 19 | Pending |
+| API-03 | Phase 19 | Pending |
+| CLI-01 | Phase 20 | Pending |
+| CLI-02 | Phase 20 | Pending |
+| CLI-03 | Phase 20 | Pending |
+| EXMP-01 | Phase 21 | Pending |
+| ARCH-01 | Phase 22 | Pending |
+| ARCH-02 | Phase 22 | Pending |
+| LMTS-01 | Phase 22 | Pending |
 
 **Coverage:**
 - v1.1.3 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-09*
-*Last updated: 2026-03-09 after initial definition*
+*Last updated: 2026-03-09 after roadmap creation*
