@@ -9,13 +9,13 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ### Overview
 
-- [ ] **OVVW-01**: README opens with a clear one-line description of what the library does and who it's for
-- [ ] **OVVW-02**: README includes a quick example (expression -> output) before installation instructions
+- [x] **OVVW-01**: README opens with a clear one-line description of what the library does and who it's for
+- [x] **OVVW-02**: README includes a quick example (expression -> output) before installation instructions
 
 ### Installation
 
-- [ ] **INST-01**: README shows pnpm/npm/yarn install commands
-- [ ] **INST-02**: README notes ESM-only requirement (no CommonJS/require)
+- [x] **INST-01**: README shows pnpm/npm/yarn install commands
+- [x] **INST-02**: README notes ESM-only requirement (no CommonJS/require)
 
 ### API Reference
 
@@ -44,7 +44,7 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ### License
 
-- [ ] **LIC-01**: README includes license section
+- [x] **LIC-01**: README includes license section
 
 ## Future Requirements
 
@@ -67,11 +67,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OVVW-01 | Phase 18 | Pending |
-| OVVW-02 | Phase 18 | Pending |
-| INST-01 | Phase 18 | Pending |
-| INST-02 | Phase 18 | Pending |
-| LIC-01 | Phase 18 | Pending |
+| OVVW-01 | Phase 18 | Complete |
+| OVVW-02 | Phase 18 | Complete |
+| INST-01 | Phase 18 | Complete |
+| INST-02 | Phase 18 | Complete |
+| LIC-01 | Phase 18 | Complete |
 | API-01 | Phase 19 | Pending |
 | API-02 | Phase 19 | Pending |
 | API-03 | Phase 19 | Pending |
