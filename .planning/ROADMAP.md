@@ -104,7 +104,10 @@ Plans:
   1. README shows `jsonata-paths` argument mode with a runnable example command and its output
   2. README shows `jsonata-paths` stdin/pipe mode with a runnable example (e.g., echo piped to jsonata-paths) and its output
   3. README includes a visible shell quoting note explaining that `$` in JSONata expressions requires single quotes to prevent shell variable expansion
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 20-01-PLAN.md -- Write CLI Usage content: argument mode, stdin mode, shell quoting note, and error behavior
 
 ### Phase 21: Progressive Examples
 **Goal**: A developer can see how the analyzer handles increasingly complex JSONata patterns across all three confidence levels
@@ -153,6 +156,6 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 17. CI Build Step | v1.1.2 | 1/1 | Complete | 2026-03-06 |
 | 18. Overview and Installation | 1/1 | Complete    | 2026-03-09 | - |
 | 19. API Reference | 1/1 | Complete    | 2026-03-09 | - |
-| 20. CLI Documentation | v1.1.3 | 0/0 | Not started | - |
+| 20. CLI Documentation | v1.1.3 | 0/1 | Planned | - |
 | 21. Progressive Examples | v1.1.3 | 0/0 | Not started | - |
 | 22. Architecture and Limitations | v1.1.3 | 0/0 | Not started | - |
