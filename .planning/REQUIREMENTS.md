@@ -25,9 +25,9 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ### CLI
 
-- [ ] **CLI-01**: README documents `jsonata-paths` argument mode with example
-- [ ] **CLI-02**: README documents `jsonata-paths` stdin/pipe mode with example
-- [ ] **CLI-03**: README includes shell quoting note for `$` in JSONata expressions
+- [x] **CLI-01**: README documents `jsonata-paths` argument mode with example
+- [x] **CLI-02**: README documents `jsonata-paths` stdin/pipe mode with example
+- [x] **CLI-03**: README includes shell quoting note for `$` in JSONata expressions
 
 ### Examples
 
@@ -75,9 +75,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | API-01 | Phase 19 | Complete |
 | API-02 | Phase 19 | Complete |
 | API-03 | Phase 19 | Complete |
-| CLI-01 | Phase 20 | Pending |
-| CLI-02 | Phase 20 | Pending |
-| CLI-03 | Phase 20 | Pending |
+| CLI-01 | Phase 20 | Complete |
+| CLI-02 | Phase 20 | Complete |
+| CLI-03 | Phase 20 | Complete |
 | EXMP-01 | Phase 21 | Pending |
 | ARCH-01 | Phase 22 | Pending |
 | ARCH-02 | Phase 22 | Pending |

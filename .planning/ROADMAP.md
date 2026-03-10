@@ -63,7 +63,7 @@ Full details: `milestones/v1.1.2-ROADMAP.md`
 
 - [x] **Phase 18: Overview and Installation** - README opens with value proposition, quick example, install commands, ESM notice, and license (completed 2026-03-09)
 - [x] **Phase 19: API Reference** - README documents extractPaths function, PathResult interface, and Confidence type with examples (completed 2026-03-09)
-- [ ] **Phase 20: CLI Documentation** - README documents jsonata-paths argument and stdin modes with shell quoting guidance
+- [x] **Phase 20: CLI Documentation** - README documents jsonata-paths argument and stdin modes with shell quoting guidance (completed 2026-03-10)
 - [ ] **Phase 21: Progressive Examples** - README includes 3-5 worked examples demonstrating all confidence levels
 - [ ] **Phase 22: Architecture and Limitations** - README explains how the analyzer works and documents design decisions as limitations
 
@@ -104,7 +104,7 @@ Plans:
   1. README shows `jsonata-paths` argument mode with a runnable example command and its output
   2. README shows `jsonata-paths` stdin/pipe mode with a runnable example (e.g., echo piped to jsonata-paths) and its output
   3. README includes a visible shell quoting note explaining that `$` in JSONata expressions requires single quotes to prevent shell variable expansion
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 20-01-PLAN.md -- Write CLI Usage content: argument mode, stdin mode, shell quoting note, and error behavior
@@ -156,6 +156,6 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 17. CI Build Step | v1.1.2 | 1/1 | Complete | 2026-03-06 |
 | 18. Overview and Installation | 1/1 | Complete    | 2026-03-09 | - |
 | 19. API Reference | 1/1 | Complete    | 2026-03-09 | - |
-| 20. CLI Documentation | v1.1.3 | 0/1 | Planned | - |
+| 20. CLI Documentation | 1/1 | Complete   | 2026-03-10 | - |
 | 21. Progressive Examples | v1.1.3 | 0/0 | Not started | - |
 | 22. Architecture and Limitations | v1.1.3 | 0/0 | Not started | - |
