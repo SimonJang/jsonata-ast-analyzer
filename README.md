@@ -66,6 +66,42 @@ When a path matches multiple confidence levels, the highest priority wins: parti
 
 ## CLI Usage
 
+### Argument Mode
+
+Pass a JSONata expression as a quoted argument:
+
+```sh
+jsonata-paths 'account.name'
+```
+
+```json
+[{"path":"account.name","confidence":"static"}]
+```
+
+### Stdin Mode
+
+Pipe an expression through stdin for use in shell pipelines:
+
+```sh
+echo '$sum(orders.total)' | jsonata-paths
+```
+
+```json
+[{"path":"orders.total","confidence":"static"}]
+```
+
+> **Note:** JSONata uses `$` for built-in functions, so always wrap expressions in single quotes to prevent shell variable expansion.
+>
+> ```sh
+> # Correct
+> jsonata-paths '$sum(prices)'
+>
+> # Wrong -- bash expands $sum to an empty string
+> jsonata-paths "$sum(prices)"
+> ```
+
+Invalid expressions exit with code 1 and print the error to stderr.
+
 ## Examples
 
 ## How It Works
