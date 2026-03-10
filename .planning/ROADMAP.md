@@ -117,7 +117,10 @@ Plans:
   1. README includes 3-5 progressive examples that cover simple dot-path access (static), variable assignment tracing (static), filter predicates, dynamic/computed paths (dynamic), and parent operator or partial resolution (partial)
   2. Each example shows the JSONata expression input and the full extracted output including confidence annotations
   3. All three confidence levels (static, dynamic, partial) appear across the example set
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 21-01-PLAN.md -- Write 5 progressive worked examples under Examples heading with verified CLI output
 
 ### Phase 22: Architecture and Limitations
 **Goal**: A developer evaluating the tool deeply can understand how it works and what it intentionally does not do
@@ -157,5 +160,5 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 18. Overview and Installation | 1/1 | Complete    | 2026-03-09 | - |
 | 19. API Reference | 1/1 | Complete    | 2026-03-09 | - |
 | 20. CLI Documentation | 1/1 | Complete    | 2026-03-10 | - |
-| 21. Progressive Examples | v1.1.3 | 0/0 | Not started | - |
+| 21. Progressive Examples | v1.1.3 | 0/1 | Planned | - |
 | 22. Architecture and Limitations | v1.1.3 | 0/0 | Not started | - |
