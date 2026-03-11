@@ -64,7 +64,7 @@ Full details: `milestones/v1.1.2-ROADMAP.md`
 - [x] **Phase 18: Overview and Installation** - README opens with value proposition, quick example, install commands, ESM notice, and license (completed 2026-03-09)
 - [x] **Phase 19: API Reference** - README documents extractPaths function, PathResult interface, and Confidence type with examples (completed 2026-03-09)
 - [x] **Phase 20: CLI Documentation** - README documents jsonata-paths argument and stdin modes with shell quoting guidance (completed 2026-03-10)
-- [ ] **Phase 21: Progressive Examples** - README includes 3-5 worked examples demonstrating all confidence levels
+- [x] **Phase 21: Progressive Examples** - README includes 3-5 worked examples demonstrating all confidence levels (completed 2026-03-11)
 - [ ] **Phase 22: Architecture and Limitations** - README explains how the analyzer works and documents design decisions as limitations
 
 ## Phase Details
@@ -117,7 +117,7 @@ Plans:
   1. README includes 3-5 progressive examples that cover simple dot-path access (static), variable assignment tracing (static), filter predicates, dynamic/computed paths (dynamic), and parent operator or partial resolution (partial)
   2. Each example shows the JSONata expression input and the full extracted output including confidence annotations
   3. All three confidence levels (static, dynamic, partial) appear across the example set
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 21-01-PLAN.md -- Write 5 progressive worked examples under Examples heading with verified CLI output
@@ -160,5 +160,5 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 18. Overview and Installation | 1/1 | Complete    | 2026-03-09 | - |
 | 19. API Reference | 1/1 | Complete    | 2026-03-09 | - |
 | 20. CLI Documentation | 1/1 | Complete    | 2026-03-10 | - |
-| 21. Progressive Examples | v1.1.3 | 0/1 | Planned | - |
+| 21. Progressive Examples | 1/1 | Complete   | 2026-03-11 | - |
 | 22. Architecture and Limitations | v1.1.3 | 0/0 | Not started | - |

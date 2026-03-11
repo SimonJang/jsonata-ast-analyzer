@@ -31,7 +31,7 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ### Examples
 
-- [ ] **EXMP-01**: README includes 3-5 progressive examples demonstrating all three confidence levels across real usage patterns
+- [x] **EXMP-01**: README includes 3-5 progressive examples demonstrating all three confidence levels across real usage patterns
 
 ### Architecture
 
@@ -78,7 +78,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-01 | Phase 20 | Complete |
 | CLI-02 | Phase 20 | Complete |
 | CLI-03 | Phase 20 | Complete |
-| EXMP-01 | Phase 21 | Pending |
+| EXMP-01 | Phase 21 | Complete |
 | ARCH-01 | Phase 22 | Pending |
 | ARCH-02 | Phase 22 | Pending |
 | LMTS-01 | Phase 22 | Pending |
