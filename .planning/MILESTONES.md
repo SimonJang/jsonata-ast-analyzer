@@ -1,5 +1,26 @@
 # Milestones
 
+## v1.1.3 Documentation (Shipped: 2026-03-11)
+
+**Phases:** 5 | **Plans:** 5 | **Tasks:** 7
+**Source:** 4,531 LOC TypeScript (unchanged from v1.1.2) + 203-line README
+**Timeline:** 3 days (2026-03-09 → 2026-03-11)
+**Git range:** `docs(phase-18)` → `docs(phase-22)` (38 commits)
+
+**Delivered:** Comprehensive README.md documentation covering project overview, installation, API reference, CLI usage, progressive examples, architecture with ASCII pipeline diagram, and limitations framed as design decisions — all 15 requirements satisfied with zero gaps.
+
+**Key accomplishments:**
+1. README rewrite with value-first structure: one-liner, quick example showing hidden path discovery, pnpm/npm/yarn install with ESM-only notice, MIT license
+2. API Reference documenting extractPaths function, PathResult interface, and Confidence type with priority-ordered classification table
+3. CLI documentation with argument mode, stdin/pipe mode, and shell quoting callout for $ expressions
+4. 5 progressive worked examples covering all three confidence levels (static, dynamic, partial) with verified CLI output
+5. ASCII pipeline diagram showing parse → walk → dedupe → classify flow with over-approximation design principle
+6. Three limitations framed as deliberate design decisions: static-only analysis, dynamic path wildcards, parent operator approximation
+
+**Archives:** `milestones/v1.1.3-ROADMAP.md`, `milestones/v1.1.3-REQUIREMENTS.md`, `milestones/v1.1.3-MILESTONE-AUDIT.md`
+
+---
+
 ## v1.1.2 CI Fix (Shipped: 2026-03-06)
 
 **Phases:** 1 | **Plans:** 1 | **Tasks:** 2 | **Tests:** 294 (all passing)

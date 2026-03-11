@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A TypeScript/Node library and CLI tool that statically analyzes JSONata expression ASTs to extract all data paths being read from the source JSON object. Given any expression — including those with variable assignments, filter predicates, lambda functions, parent operators, higher-order functions, and dynamically computed paths — it produces a complete list of every leaf path the expression touches, each annotated with a confidence level. Validated by 294 tests (unit + integration) across 7 bug fix categories and 5 real-world scenario categories with zero known analyzer bugs.
+A TypeScript/Node library and CLI tool that statically analyzes JSONata expression ASTs to extract all data paths being read from the source JSON object. Given any expression — including those with variable assignments, filter predicates, lambda functions, parent operators, higher-order functions, and dynamically computed paths — it produces a complete list of every leaf path the expression touches, each annotated with a confidence level. Validated by 294 tests (unit + integration) across 7 bug fix categories and 5 real-world scenario categories with zero known analyzer bugs. Fully documented with comprehensive README covering API reference, CLI usage, progressive examples, and architecture overview.
 
 ## Core Value
 
@@ -37,23 +37,11 @@ Given any JSONata expression, accurately identify every data path read from the 
 - ✓ Array constructor sequential scope accumulation (1 bug fixed) — v1.1.1
 - ✓ All 14 BUG(v1.2) tests unskipped and passing with 80+ regression tests — v1.1.1
 - ✓ CI pipeline builds before testing so CLI round-trip tests pass — v1.1.2
+- ✓ Comprehensive README.md documentation (overview, install, API reference, CLI usage, examples, architecture, limitations) — v1.1.3
 
 ### Active
 
-- [ ] Comprehensive README.md documentation (overview, install, API reference, CLI usage, examples, architecture, limitations)
-
-## Current Milestone: v1.1.3 Documentation
-
-**Goal:** Add comprehensive developer documentation to the README.md
-
-**Target features:**
-- Project overview and what it does
-- Installation instructions
-- API reference (extractPaths, PathResult, Confidence)
-- CLI usage (jsonata-paths)
-- Usage examples with real JSONata expressions
-- How it works (architecture overview)
-- Limitations and design decisions
+(None — all requirements validated through v1.1.3)
 
 ### Out of Scope
 
@@ -67,13 +55,17 @@ Given any JSONata expression, accurately identify every data path read from the 
 - Non-standard JSONata extensions — platform-specific functions treated as opaque
 - Performance caching — premature; JSONata expressions are typically short
 - Incremental/streaming analysis — batch analysis is sufficient
+- Badges, TOC, Mermaid diagrams — user chose clean README content
+- Separate docs site (TypeDoc/Docusaurus) — API surface is 1 function + 2 types
+- Contributing guide — single-maintainer project
 
 ## Context
 
-Shipped v1.1.2 with 4,531 LOC TypeScript (1,189 source + 3,342 test).
+Shipped v1.1.3 with 4,531 LOC TypeScript (1,189 source + 3,342 test) and 203-line README.
 Tech stack: TypeScript, Node.js, `jsonata` parser, Vitest, tsup (ESM-only).
 294 tests (all passing, 0 skipped, 0 known bugs).
 CI pipeline: GitHub Actions with Node 20+22 matrix, pnpm, typecheck/build/test.
+README: overview, quick example, installation, API reference, CLI usage, 5 progressive examples, architecture diagram, limitations, license.
 
 Architecture: `parse()` adapter -> recursive `walkNode()` dispatcher -> `buildPathString()` -> `deriveConfidence()` -> `PathResult[]`
 
@@ -113,6 +105,9 @@ No known tech debt. All previously-documented BUG(v1.2) issues resolved.
 | Three-tier scope-aware filter | Empty scope (bare fields), focus-only scope, full scope distinguishes path types in walkFilterStages | ✓ Good — eliminates both double-prefix and predicate leak bugs |
 | Block-terminal base suppression | Block steps are pure projections; suppress base path to avoid redundant output | ✓ Good — correct semantics for `items.(expr)` patterns |
 | CI build-before-test ordering | Build step between typecheck and test ensures dist/ artifacts exist | ✓ Good — all 294 tests pass in CI including CLI round-trip |
+| Value-first README structure | One-liner + quick example before install shows value before commitment | ✓ Good — developer sees what library does in first 10 lines |
+| ASCII pipeline diagram | npm doesn't render Mermaid; ASCII art is universal across all renderers | ✓ Good — works on GitHub, npm, terminal |
+| Limitations as design decisions | Active voice framing ("the analyzer does X") not deficiency apologies | ✓ Good — communicates deliberate trade-offs with rationale |
 
 ---
-*Last updated: 2026-03-09 after v1.1.3 milestone started*
+*Last updated: 2026-03-11 after v1.1.3 milestone*

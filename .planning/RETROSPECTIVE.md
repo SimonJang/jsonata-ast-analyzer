@@ -167,6 +167,47 @@
 
 ---
 
+## Milestone: v1.1.3 — Documentation
+
+**Shipped:** 2026-03-11
+**Phases:** 5 | **Plans:** 5 | **Tasks:** 7
+
+### What Was Built
+- Comprehensive README.md documentation: overview, quick example, installation, API reference, CLI usage, 5 progressive examples, architecture with ASCII pipeline diagram, limitations as design decisions, license
+- 203-line README covering the full developer journey from "what is this?" to "how does it work internally?"
+- All 15 documentation requirements satisfied with zero gaps (confirmed by milestone audit)
+
+### What Worked
+- Value-first README structure: one-liner + quick example before install shows value before commitment — developer sees what the library does in first 10 lines
+- Phase-per-section approach: each README section got its own phase with focused requirements, preventing scope creep within sections
+- Verified CLI output in examples: every example was run against the actual CLI before inclusion, ensuring documentation accuracy
+- Research-first for each phase: reading existing README content and source code before writing prevented inconsistencies between docs and implementation
+- Zero-deviation execution: all 5 plans executed exactly as written with no auto-fixes needed
+
+### What Was Inefficient
+- ROADMAP.md plan checkboxes still show `[ ]` (unchecked) even though plans completed — cosmetic issue carried forward from v1.0
+- Progress table in ROADMAP.md has inconsistent column alignment for phases 18-22 (missing Milestone column value)
+- 38 commits for 5 plans of documentation work — high commit-to-content ratio due to GSD ceremony (context, research, validation, plan, execution, summary per phase)
+
+### Patterns Established
+- README section order: title, one-liner, Quick Example, Installation, API Reference, CLI Usage, Examples, How It Works, Limitations, License
+- Empty headings only for future phases — no "Coming soon" placeholders
+- ASCII pipeline diagrams for architecture visualization (npm-compatible, no Mermaid dependency)
+- Limitations framed as design decisions with bold heading + rationale sentence
+- Progressive examples ordered by complexity with each demonstrating a different confidence level
+
+### Key Lessons
+1. Documentation milestones benefit from the same phase-per-section discipline as code milestones — each section has clear requirements and verification criteria
+2. Verifying documentation examples against actual tool output prevents the "docs say X but tool does Y" problem
+3. A 5-phase documentation milestone can fully document a small library (1 function + 2 types + CLI) in 3 days
+
+### Cost Observations
+- Model mix: quality profile (opus for execution, sonnet for research/verification agents)
+- Sessions: ~4 sessions across 3 days
+- Notable: avg ~1.4 min/plan execution — fastest per-plan average of any milestone (documentation requires no test cycles)
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -177,6 +218,7 @@
 | v1.1 | ~3 | 6 | Integration test suite — established fixture-driven testing, BUG tracking, pre-verification |
 | v1.1.1 | 1 | 3 | Bug fix release — ascending risk ordering, BUG skip fixtures as instant acceptance criteria |
 | v1.1.2 | 1 | 1 | CI fix — single-line YAML change, fastest milestone |
+| v1.1.3 | ~4 | 5 | Documentation — phase-per-section, verified examples, zero deviations |
 
 ### Cumulative Quality
 
@@ -186,6 +228,7 @@
 | v1.1 | 200 | 1,116 | 2,394 | 14 documented bugs (BUG(v1.2)) |
 | v1.1.1 | 294 | 1,189 | 3,358 | 0 known bugs |
 | v1.1.2 | 294 | 1,189 | 3,342 | 0 known bugs, CI fixed |
+| v1.1.3 | 294 | 1,189 | 3,342 | 0 known bugs, fully documented |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -194,3 +237,4 @@
 3. Pre-verifying expressions before writing test fixtures eliminates the debugging cycle (v1.1)
 4. Documenting bugs as skipped tests with correct expected output creates executable acceptance criteria (v1.1 -> v1.1.1: all 14 skips became instant acceptance tests)
 5. Ascending regression risk ordering for bug fixes builds stable base for coupled changes (v1.1.1)
+6. Documentation milestones benefit from phase-per-section discipline with verified examples against actual tool output (v1.1.3)
