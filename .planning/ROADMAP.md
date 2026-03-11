@@ -65,7 +65,7 @@ Full details: `milestones/v1.1.2-ROADMAP.md`
 - [x] **Phase 19: API Reference** - README documents extractPaths function, PathResult interface, and Confidence type with examples (completed 2026-03-09)
 - [x] **Phase 20: CLI Documentation** - README documents jsonata-paths argument and stdin modes with shell quoting guidance (completed 2026-03-10)
 - [x] **Phase 21: Progressive Examples** - README includes 3-5 worked examples demonstrating all confidence levels (completed 2026-03-11)
-- [ ] **Phase 22: Architecture and Limitations** - README explains how the analyzer works and documents design decisions as limitations
+- [x] **Phase 22: Architecture and Limitations** - README explains how the analyzer works and documents design decisions as limitations (completed 2026-03-11)
 
 ## Phase Details
 
@@ -130,7 +130,7 @@ Plans:
   1. README includes a "How it works" section with an ASCII pipeline diagram showing the flow from expression string through parse, walk, extract, classify to PathResult array
   2. README explains the over-approximation design principle: the analyzer reports a superset of actual paths rather than risk missing any
   3. README documents limitations framed as deliberate design decisions (static-only analysis, wildcard injection for dynamic paths, parent operator approximation) rather than deficiencies
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 22-01-PLAN.md -- Write How It Works (pipeline diagram, stage descriptions, over-approximation) and Limitations (three design decisions)
@@ -164,4 +164,4 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 19. API Reference | 1/1 | Complete    | 2026-03-09 | - |
 | 20. CLI Documentation | 1/1 | Complete    | 2026-03-10 | - |
 | 21. Progressive Examples | 1/1 | Complete    | 2026-03-11 | - |
-| 22. Architecture and Limitations | v1.1.3 | 0/1 | Not started | - |
+| 22. Architecture and Limitations | 1/1 | Complete   | 2026-03-11 | - |

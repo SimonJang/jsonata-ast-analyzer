@@ -35,12 +35,12 @@ Requirements for documentation milestone. Each maps to roadmap phases.
 
 ### Architecture
 
-- [ ] **ARCH-01**: README includes a "How it works" section with ASCII pipeline diagram showing expression -> parse -> walk -> extract -> classify flow
-- [ ] **ARCH-02**: README explains the over-approximation design principle (superset of actual paths)
+- [x] **ARCH-01**: README includes a "How it works" section with ASCII pipeline diagram showing expression -> parse -> walk -> extract -> classify flow
+- [x] **ARCH-02**: README explains the over-approximation design principle (superset of actual paths)
 
 ### Limitations
 
-- [ ] **LMTS-01**: README documents limitations framed as design decisions (static-only, over-approximation, dynamic path wildcards)
+- [x] **LMTS-01**: README documents limitations framed as design decisions (static-only, over-approximation, dynamic path wildcards)
 
 ### License
 
@@ -79,9 +79,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-02 | Phase 20 | Complete |
 | CLI-03 | Phase 20 | Complete |
 | EXMP-01 | Phase 21 | Complete |
-| ARCH-01 | Phase 22 | Pending |
-| ARCH-02 | Phase 22 | Pending |
-| LMTS-01 | Phase 22 | Pending |
+| ARCH-01 | Phase 22 | Complete |
+| ARCH-02 | Phase 22 | Complete |
+| LMTS-01 | Phase 22 | Complete |
 
 **Coverage:**
 - v1.1.3 requirements: 15 total
