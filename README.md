@@ -172,6 +172,24 @@ const paths = extractPaths(
 
 ## How It Works
 
+```
+expression string → parse → walk → dedupe → classify → PathResult[]
+                      │       │       │         │
+                   JSONata  recursive  Set    path string
+                   parser   traversal  dedup  → confidence
+                   → AST    → raw paths
+```
+
+**Parse** -- Delegates to the official JSONata parser (the `jsonata` package) to produce an AST. The analyzer does not reimplement parsing; it consumes the same syntax tree that JSONata itself uses for evaluation.
+
+**Walk** -- Recursively traverses the AST, tracking variable assignments across scopes to resolve where data actually comes from. When a variable like `$x` appears in a path, the walker traces it back to the expression that assigned it and reports the underlying data path. This scope-aware traversal also handles filter predicates, sorting expressions, and function arguments -- surfacing paths that a naive tree walk would miss.
+
+**Dedupe** -- Removes duplicate paths using Set-based deduplication. Complex expressions often reference the same data path through multiple code paths; the output contains each unique path exactly once.
+
+**Classify** -- Annotates each unique path with a confidence level: `static` when every segment is fully resolved, `dynamic` when the path contains a `[*]` wildcard from an unresolvable variable in bracket position, or `partial` when the path contains a `%` parent marker whose target depends on runtime context.
+
+The analyzer is designed to over-approximate: it reports a superset of the paths that may be accessed at runtime. Both branches of a conditional are walked, and unresolvable variables produce wildcards rather than being silently omitted. This is a deliberate trade-off -- false positives (extra paths reported) are safe for downstream consumers that use path lists for data dependency tracking, while false negatives (missed paths) could silently break those consumers.
+
 ## Limitations
 
 ## License
