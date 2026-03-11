@@ -104,6 +104,72 @@ Invalid expressions exit with code 1 and print the error to stderr.
 
 ## Examples
 
+### Simple property access
+
+A straightforward nested property lookup -- the most common case.
+
+```javascript
+import { extractPaths } from "jsonata-ast-analyzer";
+
+const paths = extractPaths('customer.name');
+// [{ path: "customer.name", confidence: "static" }]
+```
+
+### Variable assignment
+
+The analyzer traces through variable bindings to find the real source paths.
+
+```javascript
+const paths = extractPaths(
+  '($addr := customer.address; $addr.city & ", " & $addr.state)'
+);
+// [
+//   { path: "customer.address",       confidence: "static" },
+//   { path: "customer.address.city",  confidence: "static" },
+//   { path: "customer.address.state", confidence: "static" }
+// ]
+```
+
+### Filter predicates
+
+Paths hidden inside filter conditions are extracted alongside the output path.
+
+```javascript
+const paths = extractPaths('products[price > 50 and inStock].name');
+// [
+//   { path: "products.name",    confidence: "static" },
+//   { path: "products.price",   confidence: "static" },
+//   { path: "products.inStock", confidence: "static" }
+// ]
+```
+
+### Dynamic computed path
+
+An unbound variable in bracket position produces a `[*]` wildcard -- the analyzer knows a field is accessed but not which one.
+
+```javascript
+const paths = extractPaths('inventory[$category].quantity');
+// [
+//   { path: "inventory.quantity", confidence: "static" },
+//   { path: "inventory[*]",      confidence: "dynamic" }
+// ]
+```
+
+### Parent operator
+
+The parent operator (`%`) navigates up to the enclosing context, producing `partial` confidence alongside `static` paths.
+
+```javascript
+const paths = extractPaths(
+  'orders.items.{"itemName": name, "orderDate": %.date}'
+);
+// [
+//   { path: "orders.items",        confidence: "static" },
+//   { path: "orders.items.name",   confidence: "static" },
+//   { path: "orders.items.%.date", confidence: "partial" }
+// ]
+```
+
 ## How It Works
 
 ## Limitations
