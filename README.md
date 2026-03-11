@@ -192,6 +192,12 @@ The analyzer is designed to over-approximate: it reports a superset of the paths
 
 ## Limitations
 
+**Static analysis only** -- The analyzer works from the expression text alone, without evaluating it or requiring sample input data. This means it cannot resolve values that depend on runtime state, but it can run anywhere without a live environment.
+
+**Dynamic path wildcards** -- When a variable in bracket position cannot be statically resolved, the analyzer emits a `[*]` wildcard segment and marks the path as `dynamic`. This acknowledges that a field is accessed while signaling that the exact field name depends on runtime data.
+
+**Parent operator approximation** -- The parent operator (`%`) navigates to an enclosing context that is only fully determined at runtime. The analyzer preserves `%` as a literal path segment and marks the result as `partial`, recording the structural relationship without claiming to know the exact target.
+
 ## License
 
 MIT
