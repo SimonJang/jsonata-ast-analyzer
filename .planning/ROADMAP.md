@@ -130,7 +130,10 @@ Plans:
   1. README includes a "How it works" section with an ASCII pipeline diagram showing the flow from expression string through parse, walk, extract, classify to PathResult array
   2. README explains the over-approximation design principle: the analyzer reports a superset of actual paths rather than risk missing any
   3. README documents limitations framed as deliberate design decisions (static-only analysis, wildcard injection for dynamic paths, parent operator approximation) rather than deficiencies
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 22-01-PLAN.md -- Write How It Works (pipeline diagram, stage descriptions, over-approximation) and Limitations (three design decisions)
 
 ## Progress
 
@@ -161,4 +164,4 @@ Phases execute in numeric order: 18 -> 19 -> 20 -> 21 -> 22
 | 19. API Reference | 1/1 | Complete    | 2026-03-09 | - |
 | 20. CLI Documentation | 1/1 | Complete    | 2026-03-10 | - |
 | 21. Progressive Examples | 1/1 | Complete    | 2026-03-11 | - |
-| 22. Architecture and Limitations | v1.1.3 | 0/0 | Not started | - |
+| 22. Architecture and Limitations | v1.1.3 | 0/1 | Not started | - |
