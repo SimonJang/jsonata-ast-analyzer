@@ -31,7 +31,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.30.3",
   "dependencies": {
-    "jsonata": "2.1.0"
+    "jsonata": "2.2.1"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
