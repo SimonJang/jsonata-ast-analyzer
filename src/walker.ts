@@ -25,7 +25,9 @@ import {
   childScope,
   bindVariable,
   bindLambda,
+  bindPartial,
   resolveLambda,
+  resolvePartial,
   resolveVariable,
 } from "./scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
@@ -221,8 +223,9 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
     // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
     const funcStep = node.steps[funcStepIndex] as FunctionNode;
-    if (funcStep.arguments.length > 0) {
-      const firstArgPaths = walkNode(funcStep.arguments[0], scope);
+    const resultBasePaths = getFunctionResultBasePaths(funcStep, scope);
+    if (resultBasePaths.length > 0) {
+      const firstArgPaths = resultBasePaths;
       if (firstArgPaths.length > 0) {
         paths.push(...prefixPaths(firstArgPaths[0], [basePath]));
       }
@@ -470,6 +473,7 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
   for (const expr of node.expressions) {
     if (expr.type === "bind") {
       const bindNode = expr as BindNode;
+      const closureScope = currentScope;
       const rhsPaths = walkNode(bindNode.rhs, currentScope);
       paths.push(...rhsPaths);
       currentScope = bindVariable(
@@ -484,6 +488,14 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
           currentScope,
           bindNode.lhs.value,
           bindNode.rhs as LambdaNode,
+          closureScope,
+        );
+      } else if (bindNode.rhs.type === "partial") {
+        currentScope = bindPartial(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as PartialNode,
+          closureScope,
         );
       }
     } else if (expr.type === "block") {
@@ -532,9 +544,15 @@ function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
   return node.entries.flatMap(([_key, val]) => walkNode(val, scope));
 }
 
-/** Partial applications are function values; keep existing extraction behavior. */
-function walkPartial(_node: PartialNode, _scope: ScopeTracker): string[] {
-  return [];
+function isPlaceholder(node: AstNode): boolean {
+  return node.type === "operator" && (node as { value?: unknown }).value === "?";
+}
+
+/** Extract read effects from bound partial-application arguments. */
+function walkPartial(node: PartialNode, scope: ScopeTracker): string[] {
+  return node.arguments.flatMap((arg) =>
+    isPlaceholder(arg) ? [] : walkNode(arg, scope),
+  );
 }
 
 /**
@@ -639,9 +657,14 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
   }
 
   // Step 2: Check if this is a custom function call (lambda bound in scope)
-  const lambdaNode = resolveLambda(scope, funcName);
-  if (lambdaNode) {
-    return walkCustomFunctionCall(lambdaNode, args, scope);
+  const lambdaBinding = resolveLambda(scope, funcName);
+  if (lambdaBinding) {
+    return walkCustomFunctionCall(lambdaBinding, args, scope);
+  }
+
+  const partialBinding = resolvePartial(scope, funcName);
+  if (partialBinding) {
+    return walkPartialCall(partialBinding, args, scope);
   }
 
   // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
@@ -826,16 +849,17 @@ function walkLambdaWithBindings(
  * -> combined with call-site arg paths: ["account", "account.name"]
  */
 function walkCustomFunctionCall(
-  lambda: LambdaNode,
+  binding: NonNullable<ReturnType<typeof resolveLambda>>,
   callArgs: AstNode[],
-  scope: ScopeTracker,
+  callScope: ScopeTracker,
 ): string[] {
+  const { lambda, scope } = binding;
   const paths: string[] = [];
 
   // Extract paths from all call-site arguments
   const argPathSets: string[][] = [];
   for (const arg of callArgs) {
-    const argPaths = walkNode(arg, scope);
+    const argPaths = walkNode(arg, callScope);
     paths.push(...argPaths);
     argPathSets.push(argPaths);
   }
@@ -852,6 +876,63 @@ function walkCustomFunctionCall(
   paths.push(...walkNode(lambda.body, lambdaScope));
 
   return paths;
+}
+
+function applyPartialArguments(
+  partial: PartialNode,
+  callArgs: AstNode[],
+): AstNode[] {
+  const args: AstNode[] = [];
+  let callArgIndex = 0;
+
+  for (const partialArg of partial.arguments) {
+    if (isPlaceholder(partialArg)) {
+      if (callArgIndex < callArgs.length) {
+        args.push(callArgs[callArgIndex]);
+        callArgIndex++;
+      }
+    } else {
+      args.push(partialArg);
+    }
+  }
+
+  args.push(...callArgs.slice(callArgIndex));
+  return args;
+}
+
+function walkPartialCall(
+  binding: NonNullable<ReturnType<typeof resolvePartial>>,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): string[] {
+  const boundPaths = walkPartial(binding.partial, binding.scope);
+  const callPaths = callArgs.flatMap((arg) => walkNode(arg, callScope));
+  const appliedFunction: FunctionNode = {
+    type: "function",
+    value: "(",
+    position: binding.partial.position,
+    procedure: binding.partial.procedure,
+    arguments: applyPartialArguments(binding.partial, callArgs),
+  };
+
+  return [
+    ...boundPaths,
+    ...callPaths,
+    ...walkFunction(appliedFunction, binding.scope),
+  ];
+}
+
+function getFunctionResultBasePaths(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): string[] {
+  const partialBinding = resolvePartial(scope, node.procedure.value);
+  if (partialBinding) {
+    const args = applyPartialArguments(partialBinding.partial, node.arguments);
+    return args.length > 0 ? walkNode(args[0], partialBinding.scope) : [];
+  }
+
+  return node.arguments.length > 0 ? walkNode(node.arguments[0], scope) : [];
 }
 
 /**

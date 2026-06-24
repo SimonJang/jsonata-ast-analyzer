@@ -1,4 +1,14 @@
-import type { LambdaNode } from "./types.js";
+import type { LambdaNode, PartialNode } from "./types.js";
+
+export interface LambdaBinding {
+  readonly lambda: LambdaNode;
+  readonly scope: ScopeTracker;
+}
+
+export interface PartialBinding {
+  readonly partial: PartialNode;
+  readonly scope: ScopeTracker;
+}
 
 /**
  * Immutable scope chain for variable resolution.
@@ -10,13 +20,15 @@ import type { LambdaNode } from "./types.js";
  */
 export interface ScopeTracker {
   readonly bindings: ReadonlyMap<string, readonly string[]>;
-  readonly lambdas: ReadonlyMap<string, LambdaNode>;
+  readonly lambdas: ReadonlyMap<string, LambdaBinding>;
+  readonly partials: ReadonlyMap<string, PartialBinding>;
   readonly parent: ScopeTracker | null;
 }
 
 const EMPTY_SCOPE: ScopeTracker = {
   bindings: new Map(),
   lambdas: new Map(),
+  partials: new Map(),
   parent: null,
 };
 
@@ -27,7 +39,7 @@ export function createScope(): ScopeTracker {
 
 /** Create a child scope inheriting from parent. */
 export function childScope(parent: ScopeTracker): ScopeTracker {
-  return { bindings: new Map(), lambdas: new Map(), parent };
+  return { bindings: new Map(), lambdas: new Map(), partials: new Map(), parent };
 }
 
 /**
@@ -42,7 +54,12 @@ export function bindVariable(
 ): ScopeTracker {
   const newBindings = new Map(scope.bindings);
   newBindings.set(name, paths);
-  return { bindings: newBindings, lambdas: scope.lambdas, parent: scope.parent };
+  return {
+    bindings: newBindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    parent: scope.parent,
+  };
 }
 
 /**
@@ -54,10 +71,32 @@ export function bindLambda(
   scope: ScopeTracker,
   name: string,
   lambda: LambdaNode,
+  closureScope: ScopeTracker = scope,
 ): ScopeTracker {
   const newLambdas = new Map(scope.lambdas);
-  newLambdas.set(name, lambda);
-  return { bindings: scope.bindings, lambdas: newLambdas, parent: scope.parent };
+  newLambdas.set(name, { lambda, scope: closureScope });
+  return {
+    bindings: scope.bindings,
+    lambdas: newLambdas,
+    partials: scope.partials,
+    parent: scope.parent,
+  };
+}
+
+export function bindPartial(
+  scope: ScopeTracker,
+  name: string,
+  partial: PartialNode,
+  closureScope: ScopeTracker = scope,
+): ScopeTracker {
+  const newPartials = new Map(scope.partials);
+  newPartials.set(name, { partial, scope: closureScope });
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: newPartials,
+    parent: scope.parent,
+  };
 }
 
 /**
@@ -67,11 +106,25 @@ export function bindLambda(
 export function resolveLambda(
   scope: ScopeTracker,
   name: string,
-): LambdaNode | null {
+): LambdaBinding | null {
   let current: ScopeTracker | null = scope;
   while (current !== null) {
     if (current.lambdas.has(name)) {
       return current.lambdas.get(name)!;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+export function resolvePartial(
+  scope: ScopeTracker,
+  name: string,
+): PartialBinding | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.partials.has(name)) {
+      return current.partials.get(name)!;
     }
     current = current.parent;
   }
