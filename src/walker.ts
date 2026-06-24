@@ -99,11 +99,57 @@ function prefixPaths(prefix: string, paths: string[]): string[] {
   return paths.map((p) => (p ? `${prefix}.${p}` : prefix));
 }
 
+function walkContextExpression(
+  expr: AstNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+  stageVariables: ReadonlySet<string> = new Set(),
+): string[] {
+  const localPaths = walkNode(expr, childScope(createScope()));
+  const paths = prefixPaths(contextPrefix, localPaths);
+  const localSet = new Set(localPaths);
+
+  const variables = collectVariableNames(expr);
+  const hasStageVariable = [...variables].some((name) => stageVariables.has(name));
+  if (hasStageVariable) {
+    for (const scopedPath of walkNode(expr, scope)) {
+      if (!localSet.has(scopedPath)) paths.push(scopedPath);
+    }
+  }
+
+  return paths;
+}
+
+function collectVariableNames(node: AstNode, names = new Set<string>()): Set<string> {
+  if (node.type === "variable") {
+    names.add((node as VariableNode).value);
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "source") continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === "object") {
+          collectVariableNames(item as AstNode, names);
+        }
+      }
+    } else if (value && typeof value === "object") {
+      collectVariableNames(value as AstNode, names);
+    }
+  }
+
+  return names;
+}
+
 /**
  * Extract paths from a path node's steps, handling variable steps,
  * filter stages on name steps, sort steps, and group-by expressions.
  */
 function walkPath(node: PathNode, scope: ScopeTracker): string[] {
+  let stageScope = childScope(scope);
+  const stageVariables = new Set<string>();
+  const nonPathVariables = new Set<string>();
+
   // Check if any step is a variable (e.g., $x.name)
   const varStepIndex = node.steps.findIndex((s) => s.type === "variable");
 
@@ -118,12 +164,23 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const predicates = varStep.predicate;
       if (predicates && predicates.length > 0) {
         for (const resolvedPath of resolved) {
+          let predicateScope = scope;
+          const predicateStageVariables = new Set<string>();
+          if (varStep.focusBinding) {
+            predicateScope = bindVariable(
+              childScope(scope),
+              varStep.focusBinding.name,
+              [resolvedPath],
+            );
+            predicateStageVariables.add(varStep.focusBinding.name);
+          }
           paths.push(
             ...walkFilterStages(
               predicates,
               resolvedPath,
-              scope,
-              varStep.focusBinding?.name,
+              predicateScope,
+              new Set(),
+              predicateStageVariables,
             ),
           );
         }
@@ -180,31 +237,47 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   // Iterate steps and handle filter stages on name steps, sort steps
   for (let i = 0; i < node.steps.length; i++) {
     const step = node.steps[i];
+    const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
 
     if (step.type === "name") {
       const nameStep = step as NameNode;
+      if (nameStep.focusBinding) {
+        stageScope = bindVariable(
+          stageScope,
+          nameStep.focusBinding.name,
+          contextPrefix ? [contextPrefix] : [],
+        );
+        stageVariables.add(nameStep.focusBinding.name);
+      }
+      if (nameStep.indexBinding) {
+        stageScope = bindVariable(stageScope, nameStep.indexBinding.name, []);
+        nonPathVariables.add(nameStep.indexBinding.name);
+      }
       if (nameStep.stages && nameStep.stages.length > 0) {
-        const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
         paths.push(
           ...walkFilterStages(
             nameStep.stages!,
             contextPrefix,
-            scope,
-            nameStep.focusBinding?.name,
+            stageScope,
+            nonPathVariables,
+            stageVariables,
           ),
         );
       }
     } else if (step.type === "sort") {
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
-      paths.push(...walkSortTerms(step as SortNode, contextPrefix, scope));
+      paths.push(
+        ...walkSortTerms(step as SortNode, contextPrefix, stageScope, stageVariables),
+      );
     } else if (step.type === "object") {
       // Object constructor step in path: orders.items.{"key": val}
       // Walk value expressions and prefix with path up to this step
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const objectStep = step as ObjectNode;
       for (const [_key, val] of objectStep.entries) {
-        const valPaths = walkNode(val, scope);
-        paths.push(...prefixPaths(contextPrefix, valPaths));
+        paths.push(
+          ...walkContextExpression(val, contextPrefix, stageScope, stageVariables),
+        );
       }
     } else if (step.type === "block") {
       // Block expression step in path: orders.items.(expr)
@@ -212,19 +285,20 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const blockStep = step as BlockNode;
       for (const expr of blockStep.expressions) {
-        const exprPaths = walkNode(expr, scope);
-        paths.push(...prefixPaths(contextPrefix, exprPaths));
+        paths.push(
+          ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables),
+        );
       }
     } else if (step.type === "function") {
       // Function call step (e.g., $lookup(obj, key) in $lookup(obj, key).field)
       // Walk the function call to extract argument paths
-      paths.push(...walkFunction(step as FunctionNode, scope));
+      paths.push(...walkFunction(step as FunctionNode, stageScope));
     }
   }
 
   // Handle group-by on the PathNode (node.group)
   if (node.group) {
-    paths.push(...walkGroupBy(node, scope));
+    paths.push(...walkGroupBy(node, stageScope, stageVariables));
   }
 
   return paths;
@@ -239,11 +313,18 @@ function walkSortTerms(
   sortNode: SortNode,
   contextPrefix: string,
   scope: ScopeTracker,
+  stageVariables: ReadonlySet<string> = new Set(),
 ): string[] {
   const paths: string[] = [];
   for (const term of sortNode.terms) {
-    const termPaths = walkNode(term.expression, scope);
-    paths.push(...prefixPaths(contextPrefix, termPaths));
+    paths.push(
+      ...walkContextExpression(
+        term.expression,
+        contextPrefix,
+        scope,
+        stageVariables,
+      ),
+    );
   }
   return paths;
 }
@@ -253,14 +334,22 @@ function walkSortTerms(
  * Both key and value expressions are prefixed with the base path of the
  * PathNode (computed from all steps, with sort steps skipped by buildPathString).
  */
-function walkGroupBy(node: PathNode, scope: ScopeTracker): string[] {
+function walkGroupBy(
+  node: PathNode,
+  scope: ScopeTracker,
+  stageVariables: ReadonlySet<string> = new Set(),
+): string[] {
   const paths: string[] = [];
   const groupBasePath = buildPathString(node.steps) ?? "";
   const groupNode = node.group;
   if (groupNode) {
     for (const [keyExpr, valExpr] of groupNode.entries) {
-      paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
-      paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
+      paths.push(
+        ...walkContextExpression(keyExpr, groupBasePath, scope, stageVariables),
+      );
+      paths.push(
+        ...walkContextExpression(valExpr, groupBasePath, scope, stageVariables),
+      );
     }
   }
   return paths;
@@ -275,21 +364,10 @@ function walkFilterStages(
   stages: AstNode[],
   contextPrefix: string,
   scope: ScopeTracker,
-  focus?: string,
+  nonPathVariables: ReadonlySet<string> = new Set(),
+  stageVariables: ReadonlySet<string> = new Set(),
 ): string[] {
   const paths: string[] = [];
-
-  // Create child scope for filter context
-  let filterScope = childScope(scope);
-
-  // Bind focus variable if present (@$v)
-  if (focus) {
-    filterScope = bindVariable(
-      filterScope,
-      focus,
-      contextPrefix ? [contextPrefix] : [],
-    );
-  }
 
   for (const stage of stages) {
     if (stage.type !== "filter") continue;
@@ -302,43 +380,22 @@ function walkFilterStages(
     // ADV-02: pure $variable in bracket position with no resolved data paths -> dynamic wildcard
     if (filterStage.expr.type === "variable") {
       const varNode = filterStage.expr as VariableNode;
-      const resolved = resolveVariable(filterScope, varNode.value);
+      const resolved = resolveVariable(scope, varNode.value);
+      if (nonPathVariables.has(varNode.value)) continue;
       if (!resolved || resolved.length === 0) {
         paths.push(`${contextPrefix}[*]`);
         continue; // [*] replaces predicate walk -- do not also walk the predicate
       }
     }
 
-    // Two-pass scope-aware prefixing:
-    // 1. Walk with empty scope (no variables) -> bare field names only
-    // 2. Walk with focus-only scope (focus binding, no parent vars) -> bare + focus-resolved
-    // Bare field names (from empty walk) need context prefixing.
-    // Focus-variable-resolved paths (in focus walk but not empty) are already
-    // absolute from focus binding to contextPrefix -- emit as-is.
-    // External-variable-resolved paths are NOT emitted here -- they were
-    // already captured at the variable binding site.
-    const emptyScope = childScope(createScope());
-    const localPaths = walkNode(filterStage.expr, emptyScope);
-
-    // Prefix local field paths (bare field names need context)
-    paths.push(...prefixPaths(contextPrefix, localPaths));
-
-    // If focus variable present, also emit focus-resolved paths (not in empty walk)
-    if (focus) {
-      let focusOnlyScope = childScope(createScope());
-      focusOnlyScope = bindVariable(
-        focusOnlyScope,
-        focus,
-        contextPrefix ? [contextPrefix] : [],
-      );
-      const focusPaths = walkNode(filterStage.expr, focusOnlyScope);
-      const localSet = new Set(localPaths);
-      for (const fp of focusPaths) {
-        if (!localSet.has(fp)) {
-          paths.push(fp); // focus-resolved, already absolute
-        }
-      }
-    }
+    paths.push(
+      ...walkContextExpression(
+        filterStage.expr,
+        contextPrefix,
+        scope,
+        stageVariables,
+      ),
+    );
   }
 
   return paths;
@@ -499,12 +556,23 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
     const predicates = node.predicate;
     if (predicates && predicates.length > 0) {
       for (const resolvedPath of resolved) {
+        let predicateScope = scope;
+        const predicateStageVariables = new Set<string>();
+        if (node.focusBinding) {
+          predicateScope = bindVariable(
+            childScope(scope),
+            node.focusBinding.name,
+            [resolvedPath],
+          );
+          predicateStageVariables.add(node.focusBinding.name);
+        }
         paths.push(
           ...walkFilterStages(
             predicates,
             resolvedPath,
-            scope,
-            node.focusBinding?.name,
+            predicateScope,
+            new Set(),
+            predicateStageVariables,
           ),
         );
       }
@@ -515,8 +583,8 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
       const groupNode = node.group;
       const groupBasePath = resolved.length > 0 ? resolved[0] : "";
       for (const [keyExpr, valExpr] of groupNode.entries) {
-        paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
-        paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
+        paths.push(...walkContextExpression(keyExpr, groupBasePath, scope));
+        paths.push(...walkContextExpression(valExpr, groupBasePath, scope));
       }
     }
 
