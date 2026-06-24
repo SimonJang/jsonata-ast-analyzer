@@ -282,6 +282,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           ...walkContextExpression(val, contextPrefix, stageScope, stageVariables),
         );
       }
+    } else if (step.type === "array") {
+      const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const arrayStep = step as ArrayNode;
+      for (const expr of arrayStep.expressions) {
+        paths.push(
+          ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables),
+        );
+      }
     } else if (step.type === "block") {
       // Block expression step in path: orders.items.(expr)
       // Walk all expressions and prefix with path up to this step
