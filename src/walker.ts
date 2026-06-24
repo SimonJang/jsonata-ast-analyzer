@@ -432,7 +432,8 @@ function isNumericIndex(expr: AstNode): boolean {
  * Pattern is walked for base paths.
  * Update values are walked via walkNode (reusing walkUnary for "{" nodes)
  * and prefixed with the pattern path.
- * Delete clause contains string literals only -- no paths extracted.
+ * Delete clauses usually contain string literals, but dynamic delete
+ * expressions can read input paths and are walked like update values.
  */
 function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
   const paths: string[] = [];
@@ -449,7 +450,11 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
   }
 
   // Delete clause: string literals only, no paths extracted
-  // (intentionally not walked)
+  if (node.delete) {
+    const patternPrefix = patternPaths.length > 0 ? patternPaths[0] : "";
+    const deletePaths = walkNode(node.delete, scope);
+    paths.push(...prefixPaths(patternPrefix, deletePaths));
+  }
 
   return paths;
 }
@@ -976,6 +981,9 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
       lambdaScope = bindVariable(lambdaScope, lambda.arguments[0].value, lhsPaths);
     }
     paths.push(...walkNode(lambda.body, lambdaScope));
+  } else if (node.rhs.type === "transform") {
+    const transformPaths = walkTransform(node.rhs as TransformNode, scope);
+    paths.push(...prefixPaths(lhsPaths[0] ?? "", transformPaths));
   } else {
     // Fallback: unusual RHS (e.g., variable reference)
     paths.push(...walkNode(node.rhs, scope));
