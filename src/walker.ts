@@ -1,4 +1,5 @@
 import type {
+  ArrayNode,
   AstNode,
   ApplyNode,
   BinaryNode,
@@ -7,13 +8,14 @@ import type {
   ConditionNode,
   FilterStage,
   FunctionNode,
-  GroupByNode,
   LambdaNode,
   NameNode,
+  NegateNode,
+  ObjectNode,
   PathNode,
+  PartialNode,
   SortNode,
   TransformNode,
-  UnaryNode,
   VariableNode,
 } from "./types.js";
 import { buildPathString } from "./path-builder.js";
@@ -53,8 +55,12 @@ export function walkNode(
       return walkCondition(node as ConditionNode, scope);
     case "block":
       return walkBlock(node as BlockNode, scope);
-    case "unary":
-      return walkUnary(node as UnaryNode, scope);
+    case "negate":
+      return walkNegate(node as NegateNode, scope);
+    case "array":
+      return walkArray(node as ArrayNode, scope);
+    case "object":
+      return walkObject(node as ObjectNode, scope);
     case "bind":
       return walkBind(node as BindNode, scope);
     case "function":
@@ -63,6 +69,8 @@ export function walkNode(
       return walkLambda(node as LambdaNode, scope);
     case "apply":
       return walkApply(node as ApplyNode, scope);
+    case "partial":
+      return walkPartial(node as PartialNode, scope);
     case "string":
     case "number":
     case "value":
@@ -110,7 +118,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const predicates = varStep.predicate;
       if (predicates && predicates.length > 0) {
         for (const resolvedPath of resolved) {
-          paths.push(...walkFilterStages(predicates, resolvedPath, scope, varStep.focus));
+          paths.push(
+            ...walkFilterStages(
+              predicates,
+              resolvedPath,
+              scope,
+              varStep.focusBinding?.name,
+            ),
+          );
         }
       }
 
@@ -170,21 +185,26 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const nameStep = step as NameNode;
       if (nameStep.stages && nameStep.stages.length > 0) {
         const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
-        paths.push(...walkFilterStages(nameStep.stages!, contextPrefix, scope, nameStep.focus));
+        paths.push(
+          ...walkFilterStages(
+            nameStep.stages!,
+            contextPrefix,
+            scope,
+            nameStep.focusBinding?.name,
+          ),
+        );
       }
     } else if (step.type === "sort") {
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       paths.push(...walkSortTerms(step as SortNode, contextPrefix, scope));
-    } else if (step.type === "unary" && (step as UnaryNode).value === "{") {
+    } else if (step.type === "object") {
       // Object constructor step in path: orders.items.{"key": val}
       // Walk value expressions and prefix with path up to this step
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
-      const unaryStep = step as UnaryNode;
-      if (unaryStep.lhs) {
-        for (const [_key, val] of unaryStep.lhs) {
-          const valPaths = walkNode(val, scope);
-          paths.push(...prefixPaths(contextPrefix, valPaths));
-        }
+      const objectStep = step as ObjectNode;
+      for (const [_key, val] of objectStep.entries) {
+        const valPaths = walkNode(val, scope);
+        paths.push(...prefixPaths(contextPrefix, valPaths));
       }
     } else if (step.type === "block") {
       // Block expression step in path: orders.items.(expr)
@@ -236,16 +256,11 @@ function walkSortTerms(
 function walkGroupBy(node: PathNode, scope: ScopeTracker): string[] {
   const paths: string[] = [];
   const groupBasePath = buildPathString(node.steps) ?? "";
-  const groupNode = node.group as unknown as GroupByNode;
-  if (groupNode.lhs) {
-    for (const pair of groupNode.lhs) {
-      const [keyExpr, valExpr] = pair;
-      if (keyExpr) {
-        paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
-      }
-      if (valExpr) {
-        paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
-      }
+  const groupNode = node.group;
+  if (groupNode) {
+    for (const [keyExpr, valExpr] of groupNode.entries) {
+      paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
+      paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
     }
   }
   return paths;
@@ -336,9 +351,8 @@ function walkFilterStages(
 function isNumericIndex(expr: AstNode): boolean {
   if (expr.type === "number") return true;
   if (
-    expr.type === "unary" &&
-    (expr as UnaryNode).value === "-" &&
-    (expr as UnaryNode).expression?.type === "number"
+    expr.type === "negate" &&
+    (expr as NegateNode).expression?.type === "number"
   ) {
     return true;
   }
@@ -434,35 +448,36 @@ function walkBind(node: BindNode, scope: ScopeTracker): string[] {
   return walkNode(node.rhs, scope);
 }
 
-/** Extract paths from unary expressions (negation, array/object constructors). */
-function walkUnary(node: UnaryNode, scope: ScopeTracker): string[] {
-  switch (node.value) {
-    case "-":
-      // Negation: -expr -> walk the expression
-      return node.expression ? walkNode(node.expression, scope) : [];
-    case "[": {
-      // Array constructor with sequential scope accumulation
-      // (mirrors walkBlock pattern: bind expressions update scope for subsequent elements)
-      const paths: string[] = [];
-      let currentScope = scope;
-      for (const expr of node.expressions ?? []) {
-        if (expr.type === "bind") {
-          const bindNode = expr as BindNode;
-          const rhsPaths = walkNode(bindNode.rhs, currentScope);
-          paths.push(...rhsPaths);
-          currentScope = bindVariable(currentScope, bindNode.lhs.value, rhsPaths);
-        } else {
-          paths.push(...walkNode(expr, currentScope));
-        }
-      }
-      return paths;
+/** Extract paths from negation. */
+function walkNegate(node: NegateNode, scope: ScopeTracker): string[] {
+  return node.expression ? walkNode(node.expression, scope) : [];
+}
+
+/** Extract paths from array constructor entries. */
+function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
+  const paths: string[] = [];
+  let currentScope = scope;
+  for (const expr of node.expressions) {
+    if (expr.type === "bind") {
+      const bindNode = expr as BindNode;
+      const rhsPaths = walkNode(bindNode.rhs, currentScope);
+      paths.push(...rhsPaths);
+      currentScope = bindVariable(currentScope, bindNode.lhs.value, rhsPaths);
+    } else {
+      paths.push(...walkNode(expr, currentScope));
     }
-    case "{":
-      // Object constructor: {"key": value} -> walk values only
-      return (node.lhs ?? []).flatMap(([_key, val]) => walkNode(val, scope));
-    default:
-      return [];
   }
+  return paths;
+}
+
+/** Extract value paths from an object constructor. */
+function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
+  return node.entries.flatMap(([_key, val]) => walkNode(val, scope));
+}
+
+/** Partial applications are function values; keep existing extraction behavior. */
+function walkPartial(_node: PartialNode, _scope: ScopeTracker): string[] {
+  return [];
 }
 
 /**
@@ -484,24 +499,24 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
     const predicates = node.predicate;
     if (predicates && predicates.length > 0) {
       for (const resolvedPath of resolved) {
-        paths.push(...walkFilterStages(predicates, resolvedPath, scope, node.focus));
+        paths.push(
+          ...walkFilterStages(
+            predicates,
+            resolvedPath,
+            scope,
+            node.focusBinding?.name,
+          ),
+        );
       }
     }
 
     // Handle group-by on variable node (mirrors walkGroupBy for PathNode)
     if (node.group) {
-      const groupNode = node.group as unknown as GroupByNode;
+      const groupNode = node.group;
       const groupBasePath = resolved.length > 0 ? resolved[0] : "";
-      if (groupNode.lhs) {
-        for (const pair of groupNode.lhs) {
-          const [keyExpr, valExpr] = pair;
-          if (keyExpr) {
-            paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
-          }
-          if (valExpr) {
-            paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
-          }
-        }
+      for (const [keyExpr, valExpr] of groupNode.entries) {
+        paths.push(...prefixPaths(groupBasePath, walkNode(keyExpr, scope)));
+        paths.push(...prefixPaths(groupBasePath, walkNode(valExpr, scope)));
       }
     }
 
