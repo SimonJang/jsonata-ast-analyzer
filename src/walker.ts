@@ -527,6 +527,10 @@ function dynamicObjectAliasForNode(
       ),
     );
   }
+  if (node.type === "lambda") {
+    const lambda = node as LambdaNode;
+    return lambda.thunk ? dynamicObjectAliasForNode(lambda.body, scope) : null;
+  }
   if (node.type === "function") {
     return getFunctionResultDynamicObjectAlias(node as FunctionNode, scope);
   }
