@@ -136,7 +136,9 @@ function prefixPaths(prefix: string, paths: string[]): string[] {
 function prefixProjectionPaths(prefix: string, paths: string[]): string[] {
   if (!prefix) return paths;
   return paths.map((path) =>
-    path === prefix || path.startsWith(`${prefix}.`) ? path : appendPath(prefix, path),
+    path.startsWith(ROOT_PATH) || path === prefix || path.startsWith(`${prefix}.`)
+      ? path
+      : appendPath(prefix, path),
   );
 }
 
