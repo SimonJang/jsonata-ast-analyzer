@@ -294,6 +294,19 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves predicates on array result aliases", () => {
+    expect(sortPaths(extractPaths("([primary, fallback][enabled]).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.enabled", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.enabled", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),
