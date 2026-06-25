@@ -1066,9 +1066,43 @@ function getFunctionResultBasePaths(
 
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
   if (funcName === "append") {
-    return args.flatMap((arg) => walkNode(arg, argScope).slice(0, 1));
+    return args.flatMap((arg) => getResultBasePathsFromArg(arg, argScope));
   }
-  return args.length > 0 ? walkNode(args[0], argScope).slice(0, 1) : [];
+  return args.length > 0 ? getResultBasePathsFromArg(args[0], argScope) : [];
+}
+
+function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[] {
+  if (node.type === "function") {
+    const paths = getFunctionResultBasePaths(node as FunctionNode, scope);
+    return paths.length > 0 ? paths : walkNode(node, scope).slice(0, 1);
+  }
+
+  if (node.type === "path") {
+    const pathNode = node as PathNode;
+    const funcStepIndex = pathNode.steps.findIndex((s) => s.type === "function");
+    if (funcStepIndex >= 0) {
+      const bases = getFunctionResultBasePaths(
+        pathNode.steps[funcStepIndex] as FunctionNode,
+        scope,
+      );
+      const suffix = buildPathString(pathNode.steps.slice(funcStepIndex + 1));
+      return suffix ? bases.map((base) => appendPath(base, suffix)) : bases;
+    }
+    return extractBasePaths(node, scope);
+  }
+
+  if (node.type === "apply") {
+    const apply = node as ApplyNode;
+    if (apply.rhs.type === "function") {
+      const func = apply.rhs as FunctionNode;
+      return getFunctionResultBasePaths(
+        { ...func, arguments: [apply.lhs, ...func.arguments] },
+        scope,
+      );
+    }
+  }
+
+  return walkNode(node, scope).slice(0, 1);
 }
 
 /**
@@ -1096,6 +1130,25 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
     };
     // walkFunction will re-walk the lhs arg, but dedup in extractPaths handles it
     paths.push(...walkFunction(augmentedFunc, scope));
+  } else if (node.rhs.type === "path") {
+    const pathNode = node.rhs as PathNode;
+    if (pathNode.steps[0]?.type === "function") {
+      const funcNode = pathNode.steps[0] as FunctionNode;
+      paths.push(
+        ...walkPath(
+          {
+            ...pathNode,
+            steps: [
+              { ...funcNode, arguments: [node.lhs, ...funcNode.arguments] },
+              ...pathNode.steps.slice(1),
+            ],
+          },
+          scope,
+        ),
+      );
+    } else {
+      paths.push(...walkNode(node.rhs, scope));
+    }
   } else if (node.rhs.type === "lambda") {
     // Inline lambda application: bind first parameter to lhs paths
     const lambda = node.rhs as LambdaNode;

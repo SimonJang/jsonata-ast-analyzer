@@ -265,4 +265,49 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves apply-chain $single result aliases with path suffixes", () => {
+    expect(
+      sortPaths(
+        extractPaths("items ~> $single(function($v) { $v.id = target }).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.id", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "target", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves nested $append result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$append($append(a.items, b.items), c.items).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "a.items", confidence: "static" },
+        { path: "a.items.name", confidence: "static" },
+        { path: "b.items", confidence: "static" },
+        { path: "b.items.name", confidence: "static" },
+        { path: "c.items", confidence: "static" },
+        { path: "c.items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves nested path-preserving aliases through wrappers", () => {
+    expect(
+      sortPaths(
+        extractPaths("($all := $reverse($append(a.items, b.items)); $all.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "a.items", confidence: "static" },
+        { path: "a.items.name", confidence: "static" },
+        { path: "b.items", confidence: "static" },
+        { path: "b.items.name", confidence: "static" },
+      ]),
+    );
+  });
 });
