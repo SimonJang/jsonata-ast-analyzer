@@ -1030,7 +1030,11 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const step = node.steps[i];
     const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
 
-    if (i < node.steps.length - 1 && isResultAliasStep(step)) {
+    if (
+      i < node.steps.length - 1 &&
+      isResultAliasStep(step) &&
+      !(i > 0 && isResultAliasStep(node.steps[i - 1]))
+    ) {
       const projectionPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const resultPaths = selectResultAliasStepPaths(
         step,
