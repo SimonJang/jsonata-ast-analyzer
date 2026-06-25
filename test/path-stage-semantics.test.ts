@@ -307,6 +307,21 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves predicates on function result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v){$v.children})[enabled].name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.children", confidence: "static" },
+        { path: "items.children.enabled", confidence: "static" },
+        { path: "items.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),
