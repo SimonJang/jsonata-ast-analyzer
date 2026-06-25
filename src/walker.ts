@@ -2788,6 +2788,17 @@ function resolveCallbackParentPaths(
   });
 }
 
+function resolveCallbackObjectAliasParentPaths(
+  alias: ObjectAlias,
+  dataArgPaths: readonly string[],
+): ObjectAlias {
+  const fields = new Map<string, string[]>();
+  for (const [key, paths] of alias) {
+    fields.set(key, resolveCallbackParentPaths([...paths], dataArgPaths));
+  }
+  return fields;
+}
+
 function bindHigherOrderParameter(
   scope: ScopeTracker,
   funcName: string,
@@ -3082,7 +3093,8 @@ function getCallbackResultObjectAlias(
     );
   }
 
-  return objectAliasForNode(callback.lambda.body, lambdaScope);
+  const alias = objectAliasForNode(callback.lambda.body, lambdaScope);
+  return alias ? resolveCallbackObjectAliasParentPaths(alias, dataArgPaths) : null;
 }
 
 function getCallbackResultDynamicObjectAlias(
@@ -3158,8 +3170,9 @@ function getReduceResultObjectAlias(
           );
   }
 
+  const bodyAlias = objectAliasForNode(callback.lambda.body, lambdaScope);
   return mergeObjectAliases([
-    objectAliasForNode(callback.lambda.body, lambdaScope),
+    bodyAlias ? resolveCallbackObjectAliasParentPaths(bodyAlias, dataArgPaths) : null,
     args[2] ? objectAliasForNode(args[2], scope) : null,
   ]);
 }
@@ -3309,7 +3322,10 @@ function getCallbackResultBasePaths(
     );
   }
 
-  return bindingAliasPaths(callback.lambda.body, lambdaScope);
+  return resolveCallbackParentPaths(
+    bindingAliasPaths(callback.lambda.body, lambdaScope),
+    dataArgPaths,
+  );
 }
 
 function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
@@ -3351,7 +3367,10 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
           );
   }
 
-  return bindingAliasPaths(callback.lambda.body, lambdaScope);
+  return resolveCallbackParentPaths(
+    bindingAliasPaths(callback.lambda.body, lambdaScope),
+    dataArgPaths,
+  );
 }
 
 function getFunctionResultSuffixBasePaths(
