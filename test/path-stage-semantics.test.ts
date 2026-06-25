@@ -348,6 +348,19 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves function result predicates through object aliases", () => {
+    expect(
+      sortPaths(extractPaths("$clone({key: primary})[x.enabled].x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.enabled", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),
