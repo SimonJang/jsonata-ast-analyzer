@@ -190,7 +190,7 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
 }
 
 function staticObjectKey(node: AstNode): string | null {
-  if (node.type === "string" || node.type === "name") {
+  if (node.type === "string") {
     return (node as { value: string }).value;
   }
   return null;
@@ -349,6 +349,35 @@ function bindObjectAliasIfPresent(
 ): ScopeTracker {
   const alias = objectAliasForNode(node, aliasScope);
   return alias ? bindObjectAlias(scope, name, alias) : scope;
+}
+
+function isResultAliasStep(step: AstNode): boolean {
+  return (
+    step.type === "block" ||
+    step.type === "condition" ||
+    step.type === "function" ||
+    step.type === "apply" ||
+    step.type === "array" ||
+    step.type === "object"
+  );
+}
+
+function selectResultAliasStepPaths(
+  step: AstNode,
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] | null {
+  const objectAlias = objectAliasForNode(step, scope);
+  const objectPaths = objectAlias
+    ? selectObjectAliasPaths(objectAlias, suffixSteps)
+    : null;
+  if (objectPaths) return objectPaths;
+
+  const resultBasePaths = bindingAliasPaths(step, scope);
+  if (resultBasePaths.length === 0) return null;
+
+  const suffix = buildPathString(suffixSteps);
+  return resultBasePaths.map((path) => appendPath(path, suffix));
 }
 
 function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): string[] {
@@ -519,33 +548,18 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   const suppressBase = lastStep?.type === "block";
   const basePath = buildPathString(node.steps);
   const resultAliasStepIndex = node.steps.findIndex(
-    (s, index) =>
-      index === 0 &&
-      (s.type === "block" ||
-        s.type === "condition" ||
-        s.type === "function" ||
-        s.type === "apply"),
+    (step, index) => index < node.steps.length - 1 && isResultAliasStep(step),
   );
   const funcStepIndex = node.steps.findIndex((s) => s.type === "function");
   if (basePath && resultAliasStepIndex >= 0) {
     const resultStep = node.steps[resultAliasStepIndex];
-    const objectAlias = objectAliasForNode(resultStep, scope);
-    const objectPaths = objectAlias
-      ? selectObjectAliasPaths(
-          objectAlias,
-          node.steps.slice(resultAliasStepIndex + 1),
-        )
-      : null;
-
-    if (objectPaths) {
-      paths.push(...objectPaths);
-    } else {
-      const resultBasePaths = bindingAliasPaths(resultStep, scope);
-      const suffix = buildPathString(node.steps.slice(resultAliasStepIndex + 1));
-      for (const resultBasePath of resultBasePaths) {
-        paths.push(appendPath(resultBasePath, suffix));
-      }
-    }
+    const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
+    const resultPaths = selectResultAliasStepPaths(
+      resultStep,
+      node.steps.slice(resultAliasStepIndex + 1),
+      scope,
+    );
+    if (resultPaths) paths.push(...prefixPaths(contextPrefix, resultPaths));
   } else if (basePath && funcStepIndex >= 0) {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
     // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
