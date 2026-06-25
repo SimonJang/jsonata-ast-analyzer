@@ -656,18 +656,12 @@ function walkAliasSuffixFilterStages(
       const filterStage = stage as unknown as FilterStage;
       if (isNumericIndex(filterStage.expr)) continue;
 
-      const parentPath =
-        filterStage.expr.type === "path" &&
-        (filterStage.expr as PathNode).steps[0]?.type === "parent"
-          ? ({
-              ...(filterStage.expr as PathNode),
-              steps: (filterStage.expr as PathNode).steps.slice(1),
-            } as PathNode)
-          : null;
-      const expressionContextPaths = parentPath ? parentContextPaths : contextPaths;
       paths.push(
-        ...expressionContextPaths.flatMap((contextPath) =>
-          walkContextExpression(parentPath ?? filterStage.expr, contextPath, scope),
+        ...walkAliasSuffixContextExpression(
+          filterStage.expr,
+          contextPaths,
+          parentContextPaths,
+          scope,
         ),
         ...(collectVariableNames(filterStage.expr).size > 0
           ? selectAliasExpressionPaths(
@@ -677,6 +671,7 @@ function walkAliasSuffixFilterStages(
               scope,
               suffixBasePaths,
               preserveUnmappedLocalPaths,
+              true,
             )
           : []),
       );
