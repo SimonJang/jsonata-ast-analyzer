@@ -710,10 +710,23 @@ function walkAliasSuffixSortTerms(
             suffixBasePaths,
           )
         : [];
+    const parentContextPaths =
+      contextPrefixSteps.length > 1
+        ? selectAliasSuffixContextPaths(
+            contextPrefixSteps.slice(0, -1),
+            objectAlias,
+            dynamicObjectAlias,
+            scope,
+            suffixBasePaths,
+          )
+        : [];
     for (const term of (step as SortNode).terms) {
       paths.push(
-        ...contextPaths.flatMap((contextPath) =>
-          walkContextExpression(term.expression, contextPath, scope),
+        ...walkAliasSuffixContextExpression(
+          term.expression,
+          contextPaths,
+          parentContextPaths,
+          scope,
         ),
         ...(collectVariableNames(term.expression).size > 0
           ? selectAliasExpressionPaths(
@@ -770,7 +783,7 @@ function walkAliasSuffixProjectionSteps(
 
     for (const expr of expressions) {
       paths.push(
-        ...walkAliasSuffixProjectionExpression(
+        ...walkAliasSuffixContextExpression(
           expr,
           contextPaths,
           parentContextPaths,
@@ -794,7 +807,7 @@ function walkAliasSuffixProjectionSteps(
   return paths;
 }
 
-function walkAliasSuffixProjectionExpression(
+function walkAliasSuffixContextExpression(
   expr: AstNode,
   contextPaths: readonly string[],
   parentContextPaths: readonly string[],
