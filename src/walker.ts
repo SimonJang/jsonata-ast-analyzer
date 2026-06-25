@@ -513,6 +513,7 @@ function selectVariableObjectAliasPaths(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
   suffixBasePaths: readonly string[] = [],
+  preserveUnmappedLocalPaths = false,
 ): string[] | null {
   const [selector, ...rest] = suffixSteps;
   if (selector?.type === "sort") {
@@ -530,6 +531,7 @@ function selectVariableObjectAliasPaths(
         rest,
         scope,
         suffixBasePaths,
+        preserveUnmappedLocalPaths,
       ) ?? [];
     const paths = [...sortPaths, ...resultPaths];
     return paths.length > 0 ? paths : null;
@@ -540,6 +542,7 @@ function selectVariableObjectAliasPaths(
     dynamicObjectAlias,
     selector,
     scope,
+    preserveUnmappedLocalPaths,
   );
   if (projectionPaths) return projectionPaths;
 
@@ -709,6 +712,27 @@ function bindDynamicObjectAliasIfPresent(
   return alias ? bindDynamicObjectAlias(scope, name, alias) : scope;
 }
 
+function bindFocusObjectAliasScope(
+  scope: ScopeTracker,
+  name: string,
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  basePaths: readonly string[],
+  suffixBasePaths: readonly string[],
+): ScopeTracker {
+  let focusScope = bindVariable(childScope(scope), name, basePaths);
+  if (objectAlias) focusScope = bindObjectAlias(focusScope, name, objectAlias);
+  if (dynamicObjectAlias) {
+    focusScope = bindDynamicObjectAlias(focusScope, name, dynamicObjectAlias);
+  }
+  const objectAliasBases = new Set(
+    objectAlias ? [...objectAlias.values()].flatMap((paths) => [...paths]) : [],
+  );
+  const pathLikeBases = suffixBasePaths.filter((path) => !objectAliasBases.has(path));
+  focusScope = bindSuffixBasePaths(focusScope, name, pathLikeBases);
+  return focusScope;
+}
+
 function bindSuffixBasePathsIfPresent(
   scope: ScopeTracker,
   name: string,
@@ -843,6 +867,7 @@ function selectAliasProjectionStepPaths(
   dynamicObject: DynamicObjectAlias | null,
   step: AstNode | undefined,
   scope: ScopeTracker,
+  preserveUnmappedLocalPaths = false,
 ): string[] | null {
   if (!step) return null;
 
@@ -850,7 +875,14 @@ function selectAliasProjectionStepPaths(
   if (!expressions) return null;
 
   const paths = expressions.flatMap((expr) =>
-    selectAliasExpressionPaths(objectAlias, dynamicObject, expr, scope),
+    selectAliasExpressionPaths(
+      objectAlias,
+      dynamicObject,
+      expr,
+      scope,
+      [],
+      preserveUnmappedLocalPaths,
+    ),
   );
   return paths.length > 0 ? paths : null;
 }
@@ -861,6 +893,7 @@ function selectAliasExpressionPaths(
   expression: AstNode,
   scope: ScopeTracker,
   suffixBasePaths: readonly string[] = [],
+  preserveUnmappedLocalPaths = false,
 ): string[] {
   const paths: string[] = [];
   const localPaths = new Set(walkNode(expression, childScope(createScope())));
@@ -878,10 +911,13 @@ function selectAliasExpressionPaths(
     }
 
     const suffix = buildPathString(suffixSteps);
-    paths.push(
+    const aliasPaths = [
       ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
       ...(dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : []),
       ...(suffix ? suffixBasePaths.map((path) => appendPath(path, suffix)) : []),
+    ];
+    paths.push(
+      ...(aliasPaths.length > 0 || !preserveUnmappedLocalPaths ? aliasPaths : [path]),
     );
   }
 
@@ -1000,12 +1036,23 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
     if (objectAlias || dynamicObjectAlias) {
       const suffixBaseBinding = resolveSuffixBasePaths(scope, varStep.value) ?? [];
+      const aliasScope = varStep.focusBinding
+        ? bindFocusObjectAliasScope(
+            scope,
+            varStep.focusBinding.name,
+            objectAlias,
+            dynamicObjectAlias,
+            resolveVariable(scope, varStep.value) ?? [],
+            suffixBaseBinding,
+          )
+        : scope;
       const objectPaths = selectVariableObjectAliasPaths(
         objectAlias,
         dynamicObjectAlias,
         node.steps.slice(varStepIndex + 1),
-        scope,
+        aliasScope,
         suffixBaseBinding,
+        Boolean(varStep.focusBinding),
       );
       if (objectPaths) {
         const variableStagePaths = [
@@ -1015,7 +1062,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
                   objectAlias,
                   dynamicObjectAlias,
                   (stage as unknown as FilterStage).expr,
-                  scope,
+                  aliasScope,
                   suffixBaseBinding,
                 )
               : [],
@@ -1025,7 +1072,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
                 varStep.group,
                 objectAlias,
                 dynamicObjectAlias,
-                scope,
+                aliasScope,
                 suffixBaseBinding,
               )
             : []),
