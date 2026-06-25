@@ -78,17 +78,21 @@ export function bindVariable(
   paths: readonly string[],
 ): ScopeTracker {
   const newBindings = new Map(scope.bindings);
+  const newLambdas = new Map(scope.lambdas);
+  const newPartials = new Map(scope.partials);
   const newObjectAliases = new Map(scope.objectAliases);
   const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
   const newSuffixBaseBindings = new Map(scope.suffixBaseBindings);
   newBindings.set(name, paths);
+  newLambdas.delete(name);
+  newPartials.delete(name);
   newObjectAliases.delete(name);
   newDynamicObjectAliases.delete(name);
   newSuffixBaseBindings.delete(name);
   return {
     bindings: newBindings,
-    lambdas: scope.lambdas,
-    partials: scope.partials,
+    lambdas: newLambdas,
+    partials: newPartials,
     objectAliases: newObjectAliases,
     dynamicObjectAliases: newDynamicObjectAliases,
     suffixBaseBindings: newSuffixBaseBindings,
