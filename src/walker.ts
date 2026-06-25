@@ -522,14 +522,17 @@ function selectDynamicObjectAliasPaths(
   alias: DynamicObjectAlias,
   suffixSteps: AstNode[],
 ): string[] {
-  return alias.variants.flatMap((variant) =>
-    selectDynamicObjectValuePaths(
-      variant.node,
-      suffixSteps,
-      variant.scope,
-      variant.parentDataArgPaths,
-    ),
-  );
+  return alias.variants.flatMap((variant) => {
+    const prefixedSuffixSteps = dynamicVariantSuffixSteps(variant, suffixSteps);
+    return prefixedSuffixSteps
+      ? selectDynamicObjectValuePaths(
+          variant.node,
+          prefixedSuffixSteps,
+          variant.scope,
+          variant.parentDataArgPaths,
+        )
+      : [];
+  });
 }
 
 function mergeDynamicObjectAliases(
@@ -537,6 +540,24 @@ function mergeDynamicObjectAliases(
 ): DynamicObjectAlias | null {
   const variants = aliases.flatMap((alias) => alias?.variants ?? []);
   return variants.length > 0 ? { variants } : null;
+}
+
+function dynamicVariantSuffixSteps(
+  variant: DynamicObjectAlias["variants"][number],
+  suffixSteps: AstNode[],
+): AstNode[] | null {
+  const prefixSteps = variant.prefixSteps ?? [];
+  if (prefixSteps.length === 0) return suffixSteps;
+  if (suffixSteps.length < prefixSteps.length) return null;
+
+  for (const [index, prefix] of prefixSteps.entries()) {
+    const step = suffixSteps[index];
+    if (step?.type !== "name" || (step as NameNode).value !== prefix) {
+      return null;
+    }
+  }
+
+  return suffixSteps.slice(prefixSteps.length);
 }
 
 function selectLookupDynamicObjectAliasPaths(
@@ -598,10 +619,19 @@ function selectLookupDynamicObjectAliasPaths(
 
 function selectLookupDynamicObjectResultAlias(
   alias: DynamicObjectAlias,
+  selectorSteps: AstNode[],
 ): DynamicObjectAlias | null {
+  const selector = selectorSteps[0];
   const variants = alias.variants.flatMap((variant) =>
     variant.node.entries.flatMap(([keyNode, valueNode]) => {
-      if (staticObjectKey(keyNode)) return [];
+      if ((variant.prefixSteps?.length ?? 0) > 0) return [];
+
+      const key = staticObjectKey(keyNode);
+      const selectorMatches =
+        !key ||
+        selector?.type !== "name" ||
+        key === (selector as NameNode).value;
+      if (!selectorMatches) return [];
 
       const valueAlias = dynamicObjectAliasForNode(valueNode, variant.scope);
       const resolvedValueAlias =
@@ -1002,8 +1032,32 @@ function parentPath(path: string): string {
   return index >= 0 ? path.slice(0, index) : "";
 }
 
+function dynamicObjectAliasFromObject(
+  node: ObjectNode,
+  scope: ScopeTracker,
+): DynamicObjectAlias {
+  const variants: Array<DynamicObjectAlias["variants"][number]> = [{ node, scope }];
+
+  for (const [keyNode, valueNode] of node.entries) {
+    const key = staticObjectKey(keyNode);
+    if (!key) continue;
+
+    const nestedAlias = dynamicObjectAliasForNode(valueNode, scope);
+    if (!nestedAlias) continue;
+
+    variants.push(
+      ...nestedAlias.variants.map((variant) => ({
+        ...variant,
+        prefixSteps: [key, ...(variant.prefixSteps ?? [])],
+      })),
+    );
+  }
+
+  return { variants };
+}
+
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
-  if (node.type === "object") return { variants: [{ node: node as ObjectNode, scope }] };
+  if (node.type === "object") return dynamicObjectAliasFromObject(node as ObjectNode, scope);
   if (node.type !== "block") return null;
 
   const block = node as BlockNode;
@@ -1013,7 +1067,7 @@ function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectA
     const isLast = index === block.expressions.length - 1;
     if (isLast) {
       return expr.type === "object"
-        ? { variants: [{ node: expr as ObjectNode, scope: currentScope }] }
+        ? dynamicObjectAliasFromObject(expr as ObjectNode, currentScope)
         : dynamicObjectAliasForNode(expr, currentScope);
     }
 
@@ -3815,7 +3869,10 @@ function getLookupResultDynamicObjectAlias(
 
   const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
   return dynamicObjectAlias
-    ? selectLookupDynamicObjectResultAlias(dynamicObjectAlias)
+    ? selectLookupDynamicObjectResultAlias(
+        dynamicObjectAlias,
+        lookupSelectorSteps(args[1]),
+      )
     : null;
 }
 
