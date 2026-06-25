@@ -69,4 +69,44 @@ describe("function semantics", () => {
       { path: "description", confidence: "static" },
     ]);
   });
+
+  it("resolves variable-bound callbacks in higher-order functions", () => {
+    expect(
+      sortPaths(
+        extractPaths("($project := function($v) { $v.name }; $map(items, $project))"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("resolves variable-bound callbacks in filtered path chains", () => {
+    expect(
+      sortPaths(
+        extractPaths("($active := function($v) { $v.active }; $filter(items, $active).name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("resolves variable-bound callbacks in apply chains", () => {
+    expect(
+      sortPaths(
+        extractPaths("($project := function($v) { $v.name }; items ~> $map($project))"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
 });

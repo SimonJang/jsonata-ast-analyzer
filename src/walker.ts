@@ -33,6 +33,14 @@ import {
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
 
 const ROOT_PATH = "\0";
+const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
+  "lookup",
+  "filter",
+  "sort",
+  "reverse",
+  "shuffle",
+  "distinct",
+]);
 
 /**
  * Walk an AST node and extract all data paths as raw strings.
@@ -815,33 +823,55 @@ function walkHigherOrderCall(
 ): string[] {
   const args = node.arguments;
   const paths: string[] = [];
+  const callback = findHigherOrderCallback(args, scope);
 
   // Extract paths from all non-lambda arguments (they're data reads)
   // This emits ALL paths including filter predicates (correct -- they are data reads)
-  for (const arg of args) {
-    if (arg.type !== "lambda") {
+  for (const [index, arg] of args.entries()) {
+    if (arg.type !== "lambda" && index !== callback?.index) {
       paths.push(...walkNode(arg, scope));
     }
   }
 
-  // Find the lambda argument
-  const lambdaArg = args.find((a) => a.type === "lambda") as
-    | LambdaNode
-    | undefined;
-
-  if (lambdaArg) {
+  if (callback) {
     // Get the data argument (first non-lambda arg) BASE paths for binding
     // Uses extractBasePaths to exclude filter predicate paths from binding
-    const dataArg = args.find((a) => a.type !== "lambda");
+    const dataArg = args[0];
     const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
 
     // Walk lambda body with parameter bindings
     paths.push(
-      ...walkLambdaWithBindings(lambdaArg, dataArgPaths, semantics, scope),
+      ...walkLambdaWithBindings(
+        callback.lambda,
+        dataArgPaths,
+        semantics,
+        callback.scope,
+      ),
     );
   }
 
   return paths;
+}
+
+function findHigherOrderCallback(
+  args: AstNode[],
+  scope: ScopeTracker,
+): { index: number; lambda: LambdaNode; scope: ScopeTracker } | null {
+  const inlineIndex = args.findIndex((arg) => arg.type === "lambda");
+  if (inlineIndex >= 0) {
+    return { index: inlineIndex, lambda: args[inlineIndex] as LambdaNode, scope };
+  }
+
+  const variableIndex = args.findIndex((arg) => {
+    return arg.type === "variable" && resolveLambda(scope, (arg as VariableNode).value);
+  });
+  if (variableIndex < 0) return null;
+
+  const variable = args[variableIndex] as VariableNode;
+  const binding = resolveLambda(scope, variable.value);
+  return binding
+    ? { index: variableIndex, lambda: binding.lambda, scope: binding.scope }
+    : null;
 }
 
 /**
@@ -980,12 +1010,14 @@ function getFunctionResultBasePaths(
 ): string[] {
   const partialBinding = resolvePartial(scope, node.procedure.value);
   if (partialBinding) {
-    if (partialBinding.partial.procedure.value !== "lookup") return [];
+    if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(partialBinding.partial.procedure.value)) {
+      return [];
+    }
     const args = applyPartialArguments(partialBinding.partial, node.arguments);
     return args.length > 0 ? walkNode(args[0], partialBinding.scope) : [];
   }
 
-  if (node.procedure.value !== "lookup") return [];
+  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(node.procedure.value)) return [];
   return node.arguments.length > 0 ? walkNode(node.arguments[0], scope) : [];
 }
 
