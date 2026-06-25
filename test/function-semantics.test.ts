@@ -310,4 +310,28 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves $merge input aliases in chained object fields", () => {
+    expect(sortPaths(extractPaths("$merge([defaults, overrides]).name"))).toEqual(
+      sortPaths([
+        { path: "defaults", confidence: "static" },
+        { path: "defaults.name", confidence: "static" },
+        { path: "overrides", confidence: "static" },
+        { path: "overrides.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $merge results as suffixable object aliases", () => {
+    expect(
+      sortPaths(extractPaths("($m := $merge([defaults, overrides]); $m.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "defaults", confidence: "static" },
+        { path: "defaults.name", confidence: "static" },
+        { path: "overrides", confidence: "static" },
+        { path: "overrides.name", confidence: "static" },
+      ]),
+    );
+  });
 });

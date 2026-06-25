@@ -42,6 +42,7 @@ const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
   "reverse",
   "shuffle",
   "distinct",
+  "merge",
 ]);
 
 /**
@@ -1068,7 +1069,19 @@ function getFunctionResultBasePaths(
   if (funcName === "append") {
     return args.flatMap((arg) => getResultBasePathsFromArg(arg, argScope));
   }
+  if (funcName === "merge") {
+    return args.length > 0 ? getMergeResultBasePaths(args[0], argScope) : [];
+  }
   return args.length > 0 ? getResultBasePathsFromArg(args[0], argScope) : [];
+}
+
+function getMergeResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((expr) =>
+      getResultBasePathsFromArg(expr, scope),
+    );
+  }
+  return getResultBasePathsFromArg(node, scope);
 }
 
 function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[] {
