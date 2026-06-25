@@ -147,6 +147,10 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
       return extractBasePaths(node, scope);
     case "variable":
       return [...(resolveVariable(scope, (node as VariableNode).value) ?? [])];
+    case "array":
+      return (node as ArrayNode).expressions.flatMap((expr) =>
+        bindingAliasPaths(expr, scope),
+      );
     case "wildcard":
       return ["*"];
     case "descendant":
