@@ -835,6 +835,38 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves block-scoped dynamic object-key value aliases", () => {
+    expect(sortPaths(extractPaths("($k := key; {($k): primary}).x.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-scoped dynamic object-key wildcard aliases", () => {
+    expect(sortPaths(extractPaths("($k := key; {($k): primary}).*.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local value aliases below dynamic object keys", () => {
+    expect(
+      sortPaths(extractPaths("($k := key; $v := primary; {($k): $v}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
