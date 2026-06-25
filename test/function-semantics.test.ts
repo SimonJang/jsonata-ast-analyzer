@@ -1123,6 +1123,23 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves explicit $reduce initial dynamic object-key base aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v){{key: $v.detail}}, seed).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves explicit $reduce initial dynamic object-key aliases", () => {
     expect(
       sortPaths(
@@ -1618,6 +1635,7 @@ describe("function semantics", () => {
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
         { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
       ]),
     );
   });
