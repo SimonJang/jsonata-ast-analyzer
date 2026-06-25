@@ -149,7 +149,7 @@ export interface FunctionNode extends AnalyzerNode {
   type: "function";
   value: "(";
   position: number;
-  procedure: VariableNode; // function name (without $)
+  procedure: VariableNode | LambdaNode; // function name or inline lambda
   arguments: AstNode[]; // call arguments
   group?: GroupByNode;
 }
