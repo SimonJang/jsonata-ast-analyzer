@@ -101,6 +101,49 @@ describe("function semantics", () => {
     );
   });
 
+  it("respects nested path bindings shadowing parent object aliases", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"x": account}; ($o := customer; $o.x.name))')),
+    ).toEqual(
+      sortPaths([
+        { path: "account", confidence: "static" },
+        { path: "customer", confidence: "static" },
+        { path: "customer.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("respects nested path bindings shadowing mixed parent object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($o := flag ? {"x": account} : fallback; ($o := customer; $o.x.name))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "account", confidence: "static" },
+        { path: "customer", confidence: "static" },
+        { path: "customer.x.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("respects nested path bindings shadowing parent dynamic object aliases", () => {
+    expect(
+      sortPaths(extractPaths("($o := {key: account}; ($o := customer; $o.x.name))")),
+    ).toEqual(
+      sortPaths([
+        { path: "account", confidence: "static" },
+        { path: "customer", confidence: "static" },
+        { path: "customer.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("propagates higher-order callback reads", () => {
     expect(
       sortPaths(
