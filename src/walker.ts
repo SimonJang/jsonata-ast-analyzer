@@ -155,6 +155,8 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
       return ["%"];
     case "function":
       return getFunctionResultBasePaths(node as FunctionNode, scope);
+    case "block":
+      return bindingAliasPathsFromBlock(node as BlockNode, scope);
     case "apply": {
       const apply = node as ApplyNode;
       if (apply.rhs.type !== "function") return [];
@@ -174,6 +176,42 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
     default:
       return [];
   }
+}
+
+function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): string[] {
+  let currentScope = scope;
+  let result: string[] = [];
+
+  for (const expr of node.expressions) {
+    if (expr.type === "bind") {
+      const bindNode = expr as BindNode;
+      const closureScope = currentScope;
+      result = bindingAliasPaths(bindNode.rhs, currentScope);
+      currentScope = bindVariable(currentScope, bindNode.lhs.value, result);
+
+      if (bindNode.rhs.type === "lambda") {
+        currentScope = bindLambda(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as LambdaNode,
+          closureScope,
+        );
+      } else if (bindNode.rhs.type === "partial") {
+        currentScope = bindPartial(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as PartialNode,
+          closureScope,
+        );
+      }
+    } else if (expr.type === "block") {
+      result = bindingAliasPathsFromBlock(expr as BlockNode, childScope(currentScope));
+    } else {
+      result = bindingAliasPaths(expr, currentScope);
+    }
+  }
+
+  return result;
 }
 
 function walkContextExpression(
