@@ -650,6 +650,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds explicit $reduce initial base aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $reduce(items, function($acc, $v){{"x": $v.detail}}, seed); $r.x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("binds $reduce accumulator callbacks to the accumulator source", () => {
     expect(
       sortPaths(
@@ -1127,6 +1145,25 @@ describe("function semantics", () => {
     expect(
       sortPaths(
         extractPaths("$reduce(items, function($acc, $v){{key: $v.detail}}, seed).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds explicit $reduce initial dynamic object-key base aliases as variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($r := $reduce(items, function($acc, $v){{key: $v.detail}}, seed); $r.x.name)",
+        ),
       ),
     ).toEqual(
       sortPaths([
