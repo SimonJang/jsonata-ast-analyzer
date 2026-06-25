@@ -2790,6 +2790,12 @@ function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] 
     ];
   }
 
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((expr) =>
+      getSuffixableResultBasePaths(expr, scope),
+    );
+  }
+
   return getFunctionResultSuffixBasePaths(node, scope);
 }
 
