@@ -2875,7 +2875,12 @@ function walkCustomFunctionCall(
   }
 
   // Walk the lambda body with parameter bindings
-  paths.push(...walkNode(lambda.body, lambdaScope));
+  paths.push(
+    ...resolveCallbackParentPaths(
+      walkNode(lambda.body, lambdaScope),
+      argPathSets[0] ?? [],
+    ),
+  );
 
   return paths;
 }
@@ -3042,7 +3047,9 @@ function getCustomFunctionResultObjectAlias(
         : bindVariable(lambdaScope, param.value, argPaths);
   }
 
-  return objectAliasForNode(lambda.body, lambdaScope);
+  const alias = objectAliasForNode(lambda.body, lambdaScope);
+  const firstArgPaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
+  return alias ? resolveCallbackObjectAliasParentPaths(alias, firstArgPaths) : null;
 }
 
 function getCustomFunctionResultDynamicObjectAlias(
@@ -3291,7 +3298,11 @@ function getCustomFunctionResultBasePaths(
         : bindVariable(lambdaScope, param.value, argPaths);
   }
 
-  return bindingAliasPaths(lambda.body, lambdaScope);
+  const firstArgPaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
+  return resolveCallbackParentPaths(
+    bindingAliasPaths(lambda.body, lambdaScope),
+    firstArgPaths,
+  );
 }
 
 function getCallbackResultBasePaths(
