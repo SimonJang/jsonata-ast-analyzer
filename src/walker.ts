@@ -1312,20 +1312,27 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
 
   // Walk pattern for base paths
   const patternPaths = walkNode(node.pattern, scope);
+  const patternPrefixes = patternPaths.length > 0 ? patternPaths : [""];
   paths.push(...patternPaths);
 
   // Walk update and prefix results with pattern path
   if (node.update) {
-    const patternPrefix = patternPaths.length > 0 ? patternPaths[0] : "";
     const updatePaths = walkNode(node.update, scope);
-    paths.push(...prefixPaths(patternPrefix, updatePaths));
+    paths.push(
+      ...patternPrefixes.flatMap((patternPrefix) =>
+        prefixPaths(patternPrefix, updatePaths),
+      ),
+    );
   }
 
   // Delete clause: string literals only, no paths extracted
   if (node.delete) {
-    const patternPrefix = patternPaths.length > 0 ? patternPaths[0] : "";
     const deletePaths = walkNode(node.delete, scope);
-    paths.push(...prefixPaths(patternPrefix, deletePaths));
+    paths.push(
+      ...patternPrefixes.flatMap((patternPrefix) =>
+        prefixPaths(patternPrefix, deletePaths),
+      ),
+    );
   }
 
   return paths;
