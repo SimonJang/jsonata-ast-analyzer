@@ -161,6 +161,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
           type: "object",
           position: positionOf(node),
           entries: normalizePairs(node.lhs),
+          predicate: rawList(node.predicate).map(normalizeAst),
           source: sourceOf(node),
         };
       }
