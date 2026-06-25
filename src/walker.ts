@@ -489,6 +489,22 @@ function selectDynamicObjectValuePaths(
       continue;
     }
 
+    const nestedDynamicAlias = dynamicObjectAliasForNode(valueNode, scope);
+    const resolvedNestedDynamicAlias =
+      nestedDynamicAlias && parentDataArgPaths.length > 0
+        ? resolveCallbackDynamicObjectAliasParentPaths(
+            nestedDynamicAlias,
+            parentDataArgPaths,
+          )
+        : nestedDynamicAlias;
+    const nestedDynamicPaths = resolvedNestedDynamicAlias
+      ? selectDynamicObjectAliasPaths(resolvedNestedDynamicAlias, rest)
+      : [];
+    if (nestedDynamicPaths.length > 0) {
+      paths.push(...nestedDynamicPaths);
+      continue;
+    }
+
     if (valueNode.type === "object") continue;
 
     paths.push(
@@ -550,6 +566,22 @@ function selectLookupDynamicObjectAliasPaths(
         continue;
       }
 
+      const nestedDynamicAlias = dynamicObjectAliasForNode(valueNode, variant.scope);
+      const resolvedNestedDynamicAlias =
+        nestedDynamicAlias && variant.parentDataArgPaths?.length
+          ? resolveCallbackDynamicObjectAliasParentPaths(
+              nestedDynamicAlias,
+              variant.parentDataArgPaths,
+            )
+          : nestedDynamicAlias;
+      const nestedDynamicPaths = resolvedNestedDynamicAlias
+        ? selectDynamicObjectAliasPaths(resolvedNestedDynamicAlias, suffixSteps)
+        : [];
+      if (nestedDynamicPaths.length > 0) {
+        paths.push(...nestedDynamicPaths);
+        continue;
+      }
+
       if (valueNode.type === "object") continue;
 
       paths.push(
@@ -562,6 +594,28 @@ function selectLookupDynamicObjectAliasPaths(
   }
 
   return paths;
+}
+
+function selectLookupDynamicObjectResultAlias(
+  alias: DynamicObjectAlias,
+): DynamicObjectAlias | null {
+  const variants = alias.variants.flatMap((variant) =>
+    variant.node.entries.flatMap(([keyNode, valueNode]) => {
+      if (staticObjectKey(keyNode)) return [];
+
+      const valueAlias = dynamicObjectAliasForNode(valueNode, variant.scope);
+      const resolvedValueAlias =
+        valueAlias && variant.parentDataArgPaths?.length
+          ? resolveCallbackDynamicObjectAliasParentPaths(
+              valueAlias,
+              variant.parentDataArgPaths,
+            )
+          : valueAlias;
+      return resolvedValueAlias?.variants ?? [];
+    }),
+  );
+
+  return variants.length > 0 ? { variants } : null;
 }
 
 function selectVariableObjectAliasPaths(
@@ -3056,8 +3110,11 @@ function getFunctionResultDynamicObjectAlias(
     return getReduceResultDynamicObjectAlias(args, argScope);
   }
 
+  if (funcName === "lookup") {
+    return getLookupResultDynamicObjectAlias(args, argScope);
+  }
+
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return null;
-  if (funcName === "lookup") return null;
   if (funcName === "append" || funcName === "zip") {
     return mergeDynamicObjectAliases(
       args.map((arg) => dynamicObjectAliasForNode(arg, argScope)),
@@ -3747,6 +3804,19 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   }
 
   return paths.length > 0 ? paths : getResultBasePathsFromArg(objectArg, scope);
+}
+
+function getLookupResultDynamicObjectAlias(
+  args: AstNode[],
+  scope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const objectArg = args[0];
+  if (!objectArg) return null;
+
+  const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
+  return dynamicObjectAlias
+    ? selectLookupDynamicObjectResultAlias(dynamicObjectAlias)
+    : null;
 }
 
 function getMergeResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
