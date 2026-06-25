@@ -2500,7 +2500,10 @@ function getReduceResultObjectAlias(
           );
   }
 
-  return objectAliasForNode(callback.lambda.body, lambdaScope);
+  return mergeObjectAliases([
+    objectAliasForNode(callback.lambda.body, lambdaScope),
+    args[2] ? objectAliasForNode(args[2], scope) : null,
+  ]);
 }
 
 function getReduceResultDynamicObjectAlias(
@@ -2545,7 +2548,10 @@ function getReduceResultDynamicObjectAlias(
           );
   }
 
-  return dynamicObjectAliasForNode(callback.lambda.body, lambdaScope);
+  return mergeDynamicObjectAliases([
+    dynamicObjectAliasForNode(callback.lambda.body, lambdaScope),
+    args[2] ? dynamicObjectAliasForNode(args[2], scope) : null,
+  ]);
 }
 
 function getFunctionResultBasePaths(
