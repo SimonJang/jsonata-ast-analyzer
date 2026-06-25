@@ -1835,6 +1835,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const resultStep = node.steps[resultAliasStepIndex];
       const suffixSteps = node.steps.slice(resultAliasStepIndex + 1);
       const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
+      const hasResultAlias = Boolean(
+        objectAliasForNode(resultStep, scope) ||
+          dynamicObjectAliasForNode(resultStep, scope),
+      );
       const resultPaths = selectResultAliasStepPaths(
         resultStep,
         suffixSteps,
@@ -1847,7 +1851,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         node.group,
         scope,
       );
-      if (aliasSuffixStagePaths.length > 0) {
+      if (hasResultAlias) {
         paths.push(...aliasSuffixStagePaths);
         resultAliasSuffixStageStart = resultAliasStepIndex;
         skipResultAliasGroupBy = Boolean(node.group);
