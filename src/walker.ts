@@ -1856,7 +1856,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         resultAliasSuffixStageStart = resultAliasStepIndex;
         skipResultAliasGroupBy = Boolean(node.group);
       }
-      if (resultStep.type === "function") {
+      if (resultStep.type === "function" && !hasResultAlias) {
         const resultBasePaths = getFunctionResultBasePaths(
           resultStep as FunctionNode,
           scope,
