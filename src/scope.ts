@@ -10,6 +10,8 @@ export interface PartialBinding {
   readonly scope: ScopeTracker;
 }
 
+export type ObjectAlias = ReadonlyMap<string, readonly string[]>;
+
 /**
  * Immutable scope chain for variable resolution.
  * Each scope level has its own bindings and a parent pointer.
@@ -22,6 +24,7 @@ export interface ScopeTracker {
   readonly bindings: ReadonlyMap<string, readonly string[]>;
   readonly lambdas: ReadonlyMap<string, LambdaBinding>;
   readonly partials: ReadonlyMap<string, PartialBinding>;
+  readonly objectAliases: ReadonlyMap<string, ObjectAlias>;
   readonly parent: ScopeTracker | null;
 }
 
@@ -29,6 +32,7 @@ const EMPTY_SCOPE: ScopeTracker = {
   bindings: new Map(),
   lambdas: new Map(),
   partials: new Map(),
+  objectAliases: new Map(),
   parent: null,
 };
 
@@ -39,7 +43,13 @@ export function createScope(): ScopeTracker {
 
 /** Create a child scope inheriting from parent. */
 export function childScope(parent: ScopeTracker): ScopeTracker {
-  return { bindings: new Map(), lambdas: new Map(), partials: new Map(), parent };
+  return {
+    bindings: new Map(),
+    lambdas: new Map(),
+    partials: new Map(),
+    objectAliases: new Map(),
+    parent,
+  };
 }
 
 /**
@@ -53,11 +63,30 @@ export function bindVariable(
   paths: readonly string[],
 ): ScopeTracker {
   const newBindings = new Map(scope.bindings);
+  const newObjectAliases = new Map(scope.objectAliases);
   newBindings.set(name, paths);
+  newObjectAliases.delete(name);
   return {
     bindings: newBindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
+    objectAliases: newObjectAliases,
+    parent: scope.parent,
+  };
+}
+
+export function bindObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+  alias: ObjectAlias,
+): ScopeTracker {
+  const newObjectAliases = new Map(scope.objectAliases);
+  newObjectAliases.set(name, alias);
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    objectAliases: newObjectAliases,
     parent: scope.parent,
   };
 }
@@ -79,6 +108,7 @@ export function bindLambda(
     bindings: scope.bindings,
     lambdas: newLambdas,
     partials: scope.partials,
+    objectAliases: scope.objectAliases,
     parent: scope.parent,
   };
 }
@@ -95,6 +125,7 @@ export function bindPartial(
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: newPartials,
+    objectAliases: scope.objectAliases,
     parent: scope.parent,
   };
 }
@@ -147,4 +178,18 @@ export function resolveVariable(
     current = current.parent;
   }
   return null; // unresolvable
+}
+
+export function resolveObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+): ObjectAlias | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.objectAliases.has(name)) {
+      return current.objectAliases.get(name)!;
+    }
+    current = current.parent;
+  }
+  return null;
 }
