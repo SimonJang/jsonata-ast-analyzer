@@ -45,6 +45,7 @@ const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
   "distinct",
   "merge",
   "spread",
+  "sift",
 ]);
 
 /**
@@ -1067,8 +1068,8 @@ function getFunctionResultBasePaths(
     argScope = partialBinding.scope;
   }
 
-  if (funcName === "map") {
-    return getMapResultBasePaths(args, argScope);
+  if (funcName === "map" || funcName === "each") {
+    return getCallbackResultBasePaths(funcName, args, argScope);
   }
 
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
@@ -1081,7 +1082,11 @@ function getFunctionResultBasePaths(
   return args.length > 0 ? getResultBasePathsFromArg(args[0], argScope) : [];
 }
 
-function getMapResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
+function getCallbackResultBasePaths(
+  funcName: "map" | "each",
+  args: AstNode[],
+  scope: ScopeTracker,
+): string[] {
   const callback = findHigherOrderCallback(args, scope);
   if (!callback) return [];
 
@@ -1091,11 +1096,13 @@ function getMapResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
 
   for (let i = 0; i < callback.lambda.arguments.length; i++) {
     const param = callback.lambda.arguments[i];
-    const role = HIGHER_ORDER_SEMANTICS.map[i];
+    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
 
-    if (role === "element" || role === "array") {
+    if (role === "element" || role === "value" || role === "array") {
       lambdaScope = bindVariable(lambdaScope, param.value, dataArgPaths);
     } else if (role === "index") {
+      lambdaScope = bindVariable(lambdaScope, param.value, []);
+    } else if (role === "key") {
       lambdaScope = bindVariable(lambdaScope, param.value, []);
     }
   }

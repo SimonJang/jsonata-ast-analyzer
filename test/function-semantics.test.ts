@@ -420,4 +420,53 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves identity $each callback aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$each(record, function($v) { $v }).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected $each callback aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$each(record, function($v) { $v.detail }).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.detail", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sift result aliases in wildcard chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$sift(record, function($v) { $v.active }).*.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+        { path: "record.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $sift results as suffixable object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($s := $sift(record, function($v) { $v.active }); $s.*.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+        { path: "record.active", confidence: "static" },
+      ]),
+    );
+  });
 });
