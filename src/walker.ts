@@ -25,12 +25,15 @@ import {
   childScope,
   bindVariable,
   bindObjectAlias,
+  bindDynamicObjectAlias,
   bindLambda,
   bindPartial,
   resolveLambda,
   resolvePartial,
   resolveVariable,
   resolveObjectAlias,
+  resolveDynamicObjectAlias,
+  type DynamicObjectAlias,
   type ObjectAlias,
 } from "./scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
@@ -299,6 +302,12 @@ function objectAliasFromBlock(node: BlockNode, scope: ScopeTracker): ObjectAlias
         bindNode.rhs,
         closureScope,
       );
+      currentScope = bindDynamicObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
       result = objectAliasForNode(bindNode.rhs, closureScope);
     } else {
       result = objectAliasForNode(expr, currentScope);
@@ -388,12 +397,7 @@ function selectDynamicObjectValuePaths(
   return paths;
 }
 
-interface DynamicObjectSource {
-  node: ObjectNode;
-  scope: ScopeTracker;
-}
-
-function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectSource | null {
+function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
   if (node.type === "object") return { node: node as ObjectNode, scope };
   if (node.type !== "block") return null;
 
@@ -422,6 +426,12 @@ function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectS
         bindNode.rhs,
         closureScope,
       );
+      currentScope = bindDynamicObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
 
       if (bindNode.rhs.type === "lambda") {
         currentScope = bindLambda(
@@ -444,6 +454,25 @@ function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectS
   return null;
 }
 
+function dynamicObjectAliasForNode(
+  node: AstNode,
+  scope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const source = dynamicObjectSource(node, scope);
+  if (source) return source;
+  if (node.type === "variable") {
+    return resolveDynamicObjectAlias(scope, (node as VariableNode).value);
+  }
+  if (node.type === "function") {
+    return getFunctionResultDynamicObjectAlias(node as FunctionNode, scope);
+  }
+  if (node.type === "apply") {
+    const func = appliedFunctionFromApply(node as ApplyNode);
+    return func ? getFunctionResultDynamicObjectAlias(func, scope) : null;
+  }
+  return null;
+}
+
 function bindObjectAliasIfPresent(
   scope: ScopeTracker,
   name: string,
@@ -452,6 +481,16 @@ function bindObjectAliasIfPresent(
 ): ScopeTracker {
   const alias = objectAliasForNode(node, aliasScope);
   return alias ? bindObjectAlias(scope, name, alias) : scope;
+}
+
+function bindDynamicObjectAliasIfPresent(
+  scope: ScopeTracker,
+  name: string,
+  node: AstNode,
+  aliasScope: ScopeTracker,
+): ScopeTracker {
+  const alias = dynamicObjectAliasForNode(node, aliasScope);
+  return alias ? bindDynamicObjectAlias(scope, name, alias) : scope;
 }
 
 function isResultAliasStep(step: AstNode): boolean {
@@ -475,7 +514,7 @@ function selectResultAliasStepPaths(
   const objectPaths = objectAlias
     ? selectObjectAliasPaths(objectAlias, suffixSteps)
     : null;
-  const dynamicObject = dynamicObjectSource(step, scope);
+  const dynamicObject = dynamicObjectAliasForNode(step, scope);
   const dynamicObjectPaths =
     dynamicObject
       ? selectDynamicObjectValuePaths(
@@ -607,6 +646,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         node.steps.slice(varStepIndex + 1),
       );
       if (objectPaths) return objectPaths;
+    }
+
+    const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
+    if (dynamicObjectAlias) {
+      const dynamicObjectPaths = selectDynamicObjectValuePaths(
+        dynamicObjectAlias.node,
+        node.steps.slice(varStepIndex + 1),
+        dynamicObjectAlias.scope,
+      );
+      if (dynamicObjectPaths.length > 0) return dynamicObjectPaths;
     }
 
     const resolved = resolveVariable(scope, varStep.value);
@@ -987,6 +1036,12 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
         bindNode.rhs,
         closureScope,
       );
+      currentScope = bindDynamicObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
 
       // If the RHS is a lambda, store the lambda node for SCOPE-05 tracing
       if (bindNode.rhs.type === "lambda") {
@@ -1035,6 +1090,7 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
   for (const expr of node.expressions) {
     if (expr.type === "bind") {
       const bindNode = expr as BindNode;
+      const closureScope = currentScope;
       const rhsPaths = isRootReference(bindNode.rhs)
         ? [ROOT_PATH]
         : walkNode(bindNode.rhs, currentScope);
@@ -1048,7 +1104,13 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
         currentScope,
         bindNode.lhs.value,
         bindNode.rhs,
+        closureScope,
+      );
+      currentScope = bindDynamicObjectAliasIfPresent(
         currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
       );
     } else {
       paths.push(...walkNode(expr, currentScope));
@@ -1500,6 +1562,29 @@ function getFunctionResultObjectAlias(
   return null;
 }
 
+function getFunctionResultDynamicObjectAlias(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const partialBinding = resolvePartial(scope, node.procedure.value);
+  let funcName = node.procedure.value;
+  let args = node.arguments;
+  let argScope = scope;
+
+  if (partialBinding) {
+    funcName = partialBinding.partial.procedure.value;
+    args = applyPartialArguments(partialBinding.partial, node.arguments);
+    argScope = partialBinding.scope;
+  }
+
+  const lambdaBinding = resolveLambda(argScope, funcName);
+  if (lambdaBinding) {
+    return getCustomFunctionResultDynamicObjectAlias(lambdaBinding, args, argScope);
+  }
+
+  return null;
+}
+
 function getCustomFunctionResultObjectAlias(
   binding: NonNullable<ReturnType<typeof resolveLambda>>,
   callArgs: AstNode[],
@@ -1515,6 +1600,23 @@ function getCustomFunctionResultObjectAlias(
   }
 
   return objectAliasForNode(lambda.body, lambdaScope);
+}
+
+function getCustomFunctionResultDynamicObjectAlias(
+  binding: NonNullable<ReturnType<typeof resolveLambda>>,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const { lambda, scope } = binding;
+  let lambdaScope = childScope(scope);
+
+  for (let i = 0; i < lambda.arguments.length; i++) {
+    const param = lambda.arguments[i];
+    const argPaths = i < callArgs.length ? extractBasePaths(callArgs[i], callScope) : [];
+    lambdaScope = bindVariable(lambdaScope, param.value, argPaths);
+  }
+
+  return dynamicObjectAliasForNode(lambda.body, lambdaScope);
 }
 
 function getCallbackResultObjectAlias(
