@@ -942,4 +942,55 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("invokes variable-bound functions on bare apply RHS", () => {
+    expect(
+      sortPaths(extractPaths("($project := function($x) { $x.name }; items ~> $project)")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable apply result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("($project := function($x) { $x.detail }; (items ~> $project).name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable apply object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('($project := function($x) { {"k": $x.detail} }; (items ~> $project).k.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("invokes variable-bound partials on bare apply RHS", () => {
+    expect(
+      sortPaths(extractPaths("($f := $lookup(products, ?); (sku ~> $f).name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "products", confidence: "static" },
+        { path: "products.name", confidence: "static" },
+        { path: "sku", confidence: "static" },
+      ]),
+    );
+  });
 });
