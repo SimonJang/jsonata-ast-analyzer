@@ -745,6 +745,29 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves parent paths in mixed object alias callback result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $merge($map($r.x.children, function($c){{"n": $c.name, "p": %.rank}})).n)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
