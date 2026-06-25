@@ -83,6 +83,13 @@ describe("function semantics", () => {
     );
   });
 
+  it("traces inline lambda function calls", () => {
+    expect(extractPaths("function($x){$x.name}(account)")).toEqual([
+      { path: "account", confidence: "static" },
+      { path: "account.name", confidence: "static" },
+    ]);
+  });
+
   it("resolves variable-bound callbacks in filtered path chains", () => {
     expect(
       sortPaths(
