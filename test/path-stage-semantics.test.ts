@@ -634,6 +634,28 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves path-like mixed object alias branches in transform patterns", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x ~> |children[enabled]|{"seen": true}|)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.enabled", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children", confidence: "static" },
+        { path: "items.detail.children.enabled", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves variable-bound mixed object alias suffix-stage group entries", () => {
     expect(
       sortPaths(
