@@ -24,11 +24,14 @@ import {
   createScope,
   childScope,
   bindVariable,
+  bindObjectAlias,
   bindLambda,
   bindPartial,
   resolveLambda,
   resolvePartial,
   resolveVariable,
+  resolveObjectAlias,
+  type ObjectAlias,
 } from "./scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
 
@@ -186,6 +189,93 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
   }
 }
 
+function staticObjectKey(node: AstNode): string | null {
+  if (node.type === "string" || node.type === "name") {
+    return (node as { value: string }).value;
+  }
+  return null;
+}
+
+function objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAlias | null {
+  const fields = new Map<string, readonly string[]>();
+
+  for (const [keyNode, valueNode] of node.entries) {
+    const key = staticObjectKey(keyNode);
+    if (!key) continue;
+
+    const aliases = bindingAliasPaths(valueNode, scope);
+    if (aliases.length > 0) fields.set(key, aliases);
+  }
+
+  return fields.size > 0 ? fields : null;
+}
+
+function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
+  if (node.type === "object") return objectAliasFromObject(node as ObjectNode, scope);
+  if (node.type === "variable") {
+    return resolveObjectAlias(scope, (node as VariableNode).value);
+  }
+  if (node.type === "block") {
+    return objectAliasFromBlock(node as BlockNode, scope);
+  }
+  return null;
+}
+
+function objectAliasFromBlock(node: BlockNode, scope: ScopeTracker): ObjectAlias | null {
+  let currentScope = scope;
+  let result: ObjectAlias | null = null;
+
+  for (const expr of node.expressions) {
+    if (expr.type === "bind") {
+      const bindNode = expr as BindNode;
+      const closureScope = currentScope;
+      const aliases = bindingAliasPaths(bindNode.rhs, currentScope);
+      currentScope = bindVariable(currentScope, bindNode.lhs.value, aliases);
+      currentScope = bindObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+      result = objectAliasForNode(bindNode.rhs, closureScope);
+    } else {
+      result = objectAliasForNode(expr, currentScope);
+    }
+  }
+
+  return result;
+}
+
+function selectObjectAliasPaths(
+  alias: ObjectAlias,
+  suffixSteps: AstNode[],
+): string[] | null {
+  const [selector, ...rest] = suffixSteps;
+  if (!selector) return [...alias.values()].flatMap((paths) => [...paths]);
+
+  const suffix = buildPathString(rest);
+  if (selector.type === "name") {
+    const paths = alias.get((selector as NameNode).value);
+    return paths ? paths.map((path) => appendPath(path, suffix)) : null;
+  }
+  if (selector.type === "wildcard") {
+    return [...alias.values()].flatMap((paths) =>
+      paths.map((path) => appendPath(path, suffix)),
+    );
+  }
+  return null;
+}
+
+function bindObjectAliasIfPresent(
+  scope: ScopeTracker,
+  name: string,
+  node: AstNode,
+  aliasScope: ScopeTracker,
+): ScopeTracker {
+  const alias = objectAliasForNode(node, aliasScope);
+  return alias ? bindObjectAlias(scope, name, alias) : scope;
+}
+
 function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): string[] {
   let currentScope = scope;
   let result: string[] = [];
@@ -283,6 +373,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
 
   if (varStepIndex >= 0) {
     const varStep = node.steps[varStepIndex] as VariableNode;
+    const objectAlias = resolveObjectAlias(scope, varStep.value);
+    if (objectAlias) {
+      const objectPaths = selectObjectAliasPaths(
+        objectAlias,
+        node.steps.slice(varStepIndex + 1),
+      );
+      if (objectPaths) return objectPaths;
+    }
+
     const resolved = resolveVariable(scope, varStep.value);
 
     if (resolved && resolved.length > 0) {
@@ -350,13 +449,23 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   );
   const funcStepIndex = node.steps.findIndex((s) => s.type === "function");
   if (basePath && resultAliasStepIndex >= 0) {
-    const resultBasePaths = bindingAliasPaths(
-      node.steps[resultAliasStepIndex],
-      scope,
-    );
-    const suffix = buildPathString(node.steps.slice(resultAliasStepIndex + 1));
-    for (const resultBasePath of resultBasePaths) {
-      paths.push(appendPath(resultBasePath, suffix));
+    const resultStep = node.steps[resultAliasStepIndex];
+    const objectAlias = objectAliasForNode(resultStep, scope);
+    const objectPaths = objectAlias
+      ? selectObjectAliasPaths(
+          objectAlias,
+          node.steps.slice(resultAliasStepIndex + 1),
+        )
+      : null;
+
+    if (objectPaths) {
+      paths.push(...objectPaths);
+    } else {
+      const resultBasePaths = bindingAliasPaths(resultStep, scope);
+      const suffix = buildPathString(node.steps.slice(resultAliasStepIndex + 1));
+      for (const resultBasePath of resultBasePaths) {
+        paths.push(appendPath(resultBasePath, suffix));
+      }
     }
   } else if (basePath && funcStepIndex >= 0) {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
@@ -636,6 +745,12 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
         bindNode.lhs.value,
         bindingAliasPaths(bindNode.rhs, currentScope),
       );
+      currentScope = bindObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
 
       // If the RHS is a lambda, store the lambda node for SCOPE-05 tracing
       if (bindNode.rhs.type === "lambda") {
@@ -692,6 +807,12 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
         currentScope,
         bindNode.lhs.value,
         bindingAliasPaths(bindNode.rhs, currentScope),
+      );
+      currentScope = bindObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        currentScope,
       );
     } else {
       paths.push(...walkNode(expr, currentScope));
