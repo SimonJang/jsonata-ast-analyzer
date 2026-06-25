@@ -2785,7 +2785,10 @@ function getFunctionResultSuffixBasePaths(
   }
 
   if (funcName === "reduce") {
-    return getReduceInitialSuffixBasePaths(args, argScope);
+    return [
+      ...getReduceInitialSuffixBasePaths(args, argScope),
+      ...getReduceCallbackResultSuffixBasePaths(args, argScope),
+    ];
   }
 
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName) || funcName === "lookup") {
@@ -2829,6 +2832,51 @@ function getReduceInitialSuffixBasePaths(
   if (!accumulatorArg) return [];
 
   return getSuffixableResultBasePaths(accumulatorArg, scope);
+}
+
+function getReduceCallbackResultSuffixBasePaths(
+  args: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const callback = findHigherOrderCallback(args, scope);
+  if (!callback) return [];
+
+  const dataArg = args[0];
+  const accumulatorArg = args[2] ?? dataArg;
+  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
+  const accumulatorPaths = accumulatorArg
+    ? extractBasePaths(accumulatorArg, scope)
+    : dataArgPaths;
+  let lambdaScope = childScope(callback.scope);
+
+  for (let i = 0; i < callback.lambda.arguments.length; i++) {
+    const param = callback.lambda.arguments[i];
+    const role = HIGHER_ORDER_SEMANTICS.reduce[i];
+
+    if (!role) continue;
+    lambdaScope =
+      role === "accumulator"
+        ? bindHigherOrderParameter(
+            lambdaScope,
+            "reduce",
+            param,
+            role,
+            accumulatorPaths,
+            accumulatorArg,
+            scope,
+          )
+        : bindHigherOrderParameter(
+            lambdaScope,
+            "reduce",
+            param,
+            role,
+            dataArgPaths,
+            dataArg,
+            scope,
+          );
+  }
+
+  return getResultSuffixBasePaths(callback.lambda.body, lambdaScope);
 }
 
 function getCustomFunctionResultSuffixBasePaths(
