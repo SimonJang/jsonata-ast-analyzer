@@ -804,4 +804,73 @@ describe("function semantics", () => {
       sortPaths(extractPaths('({"outer": {"x": {"name": primary.label}}}).outer.x.name')),
     ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
   });
+
+  it("preserves conditional object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves Elvis object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(({"x": primary}) ?: ({"x": fallback})).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves coalescing object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(({"x": primary}) ?? ({"x": fallback})).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves array object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('([{"x": primary}, {"x": fallback}]).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds conditional object aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths('($o := flag ? {"x": primary} : {"x": fallback}; $o.x.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
 });
