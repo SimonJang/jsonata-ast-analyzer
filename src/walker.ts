@@ -2789,9 +2789,7 @@ function getFunctionResultSuffixBasePaths(
 
 function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
   if (node.type === "block") {
-    const expressions = (node as BlockNode).expressions;
-    const last = expressions[expressions.length - 1];
-    return last ? getResultSuffixBasePaths(last, scope) : [];
+    return getBlockResultSuffixBasePaths(node as BlockNode, scope);
   }
 
   if (node.type === "condition") {
@@ -2819,6 +2817,67 @@ function getReduceInitialSuffixBasePaths(
   if (!accumulatorArg) return [];
 
   return getSuffixableResultBasePaths(accumulatorArg, scope);
+}
+
+function getBlockResultSuffixBasePaths(
+  node: BlockNode,
+  scope: ScopeTracker,
+): string[] {
+  let currentScope = scope;
+  let result: string[] = [];
+
+  for (const expr of node.expressions) {
+    if (expr.type === "bind") {
+      const bindNode = expr as BindNode;
+      const closureScope = currentScope;
+      result = getResultSuffixBasePaths(bindNode.rhs, closureScope);
+      currentScope = bindVariable(
+        currentScope,
+        bindNode.lhs.value,
+        bindingAliasPaths(bindNode.rhs, currentScope),
+      );
+      currentScope = bindSuffixBasePathsIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+      currentScope = bindObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+      currentScope = bindDynamicObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+
+      if (bindNode.rhs.type === "lambda") {
+        currentScope = bindLambda(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as LambdaNode,
+          closureScope,
+        );
+      } else if (bindNode.rhs.type === "partial") {
+        currentScope = bindPartial(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as PartialNode,
+          closureScope,
+        );
+      }
+    } else if (expr.type === "block") {
+      result = getBlockResultSuffixBasePaths(expr as BlockNode, childScope(currentScope));
+    } else {
+      result = getResultSuffixBasePaths(expr, currentScope);
+    }
+  }
+
+  return result;
 }
 
 function getSuffixableResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
