@@ -2123,6 +2123,70 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed $reduce callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$reduce(items, function($acc, $v) { flag ? {"x": $v.detail} : fallback }, seed).x.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed $reduce callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $reduce(items, function($acc, $v) { flag ? {"x": $v.detail} : fallback }, seed); $r.x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $reduce callback dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "$reduce(items, function($acc, $v) { flag ? {key: $v.detail} : fallback }, seed).x.name",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("invokes variable-bound functions on bare apply RHS", () => {
     expect(
       sortPaths(extractPaths("($project := function($x) { $x.name }; items ~> $project)")),
