@@ -611,6 +611,29 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves path-like mixed object alias branches in filter callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $filter($r.x.children, function($c){$c.enabled}).name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.enabled", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children", confidence: "static" },
+        { path: "items.detail.children.enabled", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves variable-bound mixed object alias suffix-stage group entries", () => {
     expect(
       sortPaths(
