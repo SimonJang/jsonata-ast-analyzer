@@ -1591,6 +1591,12 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
     );
   }
 
+  if (node.predicate && node.predicate.length > 0) {
+    for (const resultBasePath of bindingAliasPathsFromBlock(node, scope)) {
+      paths.push(...walkFilterStages(node.predicate, resultBasePath, currentScope));
+    }
+  }
+
   return paths;
 }
 
