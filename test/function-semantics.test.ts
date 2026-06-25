@@ -572,4 +572,60 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves identity $reduce result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v) { $append($acc, $v) }, []).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected $reduce result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v) { $append($acc, $v.detail) }, []).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $reduce callback result aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($r := $reduce(items, function($acc, $v) { $append($acc, $v.detail) }, []); $r.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix scalar $reduce results onto input paths", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v) { $acc + $v.price }, 0).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.price", confidence: "static" },
+      ]),
+    );
+  });
 });
