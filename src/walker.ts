@@ -127,6 +127,13 @@ function prefixPaths(prefix: string, paths: string[]): string[] {
   return paths.map((p) => (p ? `${prefix}.${p}` : p));
 }
 
+function prefixProjectionPaths(prefix: string, paths: string[]): string[] {
+  if (!prefix) return paths;
+  return paths.map((path) =>
+    path === prefix || path.startsWith(`${prefix}.`) ? path : appendPath(prefix, path),
+  );
+}
+
 function appendPath(base: string, suffix: string | null): string {
   if (!suffix) return base;
   return base ? `${base}.${suffix}` : suffix;
@@ -559,7 +566,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       node.steps.slice(resultAliasStepIndex + 1),
       scope,
     );
-    if (resultPaths) paths.push(...prefixPaths(contextPrefix, resultPaths));
+    if (resultPaths) paths.push(...prefixProjectionPaths(contextPrefix, resultPaths));
   } else if (basePath && funcStepIndex >= 0) {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
     // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
@@ -579,6 +586,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   for (let i = 0; i < node.steps.length; i++) {
     const step = node.steps[i];
     const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
+
+    if (i < node.steps.length - 1 && isResultAliasStep(step)) {
+      const projectionPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const resultPaths = selectResultAliasStepPaths(
+        step,
+        node.steps.slice(i + 1),
+        stageScope,
+      );
+      if (resultPaths) paths.push(...prefixProjectionPaths(projectionPrefix, resultPaths));
+    }
 
     if (step.type === "name") {
       const nameStep = step as NameNode;
