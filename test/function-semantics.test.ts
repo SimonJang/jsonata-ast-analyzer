@@ -335,6 +335,15 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $merge static object aliases in chained fields", () => {
+    expect(sortPaths(extractPaths('$merge([{"x": primary}]).x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $zip input aliases in chained fields", () => {
     expect(sortPaths(extractPaths("$zip(a.items, b.items).name"))).toEqual(
       sortPaths([
@@ -371,6 +380,24 @@ describe("function semantics", () => {
       sortPaths([
         { path: "record", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $spread static object aliases in wildcard chained fields", () => {
+    expect(sortPaths(extractPaths('$spread({"x": primary}).*.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $clone static object aliases in chained fields", () => {
+    expect(sortPaths(extractPaths('$clone({"x": primary}).x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
       ]),
     );
   });
