@@ -143,6 +143,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
         position: positionOf(node),
         expressions: rawList(node.expressions).map(normalizeAst),
         group: normalizeGroup(node.group),
+        predicate: rawList(node.predicate).map(normalizeAst),
         source: sourceOf(node),
       };
     case "unary":
