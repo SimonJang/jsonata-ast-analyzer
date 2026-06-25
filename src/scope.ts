@@ -12,9 +12,13 @@ export interface PartialBinding {
 
 export type ObjectAlias = ReadonlyMap<string, readonly string[]>;
 
-export interface DynamicObjectAlias {
+export interface DynamicObjectAliasVariant {
   readonly node: ObjectNode;
   readonly scope: ScopeTracker;
+}
+
+export interface DynamicObjectAlias {
+  readonly variants: readonly DynamicObjectAliasVariant[];
 }
 
 /**
