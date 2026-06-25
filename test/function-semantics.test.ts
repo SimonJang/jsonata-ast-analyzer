@@ -676,4 +676,45 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves array constructor element aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("([primary, fallback]).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected array constructor aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths("([primary.detail, fallback.detail]).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback.detail", confidence: "static" },
+        { path: "fallback.detail.name", confidence: "static" },
+        { path: "primary.detail", confidence: "static" },
+        { path: "primary.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds array constructor aliases as suffixable variables", () => {
+    expect(sortPaths(extractPaths("($a := [primary, fallback]; $a.name)"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed array elements onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('([{"name": primary.label}]).name')),
+    ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
+  });
 });
