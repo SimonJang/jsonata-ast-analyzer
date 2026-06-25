@@ -1187,6 +1187,50 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves thunked custom function $clone dynamic object aliases", () => {
+    expect(
+      sortPaths(extractPaths("($f := function(){$clone({key: primary})}; $f().x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves thunked custom function $merge dynamic object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function(){$merge([{key: primary}, {key: fallback}])}; $f().x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves thunked custom function $map dynamic object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($f := function(){$map(items, function($v){{key: $v}})}; $f().x.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
