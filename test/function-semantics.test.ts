@@ -1531,6 +1531,22 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves custom function path projection object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function($v){$v.{"out": x.name}}; $fn({(key): primary}).out)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $reduce callback object aliases in chained fields", () => {
     expect(
       sortPaths(
