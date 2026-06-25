@@ -15,6 +15,7 @@ export type ObjectAlias = ReadonlyMap<string, readonly string[]>;
 export interface DynamicObjectAliasVariant {
   readonly node: ObjectNode;
   readonly scope: ScopeTracker;
+  readonly parentDataArgPaths?: readonly string[];
 }
 
 export interface DynamicObjectAlias {
