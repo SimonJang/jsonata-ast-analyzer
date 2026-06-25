@@ -1275,6 +1275,34 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed dynamic conditional object aliases with path branches", () => {
+    expect(sortPaths(extractPaths("(flag ? {key: primary} : fallback).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed dynamic conditional object aliases with path branches", () => {
+    expect(
+      sortPaths(extractPaths("($o := flag ? {key: primary} : fallback; $o.x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves mixed static and dynamic conditional object aliases", () => {
     expect(
       sortPaths(extractPaths('(flag ? {key: primary} : {"x": fallback}).x.name')),
@@ -1586,6 +1614,18 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed conditional object aliases with path branches", () => {
+    expect(sortPaths(extractPaths('(flag ? {"x": primary} : fallback).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves Elvis object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(({"x": primary}) ?: ({"x": fallback})).x.name')),
@@ -1634,6 +1674,20 @@ describe("function semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed conditional object aliases with path branches", () => {
+    expect(
+      sortPaths(extractPaths('($o := flag ? {"x": primary} : fallback; $o.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
