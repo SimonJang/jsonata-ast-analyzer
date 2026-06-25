@@ -732,6 +732,72 @@ function walkAliasSuffixSortTerms(
   return paths;
 }
 
+function walkAliasSuffixProjectionSteps(
+  suffixSteps: AstNode[],
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
+  preserveUnmappedLocalPaths = false,
+): string[] {
+  const paths: string[] = [];
+
+  for (const [index, step] of suffixSteps.entries()) {
+    const expressions = projectionStepExpressions(step);
+    if (!expressions) continue;
+
+    const contextPrefixSteps = suffixSteps.slice(0, index);
+    const contextPaths =
+      contextPrefixSteps.length > 0
+        ? selectAliasSuffixContextPaths(
+            contextPrefixSteps,
+            objectAlias,
+            dynamicObjectAlias,
+            scope,
+            suffixBasePaths,
+          )
+        : [];
+    const parentContextPaths =
+      contextPrefixSteps.length > 1
+        ? selectAliasSuffixContextPaths(
+            contextPrefixSteps.slice(0, -1),
+            objectAlias,
+            dynamicObjectAlias,
+            scope,
+            suffixBasePaths,
+          )
+        : [];
+
+    for (const expr of expressions) {
+      const parentPath =
+        expr.type === "path" && (expr as PathNode).steps[0]?.type === "parent"
+          ? ({
+              ...(expr as PathNode),
+              steps: (expr as PathNode).steps.slice(1),
+            } as PathNode)
+          : null;
+      const expressionContextPaths = parentPath ? parentContextPaths : contextPaths;
+      paths.push(
+        ...expressionContextPaths.flatMap((contextPath) =>
+          walkContextExpression(parentPath ?? expr, contextPath, scope),
+        ),
+        ...(collectVariableNames(expr).size > 0
+          ? selectAliasExpressionPaths(
+              objectAlias,
+              dynamicObjectAlias,
+              expr,
+              scope,
+              suffixBasePaths,
+              preserveUnmappedLocalPaths,
+            )
+          : []),
+      );
+    }
+  }
+
+  return paths;
+}
+
 function walkAliasSuffixGroupEntries(
   groupNode: GroupByNode,
   groupBasePaths: readonly string[],
@@ -1082,6 +1148,11 @@ function selectAliasExpressionPaths(
       continue;
     }
 
+    if (preserveUnmappedLocalPaths) {
+      paths.push(path);
+      continue;
+    }
+
     const suffixSteps = aliasSuffixStepsFromPath(path);
     if (!suffixSteps) {
       paths.push(path);
@@ -1271,6 +1342,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           suffixBaseBinding,
           Boolean(varStep.focusBinding),
         );
+        const suffixProjectionPaths = walkAliasSuffixProjectionSteps(
+          node.steps.slice(varStepIndex + 1),
+          objectAlias,
+          dynamicObjectAlias,
+          aliasScope,
+          suffixBaseBinding,
+          Boolean(varStep.focusBinding),
+        );
         const suffix = buildPathString(node.steps.slice(varStepIndex + 1));
         const suffixBasePaths =
           suffix && suffixBaseBinding.length > 0
@@ -1296,6 +1375,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           ...variableStagePaths,
           ...suffixStagePaths,
           ...suffixSortPaths,
+          ...suffixProjectionPaths,
           ...suffixGroupPaths,
           ...objectPaths,
           ...suffixBasePaths,
