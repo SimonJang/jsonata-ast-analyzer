@@ -2770,9 +2770,21 @@ function getFunctionResultSuffixBasePaths(
   }
 
   const lambdaBinding = resolveLambda(argScope, funcName);
-  if (lambdaBinding || funcName !== "reduce") return [];
+  if (lambdaBinding) return [];
 
-  return getReduceInitialSuffixBasePaths(args, argScope);
+  if (funcName === "reduce") {
+    return getReduceInitialSuffixBasePaths(args, argScope);
+  }
+
+  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName) || funcName === "lookup") {
+    return [];
+  }
+
+  if (funcName === "append" || funcName === "zip") {
+    return args.flatMap((arg) => getSuffixableResultBasePaths(arg, argScope));
+  }
+
+  return args[0] ? getResultSuffixBasePaths(args[0], argScope) : [];
 }
 
 function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
