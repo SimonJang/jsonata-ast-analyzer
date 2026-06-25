@@ -568,6 +568,27 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses selected child context for mixed object alias suffix-stage sort terms", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x.children^(>amount).name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.amount", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children.amount", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves variable-bound mixed object alias suffix-stage group entries", () => {
     expect(
       sortPaths(
