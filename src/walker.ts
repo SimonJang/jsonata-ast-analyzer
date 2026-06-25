@@ -628,6 +628,36 @@ function walkAliasSuffixFilterStages(
   return paths;
 }
 
+function walkAliasSuffixSortTerms(
+  suffixSteps: AstNode[],
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
+  preserveUnmappedLocalPaths = false,
+): string[] {
+  const paths: string[] = [];
+
+  for (const step of suffixSteps) {
+    if (step.type !== "sort") continue;
+
+    for (const term of (step as SortNode).terms) {
+      paths.push(
+        ...selectAliasExpressionPaths(
+          objectAlias,
+          dynamicObjectAlias,
+          term.expression,
+          scope,
+          suffixBasePaths,
+          preserveUnmappedLocalPaths,
+        ),
+      );
+    }
+  }
+
+  return paths;
+}
+
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
   if (node.type === "object") return { variants: [{ node: node as ObjectNode, scope }] };
   if (node.type !== "block") return null;
@@ -1121,6 +1151,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           suffixBaseBinding,
           Boolean(varStep.focusBinding),
         );
+        const suffixSortPaths = walkAliasSuffixSortTerms(
+          node.steps.slice(varStepIndex + 1),
+          objectAlias,
+          dynamicObjectAlias,
+          aliasScope,
+          suffixBaseBinding,
+          Boolean(varStep.focusBinding),
+        );
         const suffix = buildPathString(node.steps.slice(varStepIndex + 1));
         const suffixBasePaths =
           suffix && suffixBaseBinding.length > 0
@@ -1129,6 +1167,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         return [
           ...variableStagePaths,
           ...suffixStagePaths,
+          ...suffixSortPaths,
           ...objectPaths,
           ...suffixBasePaths,
         ];
