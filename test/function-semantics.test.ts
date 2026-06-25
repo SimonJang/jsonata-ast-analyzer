@@ -273,6 +273,30 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed $append object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths('$append({"x": primary}, fallback).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed $append object aliases with path inputs", () => {
+    expect(
+      sortPaths(extractPaths('($all := $append({"x": primary}, fallback); $all.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves apply-chain $single result aliases with path suffixes", () => {
     expect(
       sortPaths(
@@ -351,6 +375,17 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed $merge object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths('$merge([{"x": primary}, fallback]).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $zip input aliases in chained fields", () => {
     expect(sortPaths(extractPaths("$zip(a.items, b.items).name"))).toEqual(
       sortPaths([
@@ -358,6 +393,17 @@ describe("function semantics", () => {
         { path: "a.items.name", confidence: "static" },
         { path: "b.items", confidence: "static" },
         { path: "b.items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $zip object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths('$zip({"x": primary}, fallback).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
       ]),
     );
   });
@@ -1409,11 +1455,39 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed $append dynamic object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths("$append({key: primary}, fallback).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $filter dynamic object-key result aliases", () => {
     expect(
       sortPaths(extractPaths("$filter([{key: primary}], function($v){true}).x.name")),
     ).toEqual(
       sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $filter dynamic object aliases with path inputs", () => {
+    expect(
+      sortPaths(
+        extractPaths("$filter([{key: primary}, fallback], function($v){true}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -1454,6 +1528,18 @@ describe("function semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $merge dynamic object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths("$merge([{key: primary}, fallback]).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
