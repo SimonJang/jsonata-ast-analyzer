@@ -1623,6 +1623,18 @@ function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
     const varStepIndex = pathNode.steps.findIndex((s) => s.type === "variable");
     if (varStepIndex >= 0) {
       const varStep = pathNode.steps[varStepIndex] as VariableNode;
+      const objectAlias = resolveObjectAlias(scope, varStep.value);
+      const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
+      if (objectAlias || dynamicObjectAlias) {
+        const aliasPaths = selectVariableObjectAliasPaths(
+          objectAlias,
+          dynamicObjectAlias,
+          pathNode.steps.slice(varStepIndex + 1),
+          scope,
+        );
+        if (aliasPaths) return aliasPaths;
+      }
+
       const resolved = resolveVariable(scope, varStep.value);
       if (resolved && resolved.length > 0) {
         const basePaths = filterToBasePaths([...resolved]);
