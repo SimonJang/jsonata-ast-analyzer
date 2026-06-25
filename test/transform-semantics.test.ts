@@ -62,4 +62,17 @@ describe("transform semantics", () => {
       ]),
     );
   });
+
+  it("prefixes transform update reads for every pattern path", () => {
+    expect(
+      sortPaths(extractPaths('| [Account, Contact] | {"display": name} |')),
+    ).toEqual(
+      sortPaths([
+        { path: "Account", confidence: "static" },
+        { path: "Account.name", confidence: "static" },
+        { path: "Contact", confidence: "static" },
+        { path: "Contact.name", confidence: "static" },
+      ]),
+    );
+  });
 });
