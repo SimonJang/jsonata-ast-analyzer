@@ -846,9 +846,21 @@ function walkAliasSuffixGroupEntries(
   suffixBasePaths: readonly string[] = [],
   preserveUnmappedLocalPaths = false,
 ): string[] {
-  const contextPaths = groupBasePaths.flatMap((groupBasePath) =>
-    walkContextGroupEntries(groupNode, groupBasePath, scope),
-  );
+  const parentGroupBasePaths = groupBasePaths.map(parentPath);
+  const contextPaths = groupNode.entries.flatMap(([keyExpr, valExpr]) => [
+    ...walkAliasSuffixContextExpression(
+      keyExpr,
+      groupBasePaths,
+      parentGroupBasePaths,
+      scope,
+    ),
+    ...walkAliasSuffixContextExpression(
+      valExpr,
+      groupBasePaths,
+      parentGroupBasePaths,
+      scope,
+    ),
+  ]);
   const aliasPaths = groupNode.entries.flatMap(([keyExpr, valExpr]) => [
     ...(collectVariableNames(keyExpr).size > 0
       ? selectAliasExpressionPaths(
@@ -873,6 +885,12 @@ function walkAliasSuffixGroupEntries(
   ]);
 
   return [...contextPaths, ...aliasPaths];
+}
+
+function parentPath(path: string): string {
+  if (!path || path === ROOT_PATH) return "";
+  const index = path.lastIndexOf(".");
+  return index >= 0 ? path.slice(0, index) : "";
 }
 
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
