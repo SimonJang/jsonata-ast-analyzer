@@ -1008,12 +1008,34 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         suffixBaseBinding,
       );
       if (objectPaths) {
+        const variableStagePaths = [
+          ...(varStep.predicate ?? []).flatMap((stage) =>
+            stage.type === "filter"
+              ? selectAliasExpressionPaths(
+                  objectAlias,
+                  dynamicObjectAlias,
+                  (stage as unknown as FilterStage).expr,
+                  scope,
+                  suffixBaseBinding,
+                )
+              : [],
+          ),
+          ...(varStep.group
+            ? walkAliasGroupEntries(
+                varStep.group,
+                objectAlias,
+                dynamicObjectAlias,
+                scope,
+                suffixBaseBinding,
+              )
+            : []),
+        ];
         const suffix = buildPathString(node.steps.slice(varStepIndex + 1));
         const suffixBasePaths =
           suffix && suffixBaseBinding.length > 0
             ? suffixBaseBinding.map((path) => appendPath(path, suffix))
             : [];
-        return [...objectPaths, ...suffixBasePaths];
+        return [...variableStagePaths, ...objectPaths, ...suffixBasePaths];
       }
     }
 
@@ -1836,7 +1858,13 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
       const dynamicObjectAlias = resolveDynamicObjectAlias(scope, node.value);
       paths.push(
         ...(objectAlias || dynamicObjectAlias
-          ? walkAliasGroupEntries(groupNode, objectAlias, dynamicObjectAlias, scope)
+          ? walkAliasGroupEntries(
+              groupNode,
+              objectAlias,
+              dynamicObjectAlias,
+              scope,
+              resolveSuffixBasePaths(scope, node.value) ?? [],
+            )
           : walkContextGroupEntries(
               groupNode,
               resolved.length > 0 ? resolved[0] : "",
