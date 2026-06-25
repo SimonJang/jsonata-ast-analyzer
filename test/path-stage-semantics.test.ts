@@ -698,6 +698,50 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves nested parent paths in mixed object alias suffix filters", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x.children[%.rank > score].name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.children.score", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.children.score", confidence: "static" },
+        { path: "items.detail.rank", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x.children[$contains(%.tags, tag)].name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.children.tag", confidence: "static" },
+        { path: "fallback.x.tags", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.children.tag", confidence: "static" },
+        { path: "items.detail.tags", confidence: "static" },
+      ]),
+    );
+  });
+
   it("walks projection expressions in mixed object alias suffix paths", () => {
     expect(
       sortPaths(
