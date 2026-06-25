@@ -148,6 +148,15 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
       return ["%"];
     case "function":
       return getFunctionResultBasePaths(node as FunctionNode, scope);
+    case "apply": {
+      const apply = node as ApplyNode;
+      if (apply.rhs.type !== "function") return [];
+      const func = apply.rhs as FunctionNode;
+      return getFunctionResultBasePaths(
+        { ...func, arguments: [apply.lhs, ...func.arguments] },
+        scope,
+      );
+    }
     case "condition": {
       const condition = node as ConditionNode;
       return [
@@ -1049,11 +1058,11 @@ function getFunctionResultBasePaths(
       return [];
     }
     const args = applyPartialArguments(partialBinding.partial, node.arguments);
-    return args.length > 0 ? walkNode(args[0], partialBinding.scope) : [];
+    return args.length > 0 ? walkNode(args[0], partialBinding.scope).slice(0, 1) : [];
   }
 
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(node.procedure.value)) return [];
-  return node.arguments.length > 0 ? walkNode(node.arguments[0], scope) : [];
+  return node.arguments.length > 0 ? walkNode(node.arguments[0], scope).slice(0, 1) : [];
 }
 
 /**

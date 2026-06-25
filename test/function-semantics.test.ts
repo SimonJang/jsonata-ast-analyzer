@@ -165,4 +165,48 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("binds apply-chain filter results as suffixable input aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($p := items ~> $filter(function($v) { $v.active }); $p.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds apply-chain sort results as suffixable input aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($p := items ~> $sort(function($l, $r) { $l.price < $r.price }); $p.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "items.price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds nested lookup results without suffixing helper reads", () => {
+    expect(
+      sortPaths(
+        extractPaths("($p := $lookup($lookup(outer, key1).inner, key2); $p.value)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key1", confidence: "static" },
+        { path: "key2", confidence: "static" },
+        { path: "outer", confidence: "static" },
+        { path: "outer.inner", confidence: "static" },
+        { path: "outer.inner.value", confidence: "static" },
+      ]),
+    );
+  });
 });
