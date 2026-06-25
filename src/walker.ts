@@ -1399,6 +1399,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     (step, index) => index < node.steps.length - 1 && isResultAliasStep(step),
   );
   const funcStepIndex = node.steps.findIndex((s) => s.type === "function");
+  let skipFunctionResultSuffixStages = false;
   if (basePath && resultAliasStepIndex >= 0) {
     if (resultAliasStepIndex === 0) {
       const resultStep = node.steps[resultAliasStepIndex];
@@ -1409,6 +1410,23 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         scope,
       );
       if (resultPaths) paths.push(...prefixProjectionPaths(contextPrefix, resultPaths));
+      if (resultStep.type === "function") {
+        const resultBasePaths = getFunctionResultBasePaths(
+          resultStep as FunctionNode,
+          scope,
+        );
+        for (const resultBasePath of resultBasePaths) {
+          paths.push(
+            ...walkResolvedVariableSuffixFilterStages(
+              node.steps.slice(resultAliasStepIndex + 1),
+              resultBasePath,
+              scope,
+              new Set(),
+            ),
+          );
+        }
+        skipFunctionResultSuffixStages = resultBasePaths.length > 0;
+      }
     }
   } else if (basePath && funcStepIndex >= 0) {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
@@ -1418,7 +1436,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     if (resultBasePaths.length > 0) {
       for (const resultBasePath of resultBasePaths) {
         paths.push(...prefixPaths(resultBasePath, [basePath]));
+        paths.push(
+          ...walkResolvedVariableSuffixFilterStages(
+            node.steps.slice(funcStepIndex + 1),
+            resultBasePath,
+            scope,
+            new Set(),
+          ),
+        );
       }
+      skipFunctionResultSuffixStages = true;
       // Don't push bare basePath -- it's not a standalone data path
     }
   } else if (basePath && !suppressBase) {
@@ -1464,7 +1491,11 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         stageScope = bindVariable(stageScope, nameStep.indexBinding.name, []);
         nonPathVariables.add(nameStep.indexBinding.name);
       }
-      if (nameStep.stages && nameStep.stages.length > 0) {
+      if (
+        nameStep.stages &&
+        nameStep.stages.length > 0 &&
+        !(skipFunctionResultSuffixStages && i > funcStepIndex)
+      ) {
         paths.push(
           ...walkFilterStages(
             nameStep.stages!,
@@ -3360,6 +3391,24 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   const objectAlias = objectAliasForNode(objectArg, scope);
   const objectPaths = objectAlias ? selectObjectAliasPaths(objectAlias, selectorSteps) : null;
   if (objectPaths) paths.push(...objectPaths);
+
+  if (objectArg.type === "variable") {
+    const suffix = buildPathString(selectorSteps);
+    const objectAliasBases = new Set(
+      objectAlias ? [...objectAlias.values()].flatMap((basePaths) => [...basePaths]) : [],
+    );
+    const suffixBasePaths = resolveSuffixBasePaths(
+      scope,
+      (objectArg as VariableNode).value,
+    );
+    if (suffixBasePaths && suffix) {
+      paths.push(
+        ...suffixBasePaths
+          .filter((path) => !objectAliasBases.has(path))
+          .map((path) => appendPath(path, suffix)),
+      );
+    }
+  }
 
   const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
   if (dynamicObjectAlias) {
