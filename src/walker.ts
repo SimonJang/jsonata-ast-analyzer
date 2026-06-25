@@ -217,8 +217,34 @@ function objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAli
   return fields.size > 0 ? fields : null;
 }
 
+function mergeObjectAliases(aliases: Array<ObjectAlias | null>): ObjectAlias | null {
+  const fields = new Map<string, string[]>();
+
+  for (const alias of aliases) {
+    if (!alias) continue;
+
+    for (const [key, paths] of alias) {
+      fields.set(key, [...(fields.get(key) ?? []), ...paths]);
+    }
+  }
+
+  return fields.size > 0 ? fields : null;
+}
+
 function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
   if (node.type === "object") return objectAliasFromObject(node as ObjectNode, scope);
+  if (node.type === "array") {
+    return mergeObjectAliases(
+      (node as ArrayNode).expressions.map((expr) => objectAliasForNode(expr, scope)),
+    );
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return mergeObjectAliases([
+      objectAliasForNode(condition.then, scope),
+      condition.else ? objectAliasForNode(condition.else, scope) : null,
+    ]);
+  }
   if (node.type === "variable") {
     return resolveObjectAlias(scope, (node as VariableNode).value);
   }
