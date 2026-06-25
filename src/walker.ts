@@ -512,6 +512,7 @@ function selectVariableObjectAliasPaths(
   dynamicObjectAlias: DynamicObjectAlias | null,
   suffixSteps: AstNode[],
   scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
 ): string[] | null {
   const [selector, ...rest] = suffixSteps;
   if (selector?.type === "sort") {
@@ -520,9 +521,16 @@ function selectVariableObjectAliasPaths(
       objectAlias,
       dynamicObjectAlias,
       scope,
+      suffixBasePaths,
     );
     const resultPaths =
-      selectVariableObjectAliasPaths(objectAlias, dynamicObjectAlias, rest, scope) ?? [];
+      selectVariableObjectAliasPaths(
+        objectAlias,
+        dynamicObjectAlias,
+        rest,
+        scope,
+        suffixBasePaths,
+      ) ?? [];
     const paths = [...sortPaths, ...resultPaths];
     return paths.length > 0 ? paths : null;
   }
@@ -549,6 +557,7 @@ function selectSortAliasPaths(
   objectAlias: ObjectAlias | null,
   dynamicObjectAlias: DynamicObjectAlias | null,
   scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
 ): string[] {
   const paths: string[] = [];
 
@@ -560,17 +569,20 @@ function selectSortAliasPaths(
           dynamicObjectAlias,
           term.expression,
           scope,
+          suffixBasePaths,
         ),
       );
       continue;
     }
 
     const suffixSteps = (term.expression as PathNode).steps;
+    const suffix = buildPathString(suffixSteps);
     paths.push(
       ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
       ...(dynamicObjectAlias
         ? selectDynamicObjectAliasPaths(dynamicObjectAlias, suffixSteps)
         : []),
+      ...(suffix ? suffixBasePaths.map((path) => appendPath(path, suffix)) : []),
     );
   }
 
@@ -987,17 +999,18 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const objectAlias = resolveObjectAlias(scope, varStep.value);
     const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
     if (objectAlias || dynamicObjectAlias) {
+      const suffixBaseBinding = resolveSuffixBasePaths(scope, varStep.value) ?? [];
       const objectPaths = selectVariableObjectAliasPaths(
         objectAlias,
         dynamicObjectAlias,
         node.steps.slice(varStepIndex + 1),
         scope,
+        suffixBaseBinding,
       );
       if (objectPaths) {
         const suffix = buildPathString(node.steps.slice(varStepIndex + 1));
-        const suffixBaseBinding = resolveSuffixBasePaths(scope, varStep.value);
         const suffixBasePaths =
-          suffix && suffixBaseBinding
+          suffix && suffixBaseBinding.length > 0
             ? suffixBaseBinding.map((path) => appendPath(path, suffix))
             : [];
         return [...objectPaths, ...suffixBasePaths];
