@@ -266,6 +266,9 @@ export function resolveSuffixBasePaths(
     if (current.suffixBaseBindings.has(name)) {
       return current.suffixBaseBindings.get(name)!;
     }
+    if (current.bindings.has(name)) {
+      return null;
+    }
     current = current.parent;
   }
   return null;
@@ -280,6 +283,9 @@ export function resolveObjectAlias(
     if (current.objectAliases.has(name)) {
       return current.objectAliases.get(name)!;
     }
+    if (current.bindings.has(name)) {
+      return null;
+    }
     current = current.parent;
   }
   return null;
@@ -293,6 +299,9 @@ export function resolveDynamicObjectAlias(
   while (current !== null) {
     if (current.dynamicObjectAliases.has(name)) {
       return current.dynamicObjectAliases.get(name)!;
+    }
+    if (current.bindings.has(name)) {
+      return null;
     }
     current = current.parent;
   }
