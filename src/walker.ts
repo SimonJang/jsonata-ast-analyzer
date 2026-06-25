@@ -1011,6 +1011,17 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(...resolved.map((p) => appendPath(p, suffix)));
       }
 
+      for (const resolvedPath of resolved) {
+        paths.push(
+          ...walkResolvedVariableSuffixFilterStages(
+            suffixSteps,
+            resolvedPath,
+            scope,
+            new Set([varStep.value]),
+          ),
+        );
+      }
+
       // Walk sort terms in remaining steps, prefixed with resolved paths
       for (const remainStep of suffixSteps) {
         if (remainStep.type === "sort") {
@@ -1193,6 +1204,53 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   // Handle group-by on the PathNode (node.group)
   if (node.group) {
     paths.push(...walkGroupBy(node, stageScope, stageVariables));
+  }
+
+  return paths;
+}
+
+function walkResolvedVariableSuffixFilterStages(
+  suffixSteps: AstNode[],
+  resolvedPath: string,
+  scope: ScopeTracker,
+  stageVariables: ReadonlySet<string>,
+): string[] {
+  const paths: string[] = [];
+  let suffixScope = scope;
+  const suffixStageVariables = new Set(stageVariables);
+  const nonPathVariables = new Set<string>();
+
+  for (let i = 0; i < suffixSteps.length; i++) {
+    const step = suffixSteps[i];
+    if (step.type !== "name") continue;
+
+    const nameStep = step as NameNode;
+    const contextSuffix = buildPathString(suffixSteps.slice(0, i + 1)) ?? "";
+    const contextPrefix = appendPath(resolvedPath, contextSuffix);
+
+    if (nameStep.focusBinding) {
+      suffixScope = bindVariable(
+        suffixScope,
+        nameStep.focusBinding.name,
+        contextPrefix ? [contextPrefix] : [],
+      );
+      suffixStageVariables.add(nameStep.focusBinding.name);
+    }
+    if (nameStep.indexBinding) {
+      suffixScope = bindVariable(suffixScope, nameStep.indexBinding.name, []);
+      nonPathVariables.add(nameStep.indexBinding.name);
+    }
+    if (nameStep.stages && nameStep.stages.length > 0) {
+      paths.push(
+        ...walkFilterStages(
+          nameStep.stages,
+          contextPrefix,
+          suffixScope,
+          nonPathVariables,
+          suffixStageVariables,
+        ),
+      );
+    }
   }
 
   return paths;
