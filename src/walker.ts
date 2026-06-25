@@ -130,6 +130,10 @@ function markAbsolute(paths: string[]): string[] {
   return paths.map((path) => (path.startsWith(ROOT_PATH) ? path : appendPath(ROOT_PATH, path)));
 }
 
+function bindablePaths(node: AstNode, paths: string[]): string[] {
+  return node.type === "object" || node.type === "array" ? [] : paths;
+}
+
 function walkContextExpression(
   expr: AstNode,
   contextPrefix: string,
@@ -529,7 +533,7 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
       currentScope = bindVariable(
         currentScope,
         bindNode.lhs.value,
-        rhsPaths,
+        bindablePaths(bindNode.rhs, rhsPaths),
       );
 
       // If the RHS is a lambda, store the lambda node for SCOPE-05 tracing
@@ -583,7 +587,11 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
         ? [ROOT_PATH]
         : walkNode(bindNode.rhs, currentScope);
       paths.push(...rhsPaths.filter((path) => path !== ROOT_PATH));
-      currentScope = bindVariable(currentScope, bindNode.lhs.value, rhsPaths);
+      currentScope = bindVariable(
+        currentScope,
+        bindNode.lhs.value,
+        bindablePaths(bindNode.rhs, rhsPaths),
+      );
     } else {
       paths.push(...walkNode(expr, currentScope));
     }

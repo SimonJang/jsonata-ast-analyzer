@@ -109,4 +109,16 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("does not suffix through variables bound to constructed objects", () => {
+    expect(extractPaths('($o := {"x": account.name}; $o.x)')).toEqual([
+      { path: "account.name", confidence: "static" },
+    ]);
+  });
+
+  it("does not suffix through nested constructed object bindings", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"nested": {"x": account.name}}; $o.nested.x)')),
+    ).toEqual(sortPaths([{ path: "account.name", confidence: "static" }]));
+  });
 });
