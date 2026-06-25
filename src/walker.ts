@@ -1936,7 +1936,12 @@ function getFunctionResultObjectAlias(
     return getReduceResultObjectAlias(args, argScope);
   }
 
-  return null;
+  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return null;
+  if (funcName === "lookup") return null;
+  if (funcName === "append" || funcName === "zip") {
+    return mergeObjectAliases(args.map((arg) => objectAliasForNode(arg, argScope)));
+  }
+  return args.length > 0 ? objectAliasForNode(args[0], argScope) : null;
 }
 
 function getFunctionResultDynamicObjectAlias(
