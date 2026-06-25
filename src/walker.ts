@@ -46,6 +46,7 @@ const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
   "merge",
   "spread",
   "sift",
+  "clone",
 ]);
 
 /**
