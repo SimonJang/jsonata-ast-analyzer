@@ -848,6 +848,7 @@ function selectAliasExpressionPaths(
   dynamicObject: DynamicObjectAlias | null,
   expression: AstNode,
   scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
 ): string[] {
   const paths: string[] = [];
   const localPaths = new Set(walkNode(expression, childScope(createScope())));
@@ -864,9 +865,11 @@ function selectAliasExpressionPaths(
       continue;
     }
 
+    const suffix = buildPathString(suffixSteps);
     paths.push(
       ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
       ...(dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : []),
+      ...(suffix ? suffixBasePaths.map((path) => appendPath(path, suffix)) : []),
     );
   }
 
@@ -1449,10 +1452,23 @@ function walkAliasGroupEntries(
   objectAlias: ObjectAlias | null,
   dynamicObjectAlias: DynamicObjectAlias | null,
   scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
 ): string[] {
   return groupNode.entries.flatMap(([keyExpr, valExpr]) => [
-    ...selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, keyExpr, scope),
-    ...selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, valExpr, scope),
+    ...selectAliasExpressionPaths(
+      objectAlias,
+      dynamicObjectAlias,
+      keyExpr,
+      scope,
+      suffixBasePaths,
+    ),
+    ...selectAliasExpressionPaths(
+      objectAlias,
+      dynamicObjectAlias,
+      valExpr,
+      scope,
+      suffixBasePaths,
+    ),
   ]);
 }
 
@@ -1915,6 +1931,7 @@ function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string
   const dynamicObjectAlias = getFunctionResultDynamicObjectAlias(node, scope);
 
   if (objectAlias || dynamicObjectAlias) {
+    const suffixBasePaths = getFunctionResultSuffixBasePaths(node, scope);
     return node.predicate.flatMap((stage) =>
       stage.type === "filter"
         ? selectAliasExpressionPaths(
@@ -1922,6 +1939,7 @@ function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string
             dynamicObjectAlias,
             (stage as unknown as FilterStage).expr,
             scope,
+            suffixBasePaths,
           )
         : [],
     );
@@ -1939,7 +1957,13 @@ function walkFunctionGroupBy(node: FunctionNode, scope: ScopeTracker): string[] 
   const dynamicObjectAlias = getFunctionResultDynamicObjectAlias(node, scope);
 
   if (objectAlias || dynamicObjectAlias) {
-    return walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, scope);
+    return walkAliasGroupEntries(
+      node.group,
+      objectAlias,
+      dynamicObjectAlias,
+      scope,
+      getFunctionResultSuffixBasePaths(node, scope),
+    );
   }
 
   return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
