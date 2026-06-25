@@ -152,6 +152,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
           type: "array",
           position: positionOf(node),
           expressions: rawList(node.expressions).map(normalizeAst),
+          predicate: rawList(node.predicate).map(normalizeAst),
           source: sourceOf(node),
         };
       }
