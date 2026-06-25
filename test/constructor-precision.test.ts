@@ -34,6 +34,25 @@ describe("constructor and fallback precision", () => {
     );
   });
 
+  it("extracts computed object constructor keys", () => {
+    expect(sortPaths(extractPaths("{customer.id: customer.name}"))).toEqual(
+      sortPaths([
+        { path: "customer.id", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("extracts computed object projection keys with context", () => {
+    expect(sortPaths(extractPaths("items.{category: price}"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+        { path: "items.price", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves grouping key and keep-array value reads", () => {
     expect(sortPaths(extractPaths("Phone{type:number[]}"))).toEqual(
       sortPaths([

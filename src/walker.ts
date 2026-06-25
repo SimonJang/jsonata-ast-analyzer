@@ -303,7 +303,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Walk value expressions and prefix with path up to this step
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const objectStep = step as ObjectNode;
-      for (const [_key, val] of objectStep.entries) {
+      for (const [key, val] of objectStep.entries) {
+        paths.push(
+          ...walkContextExpression(key, contextPrefix, stageScope, stageVariables),
+        );
         paths.push(
           ...walkContextExpression(val, contextPrefix, stageScope, stageVariables),
         );
@@ -584,7 +587,10 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
 
 /** Extract value paths from an object constructor. */
 function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
-  return node.entries.flatMap(([_key, val]) => walkNode(val, scope));
+  return node.entries.flatMap(([key, val]) => [
+    ...walkNode(key, scope),
+    ...walkNode(val, scope),
+  ]);
 }
 
 function isPlaceholder(node: AstNode): boolean {
