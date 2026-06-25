@@ -873,4 +873,73 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves $map callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths('$map(items, function($v) { {"x": $v.detail} }).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves apply-chain $map callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('(items ~> $map(function($v) { {"x": $v.detail} })).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $each callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('$each(record, function($v) { {"x": $v.detail} }).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.detail", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('($project := function($v) { {"x": $v.detail} }; $project(item).x.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $reduce callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('$reduce(items, function($acc, $v) { {"x": $v.detail} }, seed).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+      ]),
+    );
+  });
 });
