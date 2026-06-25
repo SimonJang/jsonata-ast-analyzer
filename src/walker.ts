@@ -1588,10 +1588,8 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
             dynamicObjectAlias,
             currentScope,
           )
-        : walkContextGroupEntries(
-            node.group,
-            bindingAliasPathsFromBlock(node, scope)[0] ?? "",
-            currentScope,
+        : bindingAliasPathsFromBlock(node, scope).flatMap((basePath) =>
+            walkContextGroupEntries(node.group!, basePath, currentScope),
           )),
     );
   }
