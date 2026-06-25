@@ -397,8 +397,24 @@ function selectDynamicObjectValuePaths(
   return paths;
 }
 
+function selectDynamicObjectAliasPaths(
+  alias: DynamicObjectAlias,
+  suffixSteps: AstNode[],
+): string[] {
+  return alias.variants.flatMap((variant) =>
+    selectDynamicObjectValuePaths(variant.node, suffixSteps, variant.scope),
+  );
+}
+
+function mergeDynamicObjectAliases(
+  aliases: Array<DynamicObjectAlias | null>,
+): DynamicObjectAlias | null {
+  const variants = aliases.flatMap((alias) => alias?.variants ?? []);
+  return variants.length > 0 ? { variants } : null;
+}
+
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
-  if (node.type === "object") return { node: node as ObjectNode, scope };
+  if (node.type === "object") return { variants: [{ node: node as ObjectNode, scope }] };
   if (node.type !== "block") return null;
 
   const block = node as BlockNode;
@@ -408,8 +424,8 @@ function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectA
     const isLast = index === block.expressions.length - 1;
     if (isLast) {
       return expr.type === "object"
-        ? { node: expr as ObjectNode, scope: currentScope }
-        : null;
+        ? { variants: [{ node: expr as ObjectNode, scope: currentScope }] }
+        : dynamicObjectAliasForNode(expr, currentScope);
     }
 
     if (expr.type === "bind") {
@@ -462,6 +478,20 @@ function dynamicObjectAliasForNode(
   if (source) return source;
   if (node.type === "variable") {
     return resolveDynamicObjectAlias(scope, (node as VariableNode).value);
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return mergeDynamicObjectAliases([
+      dynamicObjectAliasForNode(condition.then, scope),
+      condition.else ? dynamicObjectAliasForNode(condition.else, scope) : null,
+    ]);
+  }
+  if (node.type === "array") {
+    return mergeDynamicObjectAliases(
+      (node as ArrayNode).expressions.map((expr) =>
+        dynamicObjectAliasForNode(expr, scope),
+      ),
+    );
   }
   if (node.type === "function") {
     return getFunctionResultDynamicObjectAlias(node as FunctionNode, scope);
@@ -516,13 +546,7 @@ function selectResultAliasStepPaths(
     : null;
   const dynamicObject = dynamicObjectAliasForNode(step, scope);
   const dynamicObjectPaths =
-    dynamicObject
-      ? selectDynamicObjectValuePaths(
-          dynamicObject.node,
-          suffixSteps,
-          dynamicObject.scope,
-        )
-      : [];
+    dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : [];
   if (objectPaths || dynamicObjectPaths.length > 0) {
     return [...resultBasePaths, ...(objectPaths ?? []), ...dynamicObjectPaths];
   }
@@ -650,10 +674,9 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
 
     const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
     if (dynamicObjectAlias) {
-      const dynamicObjectPaths = selectDynamicObjectValuePaths(
-        dynamicObjectAlias.node,
+      const dynamicObjectPaths = selectDynamicObjectAliasPaths(
+        dynamicObjectAlias,
         node.steps.slice(varStepIndex + 1),
-        dynamicObjectAlias.scope,
       );
       if (dynamicObjectPaths.length > 0) return dynamicObjectPaths;
     }
