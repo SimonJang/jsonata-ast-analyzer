@@ -610,6 +610,29 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps bare reads child-relative in mixed object alias suffix sort terms with variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x.children^(>$r.x.enabled & name).other)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.children.other", confidence: "static" },
+        { path: "fallback.x.enabled", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.children.other", confidence: "static" },
+        { path: "items.detail.enabled", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves lookup results over variable-bound mixed object aliases", () => {
     expect(
       sortPaths(
@@ -876,6 +899,31 @@ describe("path-stage semantics", () => {
         { path: "items.detail.children", confidence: "static" },
         { path: "items.detail.children.type", confidence: "static" },
         { path: "items.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps bare reads child-relative in mixed object alias suffix group entries with variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x.children{($r.x.enabled & type): name})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.children.type", confidence: "static" },
+        { path: "fallback.x.enabled", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.children.type", confidence: "static" },
+        { path: "items.detail.enabled", confidence: "static" },
       ]),
     );
   });
