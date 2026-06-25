@@ -1002,6 +1002,30 @@ describe("path-stage semantics", () => {
     ).toEqual(expected);
   });
 
+  it("suppresses raw suffix filters on custom function result aliases", () => {
+    const expected = sortPaths([
+      { path: "customer", confidence: "static" },
+      { path: "customer.active", confidence: "static" },
+      { path: "customer.name", confidence: "static" },
+      { path: "inner", confidence: "static" },
+    ]);
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function(){ {"a": {(inner): customer}} }; $fn().a.y[active].name)',
+        ),
+      ),
+    ).toEqual(expected);
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function(){ {"a": {(inner): customer}} }; $fn().*.y[active].name)',
+        ),
+      ),
+    ).toEqual(expected);
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
