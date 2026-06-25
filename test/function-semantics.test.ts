@@ -1344,6 +1344,32 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed array dynamic object aliases with path elements", () => {
+    expect(sortPaths(extractPaths("([{key: primary}, fallback]).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed array dynamic object aliases with path elements", () => {
+    expect(
+      sortPaths(extractPaths("($o := [{key: primary}, fallback]; $o.x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves wildcard conditional dynamic object-key result aliases", () => {
     expect(
       sortPaths(extractPaths("((flag ? {key: primary} : {key: fallback})).*.name")),
@@ -1659,6 +1685,30 @@ describe("function semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed array object aliases with path elements", () => {
+    expect(sortPaths(extractPaths('([{"x": primary}, fallback]).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed array object aliases with path elements", () => {
+    expect(
+      sortPaths(extractPaths('($o := [{"x": primary}, fallback]; $o.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
