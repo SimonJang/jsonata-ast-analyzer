@@ -867,6 +867,58 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds dynamic object-key aliases as suffixable variables", () => {
+    expect(sortPaths(extractPaths("($o := {key: primary}; $o.x.name)"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds block dynamic object-key aliases as suffixable variables", () => {
+    expect(
+      sortPaths(extractPaths("($o := ($k := key; {($k): primary}); $o.x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds block-local dynamic object values as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths("($o := ($k := key; $v := primary; {($k): $v}); $o.x.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($make := function(){($k := key; {($k): primary})}; $make().x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
