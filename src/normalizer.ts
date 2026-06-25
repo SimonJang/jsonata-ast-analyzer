@@ -220,6 +220,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
             : normalizeVariable(node.procedure as RawAstNode),
         arguments: rawList(node.arguments).map(normalizeAst),
         group: normalizeGroup(node.group),
+        predicate: rawList(node.predicate).map(normalizeAst),
         source: sourceOf(node),
       };
     case "lambda":
