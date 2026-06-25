@@ -901,6 +901,21 @@ describe("path-stage semantics", () => {
     ).toEqual(expected);
   });
 
+  it("resolves wildcard selection through static dynamic-alias prefixes", () => {
+    const expected = sortPaths([
+      { path: "customer", confidence: "static" },
+      { path: "customer.name", confidence: "static" },
+      { path: "inner", confidence: "static" },
+    ]);
+
+    expect(sortPaths(extractPaths('{"a": {(inner): customer}}.*.y.name'))).toEqual(
+      expected,
+    );
+    expect(
+      sortPaths(extractPaths('($o := {"a": {(inner): customer}}; $o.*.y.name)')),
+    ).toEqual(expected);
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
