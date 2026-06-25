@@ -223,4 +223,26 @@ describe("path-stage semantics", () => {
       ]),
     );
   });
+
+  it("preserves constructed dynamic object aliases inside group-by expressions", () => {
+    expect(sortPaths(extractPaths("([{key: primary}]){x.name: x.name}"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable-bound dynamic object aliases inside group-by expressions", () => {
+    expect(
+      sortPaths(extractPaths("($o := [{key: primary}]; $o{x.name: x.name})")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
 });

@@ -141,6 +141,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "block",
         position: positionOf(node),
         expressions: rawList(node.expressions).map(normalizeAst),
+        group: normalizeGroup(node.group),
         source: sourceOf(node),
       };
     case "unary":
