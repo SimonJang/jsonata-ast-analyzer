@@ -469,4 +469,22 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves $clone result aliases in chained fields", () => {
+    expect(sortPaths(extractPaths("$clone(record).name"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $clone results as suffixable aliases", () => {
+    expect(sortPaths(extractPaths("($c := $clone(record); $c.detail.name)"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
+      ]),
+    );
+  });
 });
