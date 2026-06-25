@@ -668,6 +668,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves explicit $reduce initial object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$reduce(items, function($acc, $v){{"x": $v.detail}}, {"x": seed}).x.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not suffix scalar $reduce results onto input paths", () => {
     expect(
       sortPaths(
@@ -1101,6 +1119,23 @@ describe("function semantics", () => {
         { path: "items", confidence: "static" },
         { path: "items.name", confidence: "static" },
         { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves explicit $reduce initial dynamic object-key aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v){{key: $v.detail}}, {key: seed}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.name", confidence: "static" },
       ]),
     );
   });
