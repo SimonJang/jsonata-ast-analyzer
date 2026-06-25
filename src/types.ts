@@ -151,6 +151,7 @@ export interface FunctionNode extends AnalyzerNode {
   position: number;
   procedure: VariableNode; // function name (without $)
   arguments: AstNode[]; // call arguments
+  group?: GroupByNode;
 }
 
 export interface LambdaNode extends AnalyzerNode {
