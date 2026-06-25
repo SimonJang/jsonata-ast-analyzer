@@ -84,6 +84,7 @@ export interface BlockNode extends AnalyzerNode {
   position: number;
   expressions: AstNode[];
   group?: GroupByNode;
+  predicate?: AstNode[];
 }
 
 export interface NegateNode extends AnalyzerNode {
