@@ -916,6 +916,46 @@ describe("path-stage semantics", () => {
     ).toEqual(expected);
   });
 
+  it("resolves suffix stages on direct dynamic-prefix result aliases", () => {
+    expect(
+      sortPaths(extractPaths('{"a": {(inner): customer}}.a.y[active].name')),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.active", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "inner", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(extractPaths('{"a": {(inner): customer}}.a.y^(score).name')),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "customer.score", confidence: "static" },
+        { path: "inner", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(extractPaths('{"a": {(inner): customer}}.a.y.{"out": name}')),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "inner", confidence: "static" },
+      ]),
+    );
+    expect(sortPaths(extractPaths('{"a": {(inner): customer}}.a.y{name: value}'))).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "customer.value", confidence: "static" },
+        { path: "inner", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
