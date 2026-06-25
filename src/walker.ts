@@ -1033,6 +1033,20 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         );
       }
 
+      if (node.group) {
+        for (const resolvedPath of resolved) {
+          const suffixBase = buildPathString(suffixSteps) ?? "";
+          paths.push(
+            ...walkContextGroupEntries(
+              node.group,
+              appendPath(resolvedPath, suffixBase),
+              scope,
+              new Set([varStep.value]),
+            ),
+          );
+        }
+      }
+
       return paths;
     }
     // Unresolvable variable in path: drop the entire path (silent skip)
