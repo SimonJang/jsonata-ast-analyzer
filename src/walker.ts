@@ -26,6 +26,7 @@ import {
   createScope,
   childScope,
   bindVariable,
+  bindSuffixBasePaths,
   bindObjectAlias,
   bindDynamicObjectAlias,
   bindLambda,
@@ -33,6 +34,7 @@ import {
   resolveLambda,
   resolvePartial,
   resolveVariable,
+  resolveSuffixBasePaths,
   resolveObjectAlias,
   resolveDynamicObjectAlias,
   type DynamicObjectAlias,
@@ -340,6 +342,12 @@ function objectAliasFromBlock(node: BlockNode, scope: ScopeTracker): ObjectAlias
       const closureScope = currentScope;
       const aliases = bindingAliasPaths(bindNode.rhs, currentScope);
       currentScope = bindVariable(currentScope, bindNode.lhs.value, aliases);
+      currentScope = bindSuffixBasePathsIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
       currentScope = bindObjectAliasIfPresent(
         currentScope,
         bindNode.lhs.value,
@@ -583,6 +591,12 @@ function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectA
         bindNode.lhs.value,
         bindingAliasPaths(bindNode.rhs, currentScope),
       );
+      currentScope = bindSuffixBasePathsIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
       currentScope = bindObjectAliasIfPresent(
         currentScope,
         bindNode.lhs.value,
@@ -672,6 +686,15 @@ function bindDynamicObjectAliasIfPresent(
 ): ScopeTracker {
   const alias = dynamicObjectAliasForNode(node, aliasScope);
   return alias ? bindDynamicObjectAlias(scope, name, alias) : scope;
+}
+
+function bindSuffixBasePathsIfPresent(
+  scope: ScopeTracker,
+  name: string,
+  node: AstNode,
+  aliasScope: ScopeTracker,
+): ScopeTracker {
+  return bindSuffixBasePaths(scope, name, getFunctionResultSuffixBasePaths(node, aliasScope));
 }
 
 function isResultAliasStep(step: AstNode): boolean {
@@ -853,6 +876,12 @@ function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): strin
       const closureScope = currentScope;
       result = bindingAliasPaths(bindNode.rhs, currentScope);
       currentScope = bindVariable(currentScope, bindNode.lhs.value, result);
+      currentScope = bindSuffixBasePathsIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
 
       if (bindNode.rhs.type === "lambda") {
         currentScope = bindLambda(
@@ -954,7 +983,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         node.steps.slice(varStepIndex + 1),
         scope,
       );
-      if (objectPaths) return objectPaths;
+      if (objectPaths) {
+        const suffix = buildPathString(node.steps.slice(varStepIndex + 1));
+        const suffixBaseBinding = resolveSuffixBasePaths(scope, varStep.value);
+        const suffixBasePaths =
+          suffix && suffixBaseBinding
+            ? suffixBaseBinding.map((path) => appendPath(path, suffix))
+            : [];
+        return [...objectPaths, ...suffixBasePaths];
+      }
     }
 
     const resolved = resolveVariable(scope, varStep.value);
@@ -1550,6 +1587,12 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
         bindNode.lhs.value,
         bindingAliasPaths(bindNode.rhs, currentScope),
       );
+      currentScope = bindSuffixBasePathsIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
       currentScope = bindObjectAliasIfPresent(
         currentScope,
         bindNode.lhs.value,
@@ -1643,6 +1686,12 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
         currentScope,
         bindNode.lhs.value,
         bindingAliasPaths(bindNode.rhs, currentScope),
+      );
+      currentScope = bindSuffixBasePathsIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
       );
       currentScope = bindObjectAliasIfPresent(
         currentScope,
