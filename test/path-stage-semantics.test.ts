@@ -322,6 +322,27 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves predicates on mixed function result object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map(items, function($v){flag ? {"x": $v.detail} : fallback})[x.enabled].x.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves predicates on object result aliases", () => {
     expect(sortPaths(extractPaths("({key: primary}[x.enabled]).x.name"))).toEqual(
       sortPaths([
@@ -522,6 +543,27 @@ describe("path-stage semantics", () => {
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed callback object aliases inside function result group-by expressions", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map(items, function($v){flag ? {"x": $v.detail} : fallback}){x.rank: x.name}',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "items.detail.rank", confidence: "static" },
       ]),
     );
   });
