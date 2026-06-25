@@ -552,7 +552,10 @@ function dynamicVariantSuffixSteps(
 
   for (const [index, prefix] of prefixSteps.entries()) {
     const step = suffixSteps[index];
-    if (step?.type !== "name" || (step as NameNode).value !== prefix) {
+    const matchesPrefix =
+      step?.type === "wildcard" ||
+      (step?.type === "name" && (step as NameNode).value === prefix);
+    if (!matchesPrefix) {
       return null;
     }
   }
