@@ -487,4 +487,44 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves identity custom function result aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("($project := function($v) { $v }; $project(item).name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected custom function result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("($project := function($v) { $v.detail }; $project(item).name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed custom function results onto input paths", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($project := function($v) { {"name": $v.label} }; $project(item).name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.label", confidence: "static" },
+      ]),
+    );
+  });
 });

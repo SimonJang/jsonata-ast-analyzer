@@ -1069,6 +1069,11 @@ function getFunctionResultBasePaths(
     argScope = partialBinding.scope;
   }
 
+  const lambdaBinding = resolveLambda(argScope, funcName);
+  if (lambdaBinding) {
+    return getCustomFunctionResultBasePaths(lambdaBinding, args, argScope);
+  }
+
   if (funcName === "map" || funcName === "each") {
     return getCallbackResultBasePaths(funcName, args, argScope);
   }
@@ -1081,6 +1086,23 @@ function getFunctionResultBasePaths(
     return args.length > 0 ? getMergeResultBasePaths(args[0], argScope) : [];
   }
   return args.length > 0 ? getResultBasePathsFromArg(args[0], argScope) : [];
+}
+
+function getCustomFunctionResultBasePaths(
+  binding: NonNullable<ReturnType<typeof resolveLambda>>,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): string[] {
+  const { lambda, scope } = binding;
+  let lambdaScope = childScope(scope);
+
+  for (let i = 0; i < lambda.arguments.length; i++) {
+    const param = lambda.arguments[i];
+    const argPaths = i < callArgs.length ? extractBasePaths(callArgs[i], callScope) : [];
+    lambdaScope = bindVariable(lambdaScope, param.value, argPaths);
+  }
+
+  return bindingAliasPaths(lambda.body, lambdaScope);
 }
 
 function getCallbackResultBasePaths(
