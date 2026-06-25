@@ -1366,11 +1366,20 @@ function walkGroupBy(
   scope: ScopeTracker,
   stageVariables: ReadonlySet<string> = new Set(),
 ): string[] {
-  const groupBasePath = buildPathString(node.steps) ?? "";
   const groupNode = node.group;
-  return groupNode
-    ? walkContextGroupEntries(groupNode, groupBasePath, scope, stageVariables)
-    : [];
+  if (!groupNode) return [];
+
+  const resultAliasStep = node.steps.find(isResultAliasStep);
+  const objectAlias = resultAliasStep ? objectAliasForNode(resultAliasStep, scope) : null;
+  const dynamicObjectAlias = resultAliasStep
+    ? dynamicObjectAliasForNode(resultAliasStep, scope)
+    : null;
+  if (objectAlias || dynamicObjectAlias) {
+    return walkAliasGroupEntries(groupNode, objectAlias, dynamicObjectAlias, scope);
+  }
+
+  const groupBasePath = buildPathString(node.steps) ?? "";
+  return walkContextGroupEntries(groupNode, groupBasePath, scope, stageVariables);
 }
 
 function walkContextGroupEntries(
