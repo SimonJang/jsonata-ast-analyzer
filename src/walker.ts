@@ -2781,7 +2781,7 @@ function getReduceInitialSuffixBasePaths(
   args: AstNode[],
   scope: ScopeTracker,
 ): string[] {
-  const accumulatorArg = args[2];
+  const accumulatorArg = args[2] ?? args[0];
   if (!accumulatorArg) return [];
 
   switch (accumulatorArg.type) {
