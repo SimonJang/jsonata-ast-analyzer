@@ -104,6 +104,7 @@ export interface ObjectNode extends AnalyzerNode {
   type: "object";
   position: number;
   entries: [AstNode, AstNode][];
+  predicate?: AstNode[];
 }
 
 export interface StringNode extends AnalyzerNode {
