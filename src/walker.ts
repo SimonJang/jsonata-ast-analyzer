@@ -971,9 +971,32 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Build suffix from remaining steps after the variable
       const suffixSteps = node.steps.slice(varStepIndex + 1);
       const suffix = buildPathString(suffixSteps);
+      let handledFocusProjection = false;
+
+      if (varStep.focusBinding) {
+        const projectionStepIndex = suffixSteps.findIndex(isResultAliasStep);
+        if (projectionStepIndex >= 0) {
+          handledFocusProjection = true;
+          for (const resolvedPath of resolved) {
+            const focusScope = bindVariable(
+              childScope(scope),
+              varStep.focusBinding.name,
+              [resolvedPath],
+            );
+            const projectionPaths = selectResultAliasStepPaths(
+              suffixSteps[projectionStepIndex],
+              suffixSteps.slice(projectionStepIndex + 1),
+              focusScope,
+            );
+            if (projectionPaths) paths.push(...projectionPaths);
+          }
+        }
+      }
 
       // Concatenate resolved paths with suffix
-      paths.push(...resolved.map((p) => appendPath(p, suffix)));
+      if (!handledFocusProjection) {
+        paths.push(...resolved.map((p) => appendPath(p, suffix)));
+      }
 
       // Walk sort terms in remaining steps, prefixed with resolved paths
       for (const remainStep of suffixSteps) {
