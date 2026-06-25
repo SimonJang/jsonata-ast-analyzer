@@ -1603,22 +1603,24 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
   const funcName = node.procedure.value;
   const args = node.arguments;
   const paths: string[] = [];
+  const withGroupBy = (readPaths: string[]) =>
+    node.group ? [...readPaths, ...walkFunctionGroupBy(node, scope)] : readPaths;
 
   // Step 1: Check if this is a known higher-order function
   const semantics = HIGHER_ORDER_SEMANTICS[funcName];
   if (semantics) {
-    return walkHigherOrderCall(node, semantics, scope);
+    return withGroupBy(walkHigherOrderCall(node, semantics, scope));
   }
 
   // Step 2: Check if this is a custom function call (lambda bound in scope)
   const lambdaBinding = resolveLambda(scope, funcName);
   if (lambdaBinding) {
-    return walkCustomFunctionCall(lambdaBinding, args, scope);
+    return withGroupBy(walkCustomFunctionCall(lambdaBinding, args, scope));
   }
 
   const partialBinding = resolvePartial(scope, funcName);
   if (partialBinding) {
-    return walkPartialCall(partialBinding, args, scope);
+    return withGroupBy(walkPartialCall(partialBinding, args, scope));
   }
 
   // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
@@ -1633,7 +1635,22 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
     }
   }
 
-  return paths;
+  return withGroupBy(paths);
+}
+
+function walkFunctionGroupBy(node: FunctionNode, scope: ScopeTracker): string[] {
+  if (!node.group) return [];
+
+  const objectAlias = getFunctionResultObjectAlias(node, scope);
+  const dynamicObjectAlias = getFunctionResultDynamicObjectAlias(node, scope);
+
+  if (objectAlias || dynamicObjectAlias) {
+    return walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, scope);
+  }
+
+  return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
+    walkContextGroupEntries(node.group!, basePath, scope),
+  );
 }
 
 /**
