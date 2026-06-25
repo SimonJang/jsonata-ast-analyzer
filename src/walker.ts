@@ -36,6 +36,7 @@ import {
   resolveObjectAlias,
   resolveDynamicObjectAlias,
   type DynamicObjectAlias,
+  type LambdaBinding,
   type ObjectAlias,
 } from "./scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
@@ -1600,6 +1601,17 @@ function walkLambda(node: LambdaNode, scope: ScopeTracker): string[] {
  * 3. Non-higher-order / unknown function -- pass-through all arguments
  */
 function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
+  if (node.procedure.type === "lambda") {
+    return [
+      ...walkCustomFunctionCall(
+        { lambda: node.procedure, scope },
+        node.arguments,
+        scope,
+      ),
+      ...walkFunctionGroupBy(node, scope),
+    ];
+  }
+
   const funcName = node.procedure.value;
   const args = node.arguments;
   const paths: string[] = [];
@@ -1771,11 +1783,13 @@ function walkHigherOrderCall(
     // Uses extractBasePaths to exclude filter predicate paths from binding
     const dataArg = args[0];
     const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
+    const funcName =
+      node.procedure.type === "variable" ? node.procedure.value : "";
 
     // Walk lambda body with parameter bindings
     paths.push(
       ...walkLambdaWithBindings(
-        node.procedure.value,
+        funcName,
         callback.lambda,
         dataArgPaths,
         dataArg,
@@ -1899,7 +1913,7 @@ function shouldBindDataArgumentAlias(funcName: string, role: string): boolean {
  * -> combined with call-site arg paths: ["account", "account.name"]
  */
 function walkCustomFunctionCall(
-  binding: NonNullable<ReturnType<typeof resolveLambda>>,
+  binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
 ): string[] {
@@ -1992,6 +2006,14 @@ function getFunctionResultObjectAlias(
   node: FunctionNode,
   scope: ScopeTracker,
 ): ObjectAlias | null {
+  if (node.procedure.type === "lambda") {
+    return getCustomFunctionResultObjectAlias(
+      { lambda: node.procedure, scope },
+      node.arguments,
+      scope,
+    );
+  }
+
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
   let args = node.arguments;
@@ -2027,6 +2049,14 @@ function getFunctionResultDynamicObjectAlias(
   node: FunctionNode,
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
+  if (node.procedure.type === "lambda") {
+    return getCustomFunctionResultDynamicObjectAlias(
+      { lambda: node.procedure, scope },
+      node.arguments,
+      scope,
+    );
+  }
+
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
   let args = node.arguments;
@@ -2061,7 +2091,7 @@ function getFunctionResultDynamicObjectAlias(
 }
 
 function getCustomFunctionResultObjectAlias(
-  binding: NonNullable<ReturnType<typeof resolveLambda>>,
+  binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
 ): ObjectAlias | null {
@@ -2081,7 +2111,7 @@ function getCustomFunctionResultObjectAlias(
 }
 
 function getCustomFunctionResultDynamicObjectAlias(
-  binding: NonNullable<ReturnType<typeof resolveLambda>>,
+  binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
 ): DynamicObjectAlias | null {
@@ -2256,6 +2286,14 @@ function getFunctionResultBasePaths(
   node: FunctionNode,
   scope: ScopeTracker,
 ): string[] {
+  if (node.procedure.type === "lambda") {
+    return getCustomFunctionResultBasePaths(
+      { lambda: node.procedure, scope },
+      node.arguments,
+      scope,
+    );
+  }
+
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
   let args = node.arguments;
@@ -2294,7 +2332,7 @@ function getFunctionResultBasePaths(
 }
 
 function getCustomFunctionResultBasePaths(
-  binding: NonNullable<ReturnType<typeof resolveLambda>>,
+  binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
 ): string[] {
