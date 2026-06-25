@@ -340,8 +340,21 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   const lastStep = node.steps[node.steps.length - 1];
   const suppressBase = lastStep?.type === "block";
   const basePath = buildPathString(node.steps);
+  const resultAliasStepIndex = node.steps.findIndex(
+    (s, index) =>
+      index === 0 && (s.type === "block" || s.type === "condition"),
+  );
   const funcStepIndex = node.steps.findIndex((s) => s.type === "function");
-  if (basePath && funcStepIndex >= 0) {
+  if (basePath && resultAliasStepIndex >= 0) {
+    const resultBasePaths = bindingAliasPaths(
+      node.steps[resultAliasStepIndex],
+      scope,
+    );
+    const suffix = buildPathString(node.steps.slice(resultAliasStepIndex + 1));
+    for (const resultBasePath of resultBasePaths) {
+      paths.push(appendPath(resultBasePath, suffix));
+    }
+  } else if (basePath && funcStepIndex >= 0) {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
     // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
     const funcStep = node.steps[funcStepIndex] as FunctionNode;
