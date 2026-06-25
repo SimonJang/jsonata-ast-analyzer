@@ -858,8 +858,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
     } else if (step.type === "sort") {
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const aliasStep = node.steps[i - 1];
       paths.push(
-        ...walkSortTerms(step as SortNode, contextPrefix, stageScope, stageVariables),
+        ...walkSortTerms(
+          step as SortNode,
+          contextPrefix,
+          stageScope,
+          stageVariables,
+          aliasStep && isResultAliasStep(aliasStep) ? aliasStep : undefined,
+        ),
       );
     } else if (step.type === "object") {
       // Object constructor step in path: orders.items.{"key": val}
@@ -919,16 +926,26 @@ function walkSortTerms(
   contextPrefix: string,
   scope: ScopeTracker,
   stageVariables: ReadonlySet<string> = new Set(),
+  aliasStep?: AstNode,
 ): string[] {
   const paths: string[] = [];
   for (const term of sortNode.terms) {
+    const aliasPaths =
+      aliasStep && term.expression.type === "path"
+        ? selectResultAliasStepPaths(
+            aliasStep,
+            (term.expression as PathNode).steps,
+            scope,
+          )
+        : null;
     paths.push(
-      ...walkContextExpression(
-        term.expression,
-        contextPrefix,
-        scope,
-        stageVariables,
-      ),
+      ...(aliasPaths ??
+        walkContextExpression(
+          term.expression,
+          contextPrefix,
+          scope,
+          stageVariables,
+        )),
     );
   }
   return paths;
