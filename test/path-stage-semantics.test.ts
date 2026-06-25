@@ -838,6 +838,40 @@ describe("path-stage semantics", () => {
     }
   });
 
+  it("preserves nested dynamic object aliases", () => {
+    const expected = sortPaths([
+      { path: "customer", confidence: "static" },
+      { path: "customer.name", confidence: "static" },
+      { path: "inner", confidence: "static" },
+      { path: "outer", confidence: "static" },
+    ]);
+
+    expect(sortPaths(extractPaths("{(outer): {(inner): customer}}.x.y.name"))).toEqual(
+      expected,
+    );
+    expect(
+      sortPaths(extractPaths("($o := {(outer): {(inner): customer}}; $o.x.y.name)")),
+    ).toEqual(expected);
+    expect(
+      sortPaths(
+        extractPaths(
+          "($fn := function(){ {(outer): {(inner): customer}} }; $fn().x.y.name)",
+        ),
+      ),
+    ).toEqual(expected);
+    expect(
+      sortPaths(extractPaths("$lookup({(outer): {(inner): customer}}, key).y.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "inner", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "outer", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
