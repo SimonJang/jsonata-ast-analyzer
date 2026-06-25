@@ -658,6 +658,44 @@ function walkAliasSuffixSortTerms(
   return paths;
 }
 
+function walkAliasSuffixGroupEntries(
+  groupNode: GroupByNode,
+  groupBasePaths: readonly string[],
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
+  preserveUnmappedLocalPaths = false,
+): string[] {
+  const contextPaths = groupBasePaths.flatMap((groupBasePath) =>
+    walkContextGroupEntries(groupNode, groupBasePath, scope),
+  );
+  const aliasPaths = groupNode.entries.flatMap(([keyExpr, valExpr]) => [
+    ...(collectVariableNames(keyExpr).size > 0
+      ? selectAliasExpressionPaths(
+          objectAlias,
+          dynamicObjectAlias,
+          keyExpr,
+          scope,
+          suffixBasePaths,
+          preserveUnmappedLocalPaths,
+        )
+      : []),
+    ...(collectVariableNames(valExpr).size > 0
+      ? selectAliasExpressionPaths(
+          objectAlias,
+          dynamicObjectAlias,
+          valExpr,
+          scope,
+          suffixBasePaths,
+          preserveUnmappedLocalPaths,
+        )
+      : []),
+  ]);
+
+  return [...contextPaths, ...aliasPaths];
+}
+
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
   if (node.type === "object") return { variants: [{ node: node as ObjectNode, scope }] };
   if (node.type !== "block") return null;
@@ -1164,10 +1202,27 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           suffix && suffixBaseBinding.length > 0
             ? suffixBaseBinding.map((path) => appendPath(path, suffix))
             : [];
+        const suffixBaseRoots = new Set(suffixBaseBinding);
+        const groupBasePaths = [
+          ...objectPaths.filter((path) => !suffixBaseRoots.has(path)),
+          ...suffixBasePaths,
+        ];
+        const suffixGroupPaths = node.group
+          ? walkAliasSuffixGroupEntries(
+              node.group,
+              groupBasePaths,
+              objectAlias,
+              dynamicObjectAlias,
+              aliasScope,
+              suffixBaseBinding,
+              Boolean(varStep.focusBinding),
+            )
+          : [];
         return [
           ...variableStagePaths,
           ...suffixStagePaths,
           ...suffixSortPaths,
+          ...suffixGroupPaths,
           ...objectPaths,
           ...suffixBasePaths,
         ];
