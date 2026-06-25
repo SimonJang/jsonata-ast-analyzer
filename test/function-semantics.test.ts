@@ -1042,6 +1042,104 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $clone dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths("$clone({key: primary}).x.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $append dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$append([{key: primary}], [{key: fallback}]).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $filter dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$filter([{key: primary}], function($v){true}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $single dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$single([{key: primary}], function($v){true}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sort dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$sort([{key: primary}], function($l, $r){0}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $merge dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$merge([{key: primary}, {key: fallback}]).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $spread dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths("$spread({key: primary}).*.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sift dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$sift({key: primary}, function($v){$v.name}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
