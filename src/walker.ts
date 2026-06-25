@@ -8,6 +8,7 @@ import type {
   ConditionNode,
   FilterStage,
   FunctionNode,
+  GroupByNode,
   LambdaNode,
   NameNode,
   NegateNode,
@@ -1162,20 +1163,35 @@ function walkGroupBy(
   scope: ScopeTracker,
   stageVariables: ReadonlySet<string> = new Set(),
 ): string[] {
-  const paths: string[] = [];
   const groupBasePath = buildPathString(node.steps) ?? "";
   const groupNode = node.group;
-  if (groupNode) {
-    for (const [keyExpr, valExpr] of groupNode.entries) {
-      paths.push(
-        ...walkContextExpression(keyExpr, groupBasePath, scope, stageVariables),
-      );
-      paths.push(
-        ...walkContextExpression(valExpr, groupBasePath, scope, stageVariables),
-      );
-    }
-  }
-  return paths;
+  return groupNode
+    ? walkContextGroupEntries(groupNode, groupBasePath, scope, stageVariables)
+    : [];
+}
+
+function walkContextGroupEntries(
+  groupNode: GroupByNode,
+  groupBasePath: string,
+  scope: ScopeTracker,
+  stageVariables: ReadonlySet<string> = new Set(),
+): string[] {
+  return groupNode.entries.flatMap(([keyExpr, valExpr]) => [
+    ...walkContextExpression(keyExpr, groupBasePath, scope, stageVariables),
+    ...walkContextExpression(valExpr, groupBasePath, scope, stageVariables),
+  ]);
+}
+
+function walkAliasGroupEntries(
+  groupNode: GroupByNode,
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+): string[] {
+  return groupNode.entries.flatMap(([keyExpr, valExpr]) => [
+    ...selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, keyExpr, scope),
+    ...selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, valExpr, scope),
+  ]);
 }
 
 /**
@@ -1346,6 +1362,26 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
       paths.push(...walkNode(expr, currentScope));
     }
   }
+
+  if (node.group) {
+    const objectAlias = objectAliasFromBlock(node, scope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    paths.push(
+      ...(objectAlias || dynamicObjectAlias
+        ? walkAliasGroupEntries(
+            node.group,
+            objectAlias,
+            dynamicObjectAlias,
+            currentScope,
+          )
+        : walkContextGroupEntries(
+            node.group,
+            bindingAliasPathsFromBlock(node, scope)[0] ?? "",
+            currentScope,
+          )),
+    );
+  }
+
   return paths;
 }
 
@@ -1461,11 +1497,17 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
     // Handle group-by on variable node (mirrors walkGroupBy for PathNode)
     if (node.group) {
       const groupNode = node.group;
-      const groupBasePath = resolved.length > 0 ? resolved[0] : "";
-      for (const [keyExpr, valExpr] of groupNode.entries) {
-        paths.push(...walkContextExpression(keyExpr, groupBasePath, scope));
-        paths.push(...walkContextExpression(valExpr, groupBasePath, scope));
-      }
+      const objectAlias = resolveObjectAlias(scope, node.value);
+      const dynamicObjectAlias = resolveDynamicObjectAlias(scope, node.value);
+      paths.push(
+        ...(objectAlias || dynamicObjectAlias
+          ? walkAliasGroupEntries(groupNode, objectAlias, dynamicObjectAlias, scope)
+          : walkContextGroupEntries(
+              groupNode,
+              resolved.length > 0 ? resolved[0] : "",
+              scope,
+            )),
+      );
     }
 
     return paths;
