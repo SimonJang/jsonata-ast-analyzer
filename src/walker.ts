@@ -1624,92 +1624,92 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
             suffixBaseBinding,
           )
         : scope;
+      const suffixSteps = node.steps.slice(varStepIndex + 1);
       const objectPaths = selectVariableObjectAliasPaths(
         objectAlias,
         dynamicObjectAlias,
-        node.steps.slice(varStepIndex + 1),
+        suffixSteps,
         aliasScope,
         suffixBaseBinding,
         Boolean(varStep.focusBinding),
       );
-      if (objectPaths) {
-        const variableStagePaths = [
-          ...(varStep.predicate ?? []).flatMap((stage) =>
-            stage.type === "filter"
-              ? selectAliasExpressionPaths(
-                  objectAlias,
-                  dynamicObjectAlias,
-                  (stage as unknown as FilterStage).expr,
-                  aliasScope,
-                  suffixBaseBinding,
-                )
-              : [],
-          ),
-          ...(varStep.group
-            ? walkAliasGroupEntries(
-                varStep.group,
+      const variableStagePaths = [
+        ...(varStep.predicate ?? []).flatMap((stage) =>
+          stage.type === "filter"
+            ? selectAliasExpressionPaths(
                 objectAlias,
                 dynamicObjectAlias,
+                (stage as unknown as FilterStage).expr,
                 aliasScope,
                 suffixBaseBinding,
               )
-            : []),
-        ];
-        const suffixStagePaths = walkAliasSuffixFilterStages(
-          node.steps.slice(varStepIndex + 1),
-          objectAlias,
-          dynamicObjectAlias,
-          aliasScope,
-          suffixBaseBinding,
-          Boolean(varStep.focusBinding),
-        );
-        const suffixSortPaths = walkAliasSuffixSortTerms(
-          node.steps.slice(varStepIndex + 1),
-          objectAlias,
-          dynamicObjectAlias,
-          aliasScope,
-          suffixBaseBinding,
-          Boolean(varStep.focusBinding),
-        );
-        const suffixProjectionPaths = walkAliasSuffixProjectionSteps(
-          node.steps.slice(varStepIndex + 1),
-          objectAlias,
-          dynamicObjectAlias,
-          aliasScope,
-          suffixBaseBinding,
-          Boolean(varStep.focusBinding),
-        );
-        const suffix = buildPathString(node.steps.slice(varStepIndex + 1));
-        const suffixBasePaths =
-          suffix && suffixBaseBinding.length > 0
-            ? suffixBaseBinding.map((path) => appendPath(path, suffix))
-            : [];
-        const suffixBaseRoots = new Set(suffixBaseBinding);
-        const groupBasePaths = [
-          ...objectPaths.filter((path) => !suffixBaseRoots.has(path)),
-          ...suffixBasePaths,
-        ];
-        const suffixGroupPaths = node.group
-          ? walkAliasSuffixGroupEntries(
-              node.group,
-              groupBasePaths,
+            : [],
+        ),
+        ...(varStep.group
+          ? walkAliasGroupEntries(
+              varStep.group,
               objectAlias,
               dynamicObjectAlias,
               aliasScope,
               suffixBaseBinding,
-              Boolean(varStep.focusBinding),
             )
+          : []),
+      ];
+      const suffixStagePaths = walkAliasSuffixFilterStages(
+        suffixSteps,
+        objectAlias,
+        dynamicObjectAlias,
+        aliasScope,
+        suffixBaseBinding,
+        Boolean(varStep.focusBinding),
+      );
+      const suffixSortPaths = walkAliasSuffixSortTerms(
+        suffixSteps,
+        objectAlias,
+        dynamicObjectAlias,
+        aliasScope,
+        suffixBaseBinding,
+        Boolean(varStep.focusBinding),
+      );
+      const suffixProjectionPaths = walkAliasSuffixProjectionSteps(
+        suffixSteps,
+        objectAlias,
+        dynamicObjectAlias,
+        aliasScope,
+        suffixBaseBinding,
+        Boolean(varStep.focusBinding),
+      );
+      const suffix = buildPathString(suffixSteps);
+      const suffixBasePaths =
+        suffix && suffixBaseBinding.length > 0
+          ? suffixBaseBinding.map((path) => appendPath(path, suffix))
           : [];
-        return [
-          ...variableStagePaths,
-          ...suffixStagePaths,
-          ...suffixSortPaths,
-          ...suffixProjectionPaths,
-          ...suffixGroupPaths,
-          ...objectPaths,
-          ...suffixBasePaths,
-        ];
-      }
+      const selectedObjectPaths = objectPaths ?? [];
+      const suffixBaseRoots = new Set(suffixBaseBinding);
+      const groupBasePaths = [
+        ...selectedObjectPaths.filter((path) => !suffixBaseRoots.has(path)),
+        ...suffixBasePaths,
+      ];
+      const suffixGroupPaths = node.group
+        ? walkAliasSuffixGroupEntries(
+            node.group,
+            groupBasePaths,
+            objectAlias,
+            dynamicObjectAlias,
+            aliasScope,
+            suffixBaseBinding,
+            Boolean(varStep.focusBinding),
+          )
+        : [];
+      return [
+        ...variableStagePaths,
+        ...suffixStagePaths,
+        ...suffixSortPaths,
+        ...suffixProjectionPaths,
+        ...suffixGroupPaths,
+        ...selectedObjectPaths,
+        ...suffixBasePaths,
+      ];
     }
 
     const resolved = resolveVariable(scope, varStep.value);

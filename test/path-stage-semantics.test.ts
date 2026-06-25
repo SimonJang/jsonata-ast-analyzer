@@ -956,6 +956,35 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("avoids suffixing variable-bound alias read effects on unmatched suffixes", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"a": {(inner): customer}}; $o.x.y.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "inner", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(extractPaths('($o := {(outer): {"fixed": customer}}; $o.a.y.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "outer", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(
+        extractPaths('($o := {"a": {"b": {(inner): customer}}}; $o.x.y.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "inner", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
