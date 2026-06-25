@@ -483,6 +483,28 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves focus-bound mixed object alias suffixes inside block projections", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r@$row.($row.x.enabled ? $row.x.name : missing))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "missing", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),
