@@ -694,7 +694,7 @@ function bindSuffixBasePathsIfPresent(
   node: AstNode,
   aliasScope: ScopeTracker,
 ): ScopeTracker {
-  return bindSuffixBasePaths(scope, name, getFunctionResultSuffixBasePaths(node, aliasScope));
+  return bindSuffixBasePaths(scope, name, getResultSuffixBasePaths(node, aliasScope));
 }
 
 function isResultAliasStep(step: AstNode): boolean {
@@ -735,9 +735,7 @@ function selectResultAliasStepPaths(
   if (aliasPaths) {
     const suffix = buildPathString(suffixSteps);
     const suffixBasePaths = suffix
-      ? getFunctionResultSuffixBasePaths(step, scope).map((path) =>
-          appendPath(path, suffix),
-        )
+      ? getResultSuffixBasePaths(step, scope).map((path) => appendPath(path, suffix))
       : [];
     return [...stepReadPaths, ...resultBasePaths, ...aliasPaths, ...suffixBasePaths];
   }
@@ -2777,6 +2775,24 @@ function getFunctionResultSuffixBasePaths(
   return getReduceInitialSuffixBasePaths(args, argScope);
 }
 
+function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+  if (node.type === "block") {
+    const expressions = (node as BlockNode).expressions;
+    const last = expressions[expressions.length - 1];
+    return last ? getResultSuffixBasePaths(last, scope) : [];
+  }
+
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [
+      ...getSuffixableResultBasePaths(condition.then, scope),
+      ...(condition.else ? getSuffixableResultBasePaths(condition.else, scope) : []),
+    ];
+  }
+
+  return getFunctionResultSuffixBasePaths(node, scope);
+}
+
 function getReduceInitialSuffixBasePaths(
   args: AstNode[],
   scope: ScopeTracker,
@@ -2784,7 +2800,11 @@ function getReduceInitialSuffixBasePaths(
   const accumulatorArg = args[2] ?? args[0];
   if (!accumulatorArg) return [];
 
-  switch (accumulatorArg.type) {
+  return getSuffixableResultBasePaths(accumulatorArg, scope);
+}
+
+function getSuffixableResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+  switch (node.type) {
     case "name":
     case "path":
     case "variable":
@@ -2793,7 +2813,7 @@ function getReduceInitialSuffixBasePaths(
     case "wildcard":
     case "descendant":
     case "parent":
-      return getResultBasePathsFromArg(accumulatorArg, scope);
+      return getResultBasePathsFromArg(node, scope);
     default:
       return [];
   }
