@@ -268,4 +268,18 @@ describe("path-stage semantics", () => {
       ]),
     );
   });
+
+  it("preserves callback object aliases inside function result group-by expressions", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map(items, function($v){{"x": $v.detail}}){x.name: x.name}'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
 });
