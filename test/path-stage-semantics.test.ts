@@ -812,6 +812,32 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves parent paths in dynamic object result aliases", () => {
+    const expected = sortPaths([
+      { path: "fallback", confidence: "static" },
+      { path: "fallback.x.children", confidence: "static" },
+      { path: "fallback.x.owner", confidence: "static" },
+      { path: "fallback.x.owner.name", confidence: "static" },
+      { path: "flag", confidence: "static" },
+      { path: "items", confidence: "static" },
+      { path: "items.detail", confidence: "static" },
+      { path: "items.detail.children", confidence: "static" },
+      { path: "items.detail.owner", confidence: "static" },
+      { path: "items.detail.owner.name", confidence: "static" },
+      { path: "key", confidence: "static" },
+    ]);
+    const expressions = [
+      '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $fn := function($c){{(key): %.owner}}; $fn($r.x.children).x.name)',
+      '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $map($r.x.children, function($c){{(key): %.owner}}).x.name)',
+      '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $each($r.x.children, function($c){{(key): %.owner}}).x.name)',
+      '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $reduce($r.x.children, function($acc,$c){{(key): %.owner}}, {}).x.name)',
+    ];
+
+    for (const expression of expressions) {
+      expect(sortPaths(extractPaths(expression))).toEqual(expected);
+    }
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
