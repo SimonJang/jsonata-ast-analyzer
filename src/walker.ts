@@ -731,6 +731,7 @@ function walkAliasSuffixSortTerms(
               scope,
               suffixBasePaths,
               preserveUnmappedLocalPaths,
+              true,
             )
           : []),
       );
@@ -865,6 +866,7 @@ function walkAliasSuffixGroupEntries(
           scope,
           suffixBasePaths,
           preserveUnmappedLocalPaths,
+          true,
         )
       : []),
     ...(collectVariableNames(valExpr).size > 0
@@ -875,6 +877,7 @@ function walkAliasSuffixGroupEntries(
           scope,
           suffixBasePaths,
           preserveUnmappedLocalPaths,
+          true,
         )
       : []),
   ]);
