@@ -151,11 +151,31 @@ function appendPath(base: string, suffix: string | null): string {
 
 function prefixTransformContextPaths(prefix: string, paths: string[]): string[] {
   return paths.flatMap((path) => {
-    if (!path.startsWith(ROOT_PATH)) return prefixPaths(prefix, [path]);
+    if (!path.startsWith(ROOT_PATH)) {
+      return prefixPaths(prefix, [path]).map(resolveParentPathSegments);
+    }
 
     const localPath = path.replace(/^\0\.?/, "");
-    return [appendPath(prefix, localPath || null)];
+    return [resolveParentPathSegments(appendPath(prefix, localPath || null))];
   });
+}
+
+function resolveParentPathSegments(path: string): string {
+  if (!path || path.startsWith(ROOT_PATH)) return path;
+
+  const segments: string[] = [];
+  for (const segment of path.split(".")) {
+    if (segment === "%") {
+      if (segments.length > 0) {
+        segments.pop();
+      } else {
+        segments.push(segment);
+      }
+      continue;
+    }
+    segments.push(segment);
+  }
+  return segments.join(".");
 }
 
 function isRootReference(node: AstNode): boolean {
@@ -2052,7 +2072,7 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
   const paths: string[] = [];
 
   // Walk pattern for base paths
-  const patternPaths = walkNode(node.pattern, scope);
+  const patternPaths = walkNode(node.pattern, scope).map(resolveParentPathSegments);
   const patternPrefixes = patternPaths.length > 0 ? patternPaths : [""];
   paths.push(...patternPaths);
 
