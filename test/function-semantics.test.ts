@@ -121,4 +121,48 @@ describe("function semantics", () => {
       sortPaths(extractPaths('($o := {"nested": {"x": account.name}}; $o.nested.x)')),
     ).toEqual(sortPaths([{ path: "account.name", confidence: "static" }]));
   });
+
+  it("binds lookup results without suffixing lookup keys", () => {
+    expect(
+      sortPaths(extractPaths("($p := $lookup(products, sku); $p.price)")),
+    ).toEqual(
+      sortPaths([
+        { path: "products", confidence: "static" },
+        { path: "products.price", confidence: "static" },
+        { path: "sku", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds filter results without suffixing predicate reads", () => {
+    expect(
+      sortPaths(
+        extractPaths("($p := $filter(items, function($v) { $v.active }); $p.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix variables bound to scalar function results", () => {
+    expect(extractPaths("($s := $substring(customer.name, 0, 3); $s.length)")).toEqual([
+      { path: "customer.name", confidence: "static" },
+    ]);
+  });
+
+  it("does not suffix conditional test paths through bound result variables", () => {
+    expect(sortPaths(extractPaths("($x := a > 0 ? b : c; $x.name)"))).toEqual(
+      sortPaths([
+        { path: "a", confidence: "static" },
+        { path: "b", confidence: "static" },
+        { path: "b.name", confidence: "static" },
+        { path: "c", confidence: "static" },
+        { path: "c.name", confidence: "static" },
+      ]),
+    );
+  });
 });

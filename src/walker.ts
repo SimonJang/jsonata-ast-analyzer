@@ -130,8 +130,34 @@ function markAbsolute(paths: string[]): string[] {
   return paths.map((path) => (path.startsWith(ROOT_PATH) ? path : appendPath(ROOT_PATH, path)));
 }
 
-function bindablePaths(node: AstNode, paths: string[]): string[] {
-  return node.type === "object" || node.type === "array" ? [] : paths;
+function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
+  if (isRootReference(node)) return [ROOT_PATH];
+
+  switch (node.type) {
+    case "name":
+      return [(node as NameNode).value];
+    case "path":
+      return extractBasePaths(node, scope);
+    case "variable":
+      return [...(resolveVariable(scope, (node as VariableNode).value) ?? [])];
+    case "wildcard":
+      return ["*"];
+    case "descendant":
+      return ["**"];
+    case "parent":
+      return ["%"];
+    case "function":
+      return getFunctionResultBasePaths(node as FunctionNode, scope);
+    case "condition": {
+      const condition = node as ConditionNode;
+      return [
+        ...bindingAliasPaths(condition.then, scope),
+        ...(condition.else ? bindingAliasPaths(condition.else, scope) : []),
+      ];
+    }
+    default:
+      return [];
+  }
 }
 
 function walkContextExpression(
@@ -534,7 +560,7 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
       currentScope = bindVariable(
         currentScope,
         bindNode.lhs.value,
-        bindablePaths(bindNode.rhs, rhsPaths),
+        bindingAliasPaths(bindNode.rhs, currentScope),
       );
 
       // If the RHS is a lambda, store the lambda node for SCOPE-05 tracing
@@ -591,7 +617,7 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
       currentScope = bindVariable(
         currentScope,
         bindNode.lhs.value,
-        bindablePaths(bindNode.rhs, rhsPaths),
+        bindingAliasPaths(bindNode.rhs, currentScope),
       );
     } else {
       paths.push(...walkNode(expr, currentScope));
