@@ -947,6 +947,46 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $map callback argument dynamic object-key reads", () => {
+    expect(
+      sortPaths(extractPaths("$map([{key: primary}], function($v){$v.x.name})")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sort callback argument dynamic object-key reads", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "$sort([{key: primary}], function($l,$r){$l.x.name < $r.x.name}).x.name",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $map callback argument dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$map([{key: primary}], function($v){$v}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $map callback dynamic object-key result aliases", () => {
     expect(
       sortPaths(extractPaths("$map(items, function($v){{key: $v}}).x.name")),
