@@ -239,6 +239,23 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses suffix context for variable focus-bound sort terms", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($items := orders.items; $items@$v.($v.children^(>rank)).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.children", confidence: "static" },
+        { path: "orders.items.children.name", confidence: "static" },
+        { path: "orders.items.children.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),

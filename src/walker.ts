@@ -1022,13 +1022,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         );
       }
 
-      // Walk sort terms in remaining steps, prefixed with resolved paths
-      for (const remainStep of suffixSteps) {
-        if (remainStep.type === "sort") {
-          for (const resolvedPath of resolved) {
-            paths.push(...walkSortTerms(remainStep as SortNode, resolvedPath, scope));
-          }
-        }
+      for (const resolvedPath of resolved) {
+        paths.push(
+          ...walkResolvedVariableSuffixSortTerms(
+            suffixSteps,
+            resolvedPath,
+            scope,
+            new Set([varStep.value]),
+          ),
+        );
       }
 
       return paths;
@@ -1247,6 +1249,52 @@ function walkResolvedVariableSuffixFilterStages(
           contextPrefix,
           suffixScope,
           nonPathVariables,
+          suffixStageVariables,
+        ),
+      );
+    }
+  }
+
+  return paths;
+}
+
+function walkResolvedVariableSuffixSortTerms(
+  suffixSteps: AstNode[],
+  resolvedPath: string,
+  scope: ScopeTracker,
+  stageVariables: ReadonlySet<string>,
+): string[] {
+  const paths: string[] = [];
+  let suffixScope = scope;
+  const suffixStageVariables = new Set(stageVariables);
+
+  for (let i = 0; i < suffixSteps.length; i++) {
+    const step = suffixSteps[i];
+
+    if (step.type === "name") {
+      const nameStep = step as NameNode;
+      const contextSuffix = buildPathString(suffixSteps.slice(0, i + 1)) ?? "";
+      const contextPrefix = appendPath(resolvedPath, contextSuffix);
+
+      if (nameStep.focusBinding) {
+        suffixScope = bindVariable(
+          suffixScope,
+          nameStep.focusBinding.name,
+          contextPrefix ? [contextPrefix] : [],
+        );
+        suffixStageVariables.add(nameStep.focusBinding.name);
+      }
+      if (nameStep.indexBinding) {
+        suffixScope = bindVariable(suffixScope, nameStep.indexBinding.name, []);
+      }
+    } else if (step.type === "sort") {
+      const contextSuffix = buildPathString(suffixSteps.slice(0, i)) ?? "";
+      const contextPrefix = appendPath(resolvedPath, contextSuffix);
+      paths.push(
+        ...walkSortTerms(
+          step as SortNode,
+          contextPrefix,
+          suffixScope,
           suffixStageVariables,
         ),
       );
