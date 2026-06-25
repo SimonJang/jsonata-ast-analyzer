@@ -694,7 +694,11 @@ function selectResultAliasStepPaths(
     step.type === "condition"
       ? walkNode((step as ConditionNode).condition, scope)
       : [];
-  const stepReadPaths = step.type === "block" ? walkNode(step, scope) : conditionPaths;
+  const stepReadPaths =
+    step.type === "block" ||
+    (step.type === "array" && ((step as ArrayNode).predicate?.length ?? 0) > 0)
+      ? walkNode(step, scope)
+      : conditionPaths;
   const resultBasePaths = bindingAliasPaths(step, scope);
   const objectAlias = objectAliasForNode(step, scope);
   const objectPaths = objectAlias
@@ -1644,6 +1648,11 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
       );
     } else {
       paths.push(...walkNode(expr, currentScope));
+    }
+  }
+  if (node.predicate && node.predicate.length > 0) {
+    for (const resultBasePath of bindingAliasPaths(node, scope)) {
+      paths.push(...walkFilterStages(node.predicate, resultBasePath, currentScope));
     }
   }
   return paths;
