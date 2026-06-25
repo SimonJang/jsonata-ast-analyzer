@@ -256,8 +256,6 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(...prefixPaths(firstArgPaths[0], [basePath]));
       }
       // Don't push bare basePath -- it's not a standalone data path
-    } else {
-      paths.push(basePath);
     }
   } else if (basePath && !suppressBase) {
     paths.push(basePath);
@@ -982,10 +980,12 @@ function getFunctionResultBasePaths(
 ): string[] {
   const partialBinding = resolvePartial(scope, node.procedure.value);
   if (partialBinding) {
+    if (partialBinding.partial.procedure.value !== "lookup") return [];
     const args = applyPartialArguments(partialBinding.partial, node.arguments);
     return args.length > 0 ? walkNode(args[0], partialBinding.scope) : [];
   }
 
+  if (node.procedure.value !== "lookup") return [];
   return node.arguments.length > 0 ? walkNode(node.arguments[0], scope) : [];
 }
 

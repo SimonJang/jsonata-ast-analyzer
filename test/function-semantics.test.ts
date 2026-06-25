@@ -57,4 +57,16 @@ describe("function semantics", () => {
       { path: "items.price", confidence: "static" },
     ]);
   });
+
+  it("does not suffix scalar function result properties onto input paths", () => {
+    expect(extractPaths("$substring(customer.name, 0, 3).length")).toEqual([
+      { path: "customer.name", confidence: "static" },
+    ]);
+  });
+
+  it("does not suffix regex match result properties onto input paths", () => {
+    expect(extractPaths("$match(description, /urgent/i).match")).toEqual([
+      { path: "description", confidence: "static" },
+    ]);
+  });
 });
