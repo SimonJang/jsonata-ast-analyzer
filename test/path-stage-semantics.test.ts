@@ -333,6 +333,21 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("unwraps parenthesized inline lambda call procedures", () => {
+    expect(
+      sortPaths(
+        extractPaths("(function($v){$v.children})(item)[enabled].name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.children", confidence: "static" },
+        { path: "item.children.enabled", confidence: "static" },
+        { path: "item.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),
