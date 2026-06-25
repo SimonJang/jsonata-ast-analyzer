@@ -96,6 +96,33 @@ const fixtures: ConformanceFixture[] = [
       { path: "nickname", confidence: "static" },
     ],
   },
+  {
+    name: "root reference path",
+    expression: "$.customer.name",
+    expectedPaths: [{ path: "customer.name", confidence: "static" }],
+  },
+  {
+    name: "root reference alias",
+    expression: "($root := $; $root.customer.name)",
+    expectedPaths: [{ path: "customer.name", confidence: "static" }],
+  },
+  {
+    name: "root reference inside relative filter",
+    expression: "$.items[price > $.config.min].name",
+    expectedPaths: [
+      { path: "config.min", confidence: "static" },
+      { path: "items.name", confidence: "static" },
+      { path: "items.price", confidence: "static" },
+    ],
+  },
+  {
+    name: "root reference as higher-order input",
+    expression: "$map($.items, function($v) { $v.name })",
+    expectedPaths: [
+      { path: "items", confidence: "static" },
+      { path: "items.name", confidence: "static" },
+    ],
+  },
 ];
 
 describe("JSONata baseline conformance", () => {

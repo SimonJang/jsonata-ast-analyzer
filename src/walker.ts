@@ -32,6 +32,8 @@ import {
 } from "./scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
 
+const ROOT_PATH = "\0";
+
 /**
  * Walk an AST node and extract all data paths as raw strings.
  * Dispatches on node.type using a switch statement.
@@ -98,7 +100,26 @@ export function walkNode(
  */
 function prefixPaths(prefix: string, paths: string[]): string[] {
   if (!prefix) return paths;
-  return paths.map((p) => (p ? `${prefix}.${p}` : prefix));
+  if (prefix.startsWith(ROOT_PATH)) {
+    return paths.map((p) => (p.startsWith(ROOT_PATH) ? p : appendPath(prefix, p)));
+  }
+  if (paths.some((p) => p.startsWith(ROOT_PATH))) {
+    return paths.map((p) => (p.startsWith(ROOT_PATH) ? p : appendPath(prefix, p)));
+  }
+  return paths.map((p) => (p ? `${prefix}.${p}` : p));
+}
+
+function appendPath(base: string, suffix: string | null): string {
+  if (!suffix) return base;
+  return base ? `${base}.${suffix}` : suffix;
+}
+
+function isRootReference(node: AstNode): boolean {
+  return node.type === "variable" && (node as VariableNode).value === "";
+}
+
+function markAbsolute(paths: string[]): string[] {
+  return paths.map((path) => (path.startsWith(ROOT_PATH) ? path : appendPath(ROOT_PATH, path)));
 }
 
 function walkContextExpression(
@@ -152,6 +173,11 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   const stageVariables = new Set<string>();
   const nonPathVariables = new Set<string>();
 
+  if (isRootReference(node.steps[0])) {
+    const rootPaths = walkPath({ ...node, steps: node.steps.slice(1) }, scope);
+    return rootPaths.length > 0 ? markAbsolute(rootPaths) : [ROOT_PATH];
+  }
+
   // Check if any step is a variable (e.g., $x.name)
   const varStepIndex = node.steps.findIndex((s) => s.type === "variable");
 
@@ -193,7 +219,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const suffix = buildPathString(suffixSteps);
 
       // Concatenate resolved paths with suffix
-      paths.push(...resolved.map((p) => (suffix ? `${p}.${suffix}` : p)));
+      paths.push(...resolved.map((p) => appendPath(p, suffix)));
 
       // Walk sort terms in remaining steps, prefixed with resolved paths
       for (const remainStep of suffixSteps) {
@@ -487,8 +513,10 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
     if (expr.type === "bind") {
       const bindNode = expr as BindNode;
       const closureScope = currentScope;
-      const rhsPaths = walkNode(bindNode.rhs, currentScope);
-      paths.push(...rhsPaths);
+      const rhsPaths = isRootReference(bindNode.rhs)
+        ? [ROOT_PATH]
+        : walkNode(bindNode.rhs, currentScope);
+      paths.push(...rhsPaths.filter((path) => path !== ROOT_PATH));
       currentScope = bindVariable(
         currentScope,
         bindNode.lhs.value,
@@ -542,8 +570,10 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
   for (const expr of node.expressions) {
     if (expr.type === "bind") {
       const bindNode = expr as BindNode;
-      const rhsPaths = walkNode(bindNode.rhs, currentScope);
-      paths.push(...rhsPaths);
+      const rhsPaths = isRootReference(bindNode.rhs)
+        ? [ROOT_PATH]
+        : walkNode(bindNode.rhs, currentScope);
+      paths.push(...rhsPaths.filter((path) => path !== ROOT_PATH));
       currentScope = bindVariable(currentScope, bindNode.lhs.value, rhsPaths);
     } else {
       paths.push(...walkNode(expr, currentScope));
@@ -723,6 +753,11 @@ function filterToBasePaths(paths: string[]): string[] {
 function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
   if (node.type === "path") {
     const pathNode = node as PathNode;
+    if (isRootReference(pathNode.steps[0])) {
+      return markAbsolute(
+        extractBasePaths({ ...pathNode, steps: pathNode.steps.slice(1) }, scope),
+      );
+    }
     // Check for variable steps (e.g., $v.children) -- must resolve variable
     const varStepIndex = pathNode.steps.findIndex((s) => s.type === "variable");
     if (varStepIndex >= 0) {
