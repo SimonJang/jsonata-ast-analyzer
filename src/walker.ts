@@ -1582,6 +1582,13 @@ function getFunctionResultDynamicObjectAlias(
     return getCustomFunctionResultDynamicObjectAlias(lambdaBinding, args, argScope);
   }
 
+  if (funcName === "map" || funcName === "each") {
+    return getCallbackResultDynamicObjectAlias(funcName, args, argScope);
+  }
+  if (funcName === "reduce") {
+    return getReduceResultDynamicObjectAlias(args, argScope);
+  }
+
   return null;
 }
 
@@ -1645,6 +1652,32 @@ function getCallbackResultObjectAlias(
   return objectAliasForNode(callback.lambda.body, lambdaScope);
 }
 
+function getCallbackResultDynamicObjectAlias(
+  funcName: "map" | "each",
+  args: AstNode[],
+  scope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const callback = findHigherOrderCallback(args, scope);
+  if (!callback) return null;
+
+  const dataArg = args[0];
+  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
+  let lambdaScope = childScope(callback.scope);
+
+  for (let i = 0; i < callback.lambda.arguments.length; i++) {
+    const param = callback.lambda.arguments[i];
+    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
+
+    if (role === "element" || role === "value" || role === "array") {
+      lambdaScope = bindVariable(lambdaScope, param.value, dataArgPaths);
+    } else if (role === "index" || role === "key") {
+      lambdaScope = bindVariable(lambdaScope, param.value, []);
+    }
+  }
+
+  return dynamicObjectAliasForNode(callback.lambda.body, lambdaScope);
+}
+
 function getReduceResultObjectAlias(
   args: AstNode[],
   scope: ScopeTracker,
@@ -1668,6 +1701,31 @@ function getReduceResultObjectAlias(
   }
 
   return objectAliasForNode(callback.lambda.body, lambdaScope);
+}
+
+function getReduceResultDynamicObjectAlias(
+  args: AstNode[],
+  scope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const callback = findHigherOrderCallback(args, scope);
+  if (!callback) return null;
+
+  const dataArgPaths = args[0] ? extractBasePaths(args[0], scope) : [];
+  const accumulatorPaths = args[2] ? extractBasePaths(args[2], scope) : dataArgPaths;
+  let lambdaScope = childScope(callback.scope);
+
+  for (let i = 0; i < callback.lambda.arguments.length; i++) {
+    const param = callback.lambda.arguments[i];
+    const role = HIGHER_ORDER_SEMANTICS.reduce[i];
+
+    if (role === "accumulator") {
+      lambdaScope = bindVariable(lambdaScope, param.value, accumulatorPaths);
+    } else if (role === "element" || role === "array") {
+      lambdaScope = bindVariable(lambdaScope, param.value, dataArgPaths);
+    }
+  }
+
+  return dynamicObjectAliasForNode(callback.lambda.body, lambdaScope);
 }
 
 function getFunctionResultBasePaths(

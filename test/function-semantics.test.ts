@@ -919,6 +919,58 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $map callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$map(items, function($v){{key: $v}}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block $map callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v){($k := key; {($k): $v})}).*.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $each callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$each(obj, function($v, $k){{key: $v}}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "obj", confidence: "static" },
+        { path: "obj.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $reduce callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v){{key: $v}}, {}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
