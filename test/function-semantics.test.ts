@@ -650,6 +650,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds $reduce accumulator callbacks to the accumulator source", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$reduce(items, function($acc, $v){{"x": $append($acc.x, $v.detail)}}, {"x": seed}).x.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not suffix scalar $reduce results onto input paths", () => {
     expect(
       sortPaths(
