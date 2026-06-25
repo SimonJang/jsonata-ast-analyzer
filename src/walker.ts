@@ -592,6 +592,33 @@ function selectSortAliasPaths(
   return paths;
 }
 
+function selectAliasSuffixContextPaths(
+  suffixSteps: AstNode[],
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
+): string[] {
+  const aliasPaths =
+    selectVariableObjectAliasPaths(
+      objectAlias,
+      dynamicObjectAlias,
+      suffixSteps,
+      scope,
+      suffixBasePaths,
+    ) ?? [];
+  const suffix = buildPathString(suffixSteps);
+  const suffixBaseContextPaths =
+    suffix && suffixBasePaths.length > 0
+      ? suffixBasePaths.map((path) => appendPath(path, suffix))
+      : [];
+  const suffixBaseRoots = new Set(suffixBasePaths);
+  return [
+    ...aliasPaths.filter((path) => !suffixBaseRoots.has(path)),
+    ...suffixBaseContextPaths,
+  ];
+}
+
 function walkAliasSuffixFilterStages(
   suffixSteps: AstNode[],
   objectAlias: ObjectAlias | null,
@@ -602,10 +629,17 @@ function walkAliasSuffixFilterStages(
 ): string[] {
   const paths: string[] = [];
 
-  for (const step of suffixSteps) {
+  for (const [index, step] of suffixSteps.entries()) {
     if (step.type !== "name") continue;
 
     const nameStep = step as NameNode;
+    const contextPaths = selectAliasSuffixContextPaths(
+      suffixSteps.slice(0, index + 1),
+      objectAlias,
+      dynamicObjectAlias,
+      scope,
+      suffixBasePaths,
+    );
     for (const stage of nameStep.stages ?? []) {
       if (stage.type !== "filter") continue;
 
@@ -613,14 +647,19 @@ function walkAliasSuffixFilterStages(
       if (isNumericIndex(filterStage.expr)) continue;
 
       paths.push(
-        ...selectAliasExpressionPaths(
-          objectAlias,
-          dynamicObjectAlias,
-          filterStage.expr,
-          scope,
-          suffixBasePaths,
-          preserveUnmappedLocalPaths,
+        ...contextPaths.flatMap((contextPath) =>
+          walkContextExpression(filterStage.expr, contextPath, scope),
         ),
+        ...(collectVariableNames(filterStage.expr).size > 0
+          ? selectAliasExpressionPaths(
+              objectAlias,
+              dynamicObjectAlias,
+              filterStage.expr,
+              scope,
+              suffixBasePaths,
+              preserveUnmappedLocalPaths,
+            )
+          : []),
       );
     }
   }
