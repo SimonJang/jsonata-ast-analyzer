@@ -357,6 +357,48 @@ function selectObjectAliasPaths(
   return null;
 }
 
+function selectDynamicObjectValuePaths(
+  node: ObjectNode,
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const [selector, ...rest] = suffixSteps;
+  if (!selector || (selector.type !== "name" && selector.type !== "wildcard")) return [];
+
+  const paths: string[] = [];
+  const suffix = buildPathString(rest);
+
+  for (const [keyNode, valueNode] of node.entries) {
+    if (staticObjectKey(keyNode)) continue;
+
+    const nestedAlias = objectAliasForNode(valueNode, scope);
+    const nestedPaths = nestedAlias ? selectObjectAliasPaths(nestedAlias, rest) : null;
+    if (nestedPaths) {
+      paths.push(...nestedPaths);
+      continue;
+    }
+
+    if (valueNode.type === "object") continue;
+
+    paths.push(
+      ...bindingAliasPaths(valueNode, scope).map((path) => appendPath(path, suffix)),
+    );
+  }
+
+  return paths;
+}
+
+function dynamicObjectSource(node: AstNode): ObjectNode | null {
+  if (node.type === "object") return node as ObjectNode;
+  if (node.type !== "block") return null;
+
+  const block = node as BlockNode;
+  const [expr] = block.expressions;
+  return block.expressions.length === 1 && expr?.type === "object"
+    ? (expr as ObjectNode)
+    : null;
+}
+
 function bindObjectAliasIfPresent(
   scope: ScopeTracker,
   name: string,
@@ -388,9 +430,15 @@ function selectResultAliasStepPaths(
   const objectPaths = objectAlias
     ? selectObjectAliasPaths(objectAlias, suffixSteps)
     : null;
-  if (objectPaths) return [...resultBasePaths, ...objectPaths];
+  const dynamicObject = dynamicObjectSource(step);
+  const dynamicObjectPaths =
+    dynamicObject ? selectDynamicObjectValuePaths(dynamicObject, suffixSteps, scope) : [];
+  if (objectPaths || dynamicObjectPaths.length > 0) {
+    return [...resultBasePaths, ...(objectPaths ?? []), ...dynamicObjectPaths];
+  }
 
   if (resultBasePaths.length === 0) return null;
+  if (dynamicObject) return resultBasePaths;
 
   const suffix = buildPathString(suffixSteps);
   return [
