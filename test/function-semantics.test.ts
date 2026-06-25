@@ -2002,6 +2002,62 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed custom function object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function($v){flag ? {"x": $v.detail} : fallback}; $fn(item).x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed inline function object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths('function($v){flag ? {"x": $v.detail} : fallback}(item).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed custom function dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($fn := function($v){flag ? {key: $v.detail} : fallback}; $fn(item).x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves mixed $each callback object aliases with path results", () => {
     expect(
       sortPaths(
