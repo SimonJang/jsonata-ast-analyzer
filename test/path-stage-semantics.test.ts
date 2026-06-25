@@ -102,6 +102,15 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps root-relative object projection aliases root-relative", () => {
+    expect(sortPaths(extractPaths('items.{"x": $.root}.x.name'))).toEqual(
+      sortPaths([
+        { path: "root", confidence: "static" },
+        { path: "root.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves constructed dynamic object aliases inside object projection steps", () => {
     expect(
       sortPaths(extractPaths('([{key: primary}]).{"out": x.name}')),
