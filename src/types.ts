@@ -97,6 +97,7 @@ export interface ArrayNode extends AnalyzerNode {
   type: "array";
   position: number;
   expressions: AstNode[];
+  predicate?: AstNode[];
 }
 
 export interface ObjectNode extends AnalyzerNode {
