@@ -696,7 +696,8 @@ function selectResultAliasStepPaths(
       : [];
   const stepReadPaths =
     step.type === "block" ||
-    (step.type === "array" && ((step as ArrayNode).predicate?.length ?? 0) > 0)
+    (step.type === "array" && ((step as ArrayNode).predicate?.length ?? 0) > 0) ||
+    (step.type === "object" && ((step as ObjectNode).predicate?.length ?? 0) > 0)
       ? walkNode(step, scope)
       : conditionPaths;
   const resultBasePaths = bindingAliasPaths(step, scope);
@@ -1660,10 +1661,26 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
 
 /** Extract value paths from an object constructor. */
 function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
-  return node.entries.flatMap(([key, val]) => [
+  const paths = node.entries.flatMap(([key, val]) => [
     ...walkNode(key, scope),
     ...walkNode(val, scope),
   ]);
+  if (node.predicate && node.predicate.length > 0) {
+    const objectAlias = objectAliasFromObject(node, scope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    for (const stage of node.predicate) {
+      if (stage.type !== "filter") continue;
+      paths.push(
+        ...selectAliasExpressionPaths(
+          objectAlias,
+          dynamicObjectAlias,
+          (stage as unknown as FilterStage).expr,
+          scope,
+        ),
+      );
+    }
+  }
+  return paths;
 }
 
 function isPlaceholder(node: AstNode): boolean {
