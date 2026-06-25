@@ -149,6 +149,15 @@ function appendPath(base: string, suffix: string | null): string {
   return base ? `${base}.${suffix}` : suffix;
 }
 
+function prefixTransformContextPaths(prefix: string, paths: string[]): string[] {
+  return paths.flatMap((path) => {
+    if (!path.startsWith(ROOT_PATH)) return prefixPaths(prefix, [path]);
+
+    const localPath = path.replace(/^\0\.?/, "");
+    return [appendPath(prefix, localPath || null)];
+  });
+}
+
 function isRootReference(node: AstNode): boolean {
   return node.type === "variable" && (node as VariableNode).value === "";
 }
@@ -1530,7 +1539,7 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
     const updatePaths = walkNode(node.update, scope);
     paths.push(
       ...patternPrefixes.flatMap((patternPrefix) =>
-        prefixPaths(patternPrefix, updatePaths),
+        prefixTransformContextPaths(patternPrefix, updatePaths),
       ),
     );
   }
@@ -1540,7 +1549,7 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
     const deletePaths = walkNode(node.delete, scope);
     paths.push(
       ...patternPrefixes.flatMap((patternPrefix) =>
-        prefixPaths(patternPrefix, deletePaths),
+        prefixTransformContextPaths(patternPrefix, deletePaths),
       ),
     );
   }
