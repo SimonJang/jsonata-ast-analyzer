@@ -2,6 +2,7 @@ import type {
   AstNode,
   ContextBindingNode,
   GroupByNode,
+  LambdaNode,
   PositionBindingNode,
   SourceAstMetadata,
   VariableNode,
@@ -211,7 +212,10 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "function",
         value: "(",
         position: positionOf(node),
-        procedure: normalizeVariable(node.procedure as RawAstNode),
+        procedure:
+          (node.procedure as RawAstNode | undefined)?.type === "lambda"
+            ? (normalizeAst(node.procedure as RawAstNode) as LambdaNode)
+            : normalizeVariable(node.procedure as RawAstNode),
         arguments: rawList(node.arguments).map(normalizeAst),
         group: normalizeGroup(node.group),
         source: sourceOf(node),
