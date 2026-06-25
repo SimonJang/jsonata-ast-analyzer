@@ -1231,6 +1231,16 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves constructed object aliases in sort terms", () => {
+    expect(sortPaths(extractPaths("([{key: primary}])^(>x.name).x.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
