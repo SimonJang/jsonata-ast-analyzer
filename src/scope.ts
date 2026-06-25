@@ -16,6 +16,7 @@ export interface DynamicObjectAliasVariant {
   readonly node: ObjectNode;
   readonly scope: ScopeTracker;
   readonly parentDataArgPaths?: readonly string[];
+  readonly prefixSteps?: readonly string[];
 }
 
 export interface DynamicObjectAlias {
