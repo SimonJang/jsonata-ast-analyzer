@@ -1774,38 +1774,41 @@ function walkLambda(node: LambdaNode, scope: ScopeTracker): string[] {
  * 3. Non-higher-order / unknown function -- pass-through all arguments
  */
 function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
+  const withFunctionStages = (readPaths: string[]) => [
+    ...readPaths,
+    ...walkFunctionPredicates(node, scope),
+    ...walkFunctionGroupBy(node, scope),
+  ];
+
   if (node.procedure.type === "lambda") {
-    return [
-      ...walkCustomFunctionCall(
+    return withFunctionStages(
+      walkCustomFunctionCall(
         { lambda: node.procedure, scope },
         node.arguments,
         scope,
       ),
-      ...walkFunctionGroupBy(node, scope),
-    ];
+    );
   }
 
   const funcName = node.procedure.value;
   const args = node.arguments;
   const paths: string[] = [];
-  const withGroupBy = (readPaths: string[]) =>
-    node.group ? [...readPaths, ...walkFunctionGroupBy(node, scope)] : readPaths;
 
   // Step 1: Check if this is a known higher-order function
   const semantics = HIGHER_ORDER_SEMANTICS[funcName];
   if (semantics) {
-    return withGroupBy(walkHigherOrderCall(node, semantics, scope));
+    return withFunctionStages(walkHigherOrderCall(node, semantics, scope));
   }
 
   // Step 2: Check if this is a custom function call (lambda bound in scope)
   const lambdaBinding = resolveLambda(scope, funcName);
   if (lambdaBinding) {
-    return withGroupBy(walkCustomFunctionCall(lambdaBinding, args, scope));
+    return withFunctionStages(walkCustomFunctionCall(lambdaBinding, args, scope));
   }
 
   const partialBinding = resolvePartial(scope, funcName);
   if (partialBinding) {
-    return withGroupBy(walkPartialCall(partialBinding, args, scope));
+    return withFunctionStages(walkPartialCall(partialBinding, args, scope));
   }
 
   // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
@@ -1820,7 +1823,15 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
     }
   }
 
-  return withGroupBy(paths);
+  return withFunctionStages(paths);
+}
+
+function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
+  if (!node.predicate || node.predicate.length === 0) return [];
+
+  return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
+    walkFilterStages(node.predicate!, basePath, scope),
+  );
 }
 
 function walkFunctionGroupBy(node: FunctionNode, scope: ScopeTracker): string[] {
