@@ -102,6 +102,28 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves constructed dynamic object aliases inside object projection steps", () => {
+    expect(
+      sortPaths(extractPaths('([{key: primary}]).{"out": x.name}')),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable-bound dynamic object aliases inside block projection steps", () => {
+    expect(sortPaths(extractPaths("($o := [{key: primary}]; $o.(x.name))"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound block projection aliases before chained fields", () => {
     expect(sortPaths(extractPaths("items@$v.($v.tags).name"))).toEqual(
       sortPaths([
