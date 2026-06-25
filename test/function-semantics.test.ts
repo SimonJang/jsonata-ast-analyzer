@@ -334,4 +334,44 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves $zip input aliases in chained fields", () => {
+    expect(sortPaths(extractPaths("$zip(a.items, b.items).name"))).toEqual(
+      sortPaths([
+        { path: "a.items", confidence: "static" },
+        { path: "a.items.name", confidence: "static" },
+        { path: "b.items", confidence: "static" },
+        { path: "b.items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $zip results as suffixable aliases", () => {
+    expect(sortPaths(extractPaths("($z := $zip(a.items, b.items); $z.name)"))).toEqual(
+      sortPaths([
+        { path: "a.items", confidence: "static" },
+        { path: "a.items.name", confidence: "static" },
+        { path: "b.items", confidence: "static" },
+        { path: "b.items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $spread wildcard result aliases", () => {
+    expect(sortPaths(extractPaths("$spread(record).*.name"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $spread results as suffixable aliases", () => {
+    expect(sortPaths(extractPaths("($s := $spread(record); $s.*.name)"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+      ]),
+    );
+  });
 });

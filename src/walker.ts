@@ -39,10 +39,12 @@ const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
   "single",
   "sort",
   "append",
+  "zip",
   "reverse",
   "shuffle",
   "distinct",
   "merge",
+  "spread",
 ]);
 
 /**
@@ -1066,7 +1068,7 @@ function getFunctionResultBasePaths(
   }
 
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
-  if (funcName === "append") {
+  if (funcName === "append" || funcName === "zip") {
     return args.flatMap((arg) => getResultBasePathsFromArg(arg, argScope));
   }
   if (funcName === "merge") {
