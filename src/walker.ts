@@ -702,19 +702,15 @@ function selectResultAliasStepPaths(
       : conditionPaths;
   const resultBasePaths = bindingAliasPaths(step, scope);
   const objectAlias = objectAliasForNode(step, scope);
-  const objectPaths = objectAlias
-    ? selectObjectAliasPaths(objectAlias, suffixSteps)
-    : null;
   const dynamicObject = dynamicObjectAliasForNode(step, scope);
-  const dynamicObjectPaths =
-    dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : [];
-  if (objectPaths || dynamicObjectPaths.length > 0) {
-    return [
-      ...stepReadPaths,
-      ...resultBasePaths,
-      ...(objectPaths ?? []),
-      ...dynamicObjectPaths,
-    ];
+  const aliasPaths = selectVariableObjectAliasPaths(
+    objectAlias,
+    dynamicObject,
+    suffixSteps,
+    scope,
+  );
+  if (aliasPaths) {
+    return [...stepReadPaths, ...resultBasePaths, ...aliasPaths];
   }
 
   if (resultBasePaths.length === 0) {
