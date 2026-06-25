@@ -147,6 +147,24 @@ function markAbsolute(paths: string[]): string[] {
   return paths.map((path) => (path.startsWith(ROOT_PATH) ? path : appendPath(ROOT_PATH, path)));
 }
 
+function appliedFunctionFromApply(node: ApplyNode): FunctionNode | null {
+  if (node.rhs.type === "function") {
+    const func = node.rhs as FunctionNode;
+    return { ...func, arguments: [node.lhs, ...func.arguments] };
+  }
+  if (node.rhs.type === "variable") {
+    const procedure = node.rhs as VariableNode;
+    return {
+      type: "function",
+      value: "(",
+      position: procedure.position,
+      procedure,
+      arguments: [node.lhs],
+    };
+  }
+  return null;
+}
+
 function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
   if (isRootReference(node)) return [ROOT_PATH];
 
@@ -161,6 +179,8 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
       return (node as ArrayNode).expressions.flatMap((expr) =>
         bindingAliasPaths(expr, scope),
       );
+    case "object":
+      return walkObject(node as ObjectNode, scope);
     case "wildcard":
       return ["*"];
     case "descendant":
@@ -176,13 +196,8 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
     case "block":
       return bindingAliasPathsFromBlock(node as BlockNode, scope);
     case "apply": {
-      const apply = node as ApplyNode;
-      if (apply.rhs.type !== "function") return [];
-      const func = apply.rhs as FunctionNode;
-      return getFunctionResultBasePaths(
-        { ...func, arguments: [apply.lhs, ...func.arguments] },
-        scope,
-      );
+      const func = appliedFunctionFromApply(node as ApplyNode);
+      return func ? getFunctionResultBasePaths(func, scope) : [];
     }
     case "condition": {
       const condition = node as ConditionNode;
@@ -210,7 +225,7 @@ function objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAli
     const key = staticObjectKey(keyNode);
     if (!key) continue;
 
-    const aliases = bindingAliasPaths(valueNode, scope);
+    const aliases = valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
     if (aliases.length > 0) fields.set(key, aliases);
 
     const nestedAlias = objectAliasForNode(valueNode, scope);
@@ -256,14 +271,8 @@ function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | n
     return getFunctionResultObjectAlias(node as FunctionNode, scope);
   }
   if (node.type === "apply") {
-    const apply = node as ApplyNode;
-    if (apply.rhs.type === "function") {
-      const func = apply.rhs as FunctionNode;
-      return getFunctionResultObjectAlias(
-        { ...func, arguments: [apply.lhs, ...func.arguments] },
-        scope,
-      );
-    }
+    const func = appliedFunctionFromApply(node as ApplyNode);
+    return func ? getFunctionResultObjectAlias(func, scope) : null;
   }
   if (node.type === "variable") {
     return resolveObjectAlias(scope, (node as VariableNode).value);
@@ -374,17 +383,20 @@ function selectResultAliasStepPaths(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
 ): string[] | null {
+  const resultBasePaths = bindingAliasPaths(step, scope);
   const objectAlias = objectAliasForNode(step, scope);
   const objectPaths = objectAlias
     ? selectObjectAliasPaths(objectAlias, suffixSteps)
     : null;
-  if (objectPaths) return objectPaths;
+  if (objectPaths) return [...resultBasePaths, ...objectPaths];
 
-  const resultBasePaths = bindingAliasPaths(step, scope);
   if (resultBasePaths.length === 0) return null;
 
   const suffix = buildPathString(suffixSteps);
-  return resultBasePaths.map((path) => appendPath(path, suffix));
+  return [
+    ...resultBasePaths,
+    ...resultBasePaths.map((path) => appendPath(path, suffix)),
+  ];
 }
 
 function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): string[] {
@@ -662,6 +674,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Function call step (e.g., $lookup(obj, key) in $lookup(obj, key).field)
       // Walk the function call to extract argument paths
       paths.push(...walkFunction(step as FunctionNode, stageScope));
+    } else if (step.type === "apply") {
+      paths.push(...walkApply(step as ApplyNode, stageScope));
     }
   }
 
@@ -1576,14 +1590,8 @@ function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[]
   }
 
   if (node.type === "apply") {
-    const apply = node as ApplyNode;
-    if (apply.rhs.type === "function") {
-      const func = apply.rhs as FunctionNode;
-      return getFunctionResultBasePaths(
-        { ...func, arguments: [apply.lhs, ...func.arguments] },
-        scope,
-      );
-    }
+    const func = appliedFunctionFromApply(node as ApplyNode);
+    if (func) return getFunctionResultBasePaths(func, scope);
   }
 
   return walkNode(node, scope).slice(0, 1);
@@ -1604,16 +1612,10 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
   const lhsPaths = walkNode(node.lhs, scope);
   paths.push(...lhsPaths);
 
-  // The rhs is typically a FunctionNode. Prepend lhs as first argument.
-  if (node.rhs.type === "function") {
-    const funcNode = node.rhs as FunctionNode;
-    // Create a synthetic function node with lhs prepended to arguments
-    const augmentedFunc: FunctionNode = {
-      ...funcNode,
-      arguments: [node.lhs, ...funcNode.arguments],
-    };
+  const appliedFunction = appliedFunctionFromApply(node);
+  if (appliedFunction) {
     // walkFunction will re-walk the lhs arg, but dedup in extractPaths handles it
-    paths.push(...walkFunction(augmentedFunc, scope));
+    paths.push(...walkFunction(appliedFunction, scope));
   } else if (node.rhs.type === "path") {
     const pathNode = node.rhs as PathNode;
     if (pathNode.steps[0]?.type === "function") {
