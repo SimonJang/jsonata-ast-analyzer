@@ -83,6 +83,7 @@ export interface BlockNode extends AnalyzerNode {
   type: "block";
   position: number;
   expressions: AstNode[];
+  group?: GroupByNode;
 }
 
 export interface NegateNode extends AnalyzerNode {
