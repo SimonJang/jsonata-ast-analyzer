@@ -638,6 +638,51 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves block-local suffix bases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(($f := fallback; flag ? {"x": primary} : $f)).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local dynamic suffix bases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths("(($f := fallback; flag ? {key: primary} : $f)).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds block-local suffix bases as variables", () => {
+    expect(
+      sortPaths(
+        extractPaths('($o := ($f := fallback; flag ? {"x": primary} : $f); $o.x.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not suffix constructed block-local function results onto input paths", () => {
     expect(
       sortPaths(
