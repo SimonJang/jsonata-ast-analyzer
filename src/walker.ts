@@ -155,6 +155,10 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
       return ["%"];
     case "function":
       return getFunctionResultBasePaths(node as FunctionNode, scope);
+    case "lambda": {
+      const lambda = node as LambdaNode;
+      return lambda.thunk ? bindingAliasPaths(lambda.body, scope) : [];
+    }
     case "block":
       return bindingAliasPathsFromBlock(node as BlockNode, scope);
     case "apply": {
@@ -1115,6 +1119,9 @@ function getFunctionResultBasePaths(
   if (funcName === "map" || funcName === "each") {
     return getCallbackResultBasePaths(funcName, args, argScope);
   }
+  if (funcName === "reduce") {
+    return getReduceResultBasePaths(args, argScope);
+  }
 
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
   if (funcName === "append" || funcName === "zip") {
@@ -1165,6 +1172,28 @@ function getCallbackResultBasePaths(
       lambdaScope = bindVariable(lambdaScope, param.value, []);
     } else if (role === "key") {
       lambdaScope = bindVariable(lambdaScope, param.value, []);
+    }
+  }
+
+  return bindingAliasPaths(callback.lambda.body, lambdaScope);
+}
+
+function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
+  const callback = findHigherOrderCallback(args, scope);
+  if (!callback) return [];
+
+  const dataArgPaths = args[0] ? extractBasePaths(args[0], scope) : [];
+  const accumulatorPaths = args[2] ? extractBasePaths(args[2], scope) : dataArgPaths;
+  let lambdaScope = childScope(callback.scope);
+
+  for (let i = 0; i < callback.lambda.arguments.length; i++) {
+    const param = callback.lambda.arguments[i];
+    const role = HIGHER_ORDER_SEMANTICS.reduce[i];
+
+    if (role === "accumulator") {
+      lambdaScope = bindVariable(lambdaScope, param.value, accumulatorPaths);
+    } else if (role === "element" || role === "array") {
+      lambdaScope = bindVariable(lambdaScope, param.value, dataArgPaths);
     }
   }
 
