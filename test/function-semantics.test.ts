@@ -717,4 +717,52 @@ describe("function semantics", () => {
       sortPaths(extractPaths('([{"name": primary.label}]).name')),
     ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
   });
+
+  it("preserves object constructor key aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"x": primary}).x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("selects the matching object constructor key alias in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"x": primary, "y": fallback}).y.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves object constructor wildcard aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"x": primary, "y": fallback}).*.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds object constructor key aliases as suffixable variables", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"x": primary, "y": fallback}; $o.y.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed object values onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('({"x": {"name": primary.label}}).x.name')),
+    ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
+  });
 });
