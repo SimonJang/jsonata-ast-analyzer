@@ -1014,6 +1014,20 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $map callback dynamic object-key reads inside projected result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map([{key: primary}], function($v){{"out": $v.x.name}}).out'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $map callback dynamic object-key result aliases", () => {
     expect(
       sortPaths(extractPaths("$map(items, function($v){{key: $v}}).x.name")),
@@ -1497,6 +1511,22 @@ describe("function semantics", () => {
         { path: "item", confidence: "static" },
         { path: "item.detail", confidence: "static" },
         { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function dynamic object-key reads inside projected result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function($v){{"out": $v.x.name}}; $fn({(key): primary}).out)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
       ]),
     );
   });
