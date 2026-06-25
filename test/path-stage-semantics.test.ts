@@ -59,6 +59,49 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves block projection aliases before chained fields", () => {
+    expect(sortPaths(extractPaths("items.(tags).name"))).toEqual(
+      sortPaths([
+        { path: "items.tags", confidence: "static" },
+        { path: "items.tags.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves array projection aliases before chained fields", () => {
+    expect(sortPaths(extractPaths("items.([primary, fallback]).name"))).toEqual(
+      sortPaths([
+        { path: "items.fallback", confidence: "static" },
+        { path: "items.fallback.name", confidence: "static" },
+        { path: "items.primary", confidence: "static" },
+        { path: "items.primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves conditional projection aliases before chained fields", () => {
+    expect(
+      sortPaths(extractPaths("items.(flag ? primary : fallback).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "items.fallback", confidence: "static" },
+        { path: "items.fallback.name", confidence: "static" },
+        { path: "items.flag", confidence: "static" },
+        { path: "items.primary", confidence: "static" },
+        { path: "items.primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves static object projection aliases before chained fields", () => {
+    expect(sortPaths(extractPaths('items.{"k": tags}.k.name'))).toEqual(
+      sortPaths([
+        { path: "items.tags", confidence: "static" },
+        { path: "items.tags.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("summarizes descendant reads without expanding them", () => {
     expect(extractPaths("account.**.price")).toEqual([
       { path: "account.**.price", confidence: "static" },
