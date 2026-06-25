@@ -3514,7 +3514,12 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
     paths.push(...walkNode(lambda.body, lambdaScope));
   } else if (node.rhs.type === "transform") {
     const transformPaths = walkTransform(node.rhs as TransformNode, scope);
-    paths.push(...prefixPaths(lhsPaths[0] ?? "", transformPaths));
+    const transformBasePaths = extractBasePaths(node.lhs, scope);
+    const transformPrefixes =
+      transformBasePaths.length > 0 ? transformBasePaths : [lhsPaths[0] ?? ""];
+    paths.push(
+      ...transformPrefixes.flatMap((prefix) => prefixPaths(prefix, transformPaths)),
+    );
   } else {
     // Fallback: unusual RHS (e.g., variable reference)
     paths.push(...walkNode(node.rhs, scope));
