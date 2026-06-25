@@ -1224,6 +1224,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed $map callback dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v){flag ? {key: $v.detail} : fallback}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves block $map callback dynamic object-key result aliases", () => {
     expect(
       sortPaths(
@@ -1246,6 +1264,24 @@ describe("function semantics", () => {
         { path: "key", confidence: "static" },
         { path: "obj", confidence: "static" },
         { path: "obj.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $each callback dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths("$each(obj, function($v){flag ? {key: $v.detail} : fallback}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "obj", confidence: "static" },
+        { path: "obj.detail", confidence: "static" },
+        { path: "obj.detail.name", confidence: "static" },
       ]),
     );
   });
@@ -1888,6 +1924,42 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed $map callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map(items, function($v){flag ? {"x": $v.detail} : fallback}).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed $map callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves apply-chain $map callback object aliases in chained fields", () => {
     expect(
       sortPaths(
@@ -1926,6 +1998,23 @@ describe("function semantics", () => {
         { path: "item", confidence: "static" },
         { path: "item.detail", confidence: "static" },
         { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $each callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths('$each(record, function($v) { flag ? {"x": $v.detail} : fallback }).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.detail", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
       ]),
     );
   });

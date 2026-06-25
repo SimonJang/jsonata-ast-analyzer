@@ -2772,6 +2772,10 @@ function getFunctionResultSuffixBasePaths(
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) return [];
 
+  if (funcName === "map" || funcName === "each") {
+    return getCallbackResultSuffixBasePaths(funcName, args, argScope);
+  }
+
   if (funcName === "reduce") {
     return getReduceInitialSuffixBasePaths(args, argScope);
   }
@@ -2817,6 +2821,37 @@ function getReduceInitialSuffixBasePaths(
   if (!accumulatorArg) return [];
 
   return getSuffixableResultBasePaths(accumulatorArg, scope);
+}
+
+function getCallbackResultSuffixBasePaths(
+  funcName: "map" | "each",
+  args: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const callback = findHigherOrderCallback(args, scope);
+  if (!callback) return [];
+
+  const dataArg = args[0];
+  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
+  let lambdaScope = childScope(callback.scope);
+
+  for (let i = 0; i < callback.lambda.arguments.length; i++) {
+    const param = callback.lambda.arguments[i];
+    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
+
+    if (!role) continue;
+    lambdaScope = bindHigherOrderParameter(
+      lambdaScope,
+      funcName,
+      param,
+      role,
+      dataArgPaths,
+      dataArg,
+      scope,
+    );
+  }
+
+  return getResultSuffixBasePaths(callback.lambda.body, lambdaScope);
 }
 
 function getBlockResultSuffixBasePaths(
