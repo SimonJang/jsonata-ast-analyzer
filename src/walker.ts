@@ -467,6 +467,14 @@ function selectVariableObjectAliasPaths(
     return paths.length > 0 ? paths : null;
   }
 
+  const projectionPaths = selectAliasProjectionStepPaths(
+    objectAlias,
+    dynamicObjectAlias,
+    selector,
+    scope,
+  );
+  if (projectionPaths) return projectionPaths;
+
   const paths = [
     ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
     ...(dynamicObjectAlias
@@ -693,6 +701,52 @@ function selectResultAliasExpressionPaths(
     ...selectAliasExpressionPaths(objectAlias, dynamicObject, expression, scope),
   ];
 
+  return paths.length > 0 ? paths : null;
+}
+
+function selectResultAliasProjectionStepPaths(
+  step: AstNode,
+  projectionStep: AstNode,
+  scope: ScopeTracker,
+): string[] | null {
+  const objectAlias = objectAliasForNode(step, scope);
+  const dynamicObject = dynamicObjectAliasForNode(step, scope);
+  if (!objectAlias && !dynamicObject) return null;
+
+  const projectionPaths = selectAliasProjectionStepPaths(
+    objectAlias,
+    dynamicObject,
+    projectionStep,
+    scope,
+  );
+  return projectionPaths
+    ? [...bindingAliasPaths(step, scope), ...projectionPaths]
+    : null;
+}
+
+function projectionStepExpressions(step: AstNode): AstNode[] | null {
+  if (step.type === "block") return (step as BlockNode).expressions;
+  if (step.type === "array") return (step as ArrayNode).expressions;
+  if (step.type === "object") {
+    return (step as ObjectNode).entries.flatMap(([key, value]) => [key, value]);
+  }
+  return null;
+}
+
+function selectAliasProjectionStepPaths(
+  objectAlias: ObjectAlias | null,
+  dynamicObject: DynamicObjectAlias | null,
+  step: AstNode | undefined,
+  scope: ScopeTracker,
+): string[] | null {
+  if (!step) return null;
+
+  const expressions = projectionStepExpressions(step);
+  if (!expressions) return null;
+
+  const paths = expressions.flatMap((expr) =>
+    selectAliasExpressionPaths(objectAlias, dynamicObject, expr, scope),
+  );
   return paths.length > 0 ? paths : null;
 }
 
@@ -994,6 +1048,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Walk value expressions and prefix with path up to this step
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const objectStep = step as ObjectNode;
+      const aliasPaths =
+        i > 0 && isResultAliasStep(node.steps[i - 1])
+          ? selectResultAliasProjectionStepPaths(node.steps[i - 1], step, stageScope)
+          : null;
+      if (aliasPaths) {
+        paths.push(...aliasPaths);
+        continue;
+      }
       for (const [key, val] of objectStep.entries) {
         paths.push(
           ...walkContextExpression(key, contextPrefix, stageScope, stageVariables, true),
@@ -1005,6 +1067,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     } else if (step.type === "array") {
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const arrayStep = step as ArrayNode;
+      const aliasPaths =
+        i > 0 && isResultAliasStep(node.steps[i - 1])
+          ? selectResultAliasProjectionStepPaths(node.steps[i - 1], step, stageScope)
+          : null;
+      if (aliasPaths) {
+        paths.push(...aliasPaths);
+        continue;
+      }
       for (const expr of arrayStep.expressions) {
         paths.push(
           ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables, true),
@@ -1015,6 +1085,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Walk all expressions and prefix with path up to this step
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const blockStep = step as BlockNode;
+      const aliasPaths =
+        i > 0 && isResultAliasStep(node.steps[i - 1])
+          ? selectResultAliasProjectionStepPaths(node.steps[i - 1], step, stageScope)
+          : null;
+      if (aliasPaths) {
+        paths.push(...aliasPaths);
+        continue;
+      }
       for (const expr of blockStep.expressions) {
         paths.push(
           ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables, true),
