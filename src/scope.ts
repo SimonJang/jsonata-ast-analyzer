@@ -35,6 +35,7 @@ export interface ScopeTracker {
   readonly partials: ReadonlyMap<string, PartialBinding>;
   readonly objectAliases: ReadonlyMap<string, ObjectAlias>;
   readonly dynamicObjectAliases: ReadonlyMap<string, DynamicObjectAlias>;
+  readonly suffixBaseBindings: ReadonlyMap<string, readonly string[]>;
   readonly parent: ScopeTracker | null;
 }
 
@@ -44,6 +45,7 @@ const EMPTY_SCOPE: ScopeTracker = {
   partials: new Map(),
   objectAliases: new Map(),
   dynamicObjectAliases: new Map(),
+  suffixBaseBindings: new Map(),
   parent: null,
 };
 
@@ -60,6 +62,7 @@ export function childScope(parent: ScopeTracker): ScopeTracker {
     partials: new Map(),
     objectAliases: new Map(),
     dynamicObjectAliases: new Map(),
+    suffixBaseBindings: new Map(),
     parent,
   };
 }
@@ -77,15 +80,38 @@ export function bindVariable(
   const newBindings = new Map(scope.bindings);
   const newObjectAliases = new Map(scope.objectAliases);
   const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
+  const newSuffixBaseBindings = new Map(scope.suffixBaseBindings);
   newBindings.set(name, paths);
   newObjectAliases.delete(name);
   newDynamicObjectAliases.delete(name);
+  newSuffixBaseBindings.delete(name);
   return {
     bindings: newBindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
     objectAliases: newObjectAliases,
     dynamicObjectAliases: newDynamicObjectAliases,
+    suffixBaseBindings: newSuffixBaseBindings,
+    parent: scope.parent,
+  };
+}
+
+export function bindSuffixBasePaths(
+  scope: ScopeTracker,
+  name: string,
+  paths: readonly string[],
+): ScopeTracker {
+  if (paths.length === 0) return scope;
+
+  const newSuffixBaseBindings = new Map(scope.suffixBaseBindings);
+  newSuffixBaseBindings.set(name, paths);
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: newSuffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -105,6 +131,7 @@ export function bindObjectAlias(
     partials: scope.partials,
     objectAliases: newObjectAliases,
     dynamicObjectAliases: newDynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -122,6 +149,7 @@ export function bindDynamicObjectAlias(
     partials: scope.partials,
     objectAliases: scope.objectAliases,
     dynamicObjectAliases: newDynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -145,6 +173,7 @@ export function bindLambda(
     partials: scope.partials,
     objectAliases: scope.objectAliases,
     dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -163,6 +192,7 @@ export function bindPartial(
     partials: newPartials,
     objectAliases: scope.objectAliases,
     dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -215,6 +245,20 @@ export function resolveVariable(
     current = current.parent;
   }
   return null; // unresolvable
+}
+
+export function resolveSuffixBasePaths(
+  scope: ScopeTracker,
+  name: string,
+): readonly string[] | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.suffixBaseBindings.has(name)) {
+      return current.suffixBaseBindings.get(name)!;
+    }
+    current = current.parent;
+  }
+  return null;
 }
 
 export function resolveObjectAlias(
