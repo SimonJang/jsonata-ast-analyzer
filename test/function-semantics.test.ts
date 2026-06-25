@@ -805,6 +805,36 @@ describe("function semantics", () => {
     ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
   });
 
+  it("preserves dynamic object-key value aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("({foo: primary}).x.name"))).toEqual(
+      sortPaths([
+        { path: "foo", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves dynamic object-key value aliases in wildcard chained fields", () => {
+    expect(sortPaths(extractPaths("({foo: primary}).*.name"))).toEqual(
+      sortPaths([
+        { path: "foo", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves nested static aliases below dynamic object keys", () => {
+    expect(sortPaths(extractPaths('({foo: {"x": primary}}).x.x.name'))).toEqual(
+      sortPaths([
+        { path: "foo", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
