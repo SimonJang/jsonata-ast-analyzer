@@ -17,6 +17,7 @@ import type {
   SortNode,
   TransformNode,
   VariableNode,
+  WildcardNode,
 } from "./types.js";
 import { buildPathString } from "./path-builder.js";
 import {
@@ -411,6 +412,39 @@ function mergeDynamicObjectAliases(
 ): DynamicObjectAlias | null {
   const variants = aliases.flatMap((alias) => alias?.variants ?? []);
   return variants.length > 0 ? { variants } : null;
+}
+
+function selectLookupDynamicObjectAliasPaths(
+  alias: DynamicObjectAlias,
+  suffixSteps: AstNode[],
+): string[] {
+  const suffix = buildPathString(suffixSteps);
+  const paths: string[] = [];
+
+  for (const variant of alias.variants) {
+    for (const [keyNode, valueNode] of variant.node.entries) {
+      if (staticObjectKey(keyNode)) continue;
+
+      const nestedAlias = objectAliasForNode(valueNode, variant.scope);
+      const nestedPaths = nestedAlias
+        ? selectObjectAliasPaths(nestedAlias, suffixSteps)
+        : null;
+      if (nestedPaths) {
+        paths.push(...nestedPaths);
+        continue;
+      }
+
+      if (valueNode.type === "object") continue;
+
+      paths.push(
+        ...bindingAliasPaths(valueNode, variant.scope).map((path) =>
+          appendPath(path, suffix),
+        ),
+      );
+    }
+  }
+
+  return paths;
 }
 
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
@@ -1790,6 +1824,10 @@ function getFunctionResultBasePaths(
     return getReduceResultBasePaths(args, argScope);
   }
 
+  if (funcName === "lookup") {
+    return getLookupResultBasePaths(args, argScope);
+  }
+
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
   if (funcName === "append" || funcName === "zip") {
     return args.flatMap((arg) => getResultBasePathsFromArg(arg, argScope));
@@ -1865,6 +1903,49 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   }
 
   return bindingAliasPaths(callback.lambda.body, lambdaScope);
+}
+
+function lookupSelectorSteps(keyNode: AstNode | undefined): AstNode[] {
+  const position =
+    keyNode && "position" in keyNode && typeof keyNode.position === "number"
+      ? keyNode.position
+      : 0;
+  if (keyNode?.type === "string") {
+    return [
+      {
+        type: "name",
+        value: (keyNode as { value: string }).value,
+        position,
+      } as NameNode,
+    ];
+  }
+
+  return [
+    {
+      type: "wildcard",
+      value: "*",
+      position,
+    } as WildcardNode,
+  ];
+}
+
+function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
+  const objectArg = args[0];
+  if (!objectArg) return [];
+
+  const selectorSteps = lookupSelectorSteps(args[1]);
+  const paths: string[] = [];
+
+  const objectAlias = objectAliasForNode(objectArg, scope);
+  const objectPaths = objectAlias ? selectObjectAliasPaths(objectAlias, selectorSteps) : null;
+  if (objectPaths) paths.push(...objectPaths);
+
+  const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
+  if (dynamicObjectAlias) {
+    paths.push(...selectLookupDynamicObjectAliasPaths(dynamicObjectAlias, []));
+  }
+
+  return paths.length > 0 ? paths : getResultBasePathsFromArg(objectArg, scope);
 }
 
 function getMergeResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
