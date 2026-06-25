@@ -1,4 +1,4 @@
-import type { LambdaNode, PartialNode } from "./types.js";
+import type { LambdaNode, ObjectNode, PartialNode } from "./types.js";
 
 export interface LambdaBinding {
   readonly lambda: LambdaNode;
@@ -11,6 +11,11 @@ export interface PartialBinding {
 }
 
 export type ObjectAlias = ReadonlyMap<string, readonly string[]>;
+
+export interface DynamicObjectAlias {
+  readonly node: ObjectNode;
+  readonly scope: ScopeTracker;
+}
 
 /**
  * Immutable scope chain for variable resolution.
@@ -25,6 +30,7 @@ export interface ScopeTracker {
   readonly lambdas: ReadonlyMap<string, LambdaBinding>;
   readonly partials: ReadonlyMap<string, PartialBinding>;
   readonly objectAliases: ReadonlyMap<string, ObjectAlias>;
+  readonly dynamicObjectAliases: ReadonlyMap<string, DynamicObjectAlias>;
   readonly parent: ScopeTracker | null;
 }
 
@@ -33,6 +39,7 @@ const EMPTY_SCOPE: ScopeTracker = {
   lambdas: new Map(),
   partials: new Map(),
   objectAliases: new Map(),
+  dynamicObjectAliases: new Map(),
   parent: null,
 };
 
@@ -48,6 +55,7 @@ export function childScope(parent: ScopeTracker): ScopeTracker {
     lambdas: new Map(),
     partials: new Map(),
     objectAliases: new Map(),
+    dynamicObjectAliases: new Map(),
     parent,
   };
 }
@@ -64,13 +72,16 @@ export function bindVariable(
 ): ScopeTracker {
   const newBindings = new Map(scope.bindings);
   const newObjectAliases = new Map(scope.objectAliases);
+  const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
   newBindings.set(name, paths);
   newObjectAliases.delete(name);
+  newDynamicObjectAliases.delete(name);
   return {
     bindings: newBindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
     objectAliases: newObjectAliases,
+    dynamicObjectAliases: newDynamicObjectAliases,
     parent: scope.parent,
   };
 }
@@ -81,12 +92,32 @@ export function bindObjectAlias(
   alias: ObjectAlias,
 ): ScopeTracker {
   const newObjectAliases = new Map(scope.objectAliases);
+  const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
   newObjectAliases.set(name, alias);
+  newDynamicObjectAliases.delete(name);
   return {
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
     objectAliases: newObjectAliases,
+    dynamicObjectAliases: newDynamicObjectAliases,
+    parent: scope.parent,
+  };
+}
+
+export function bindDynamicObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+  alias: DynamicObjectAlias,
+): ScopeTracker {
+  const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
+  newDynamicObjectAliases.set(name, alias);
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: newDynamicObjectAliases,
     parent: scope.parent,
   };
 }
@@ -109,6 +140,7 @@ export function bindLambda(
     lambdas: newLambdas,
     partials: scope.partials,
     objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
     parent: scope.parent,
   };
 }
@@ -126,6 +158,7 @@ export function bindPartial(
     lambdas: scope.lambdas,
     partials: newPartials,
     objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
     parent: scope.parent,
   };
 }
@@ -188,6 +221,20 @@ export function resolveObjectAlias(
   while (current !== null) {
     if (current.objectAliases.has(name)) {
       return current.objectAliases.get(name)!;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+export function resolveDynamicObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+): DynamicObjectAlias | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.dynamicObjectAliases.has(name)) {
+      return current.dynamicObjectAliases.get(name)!;
     }
     current = current.parent;
   }
