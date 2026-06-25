@@ -1788,19 +1788,65 @@ function walkHigherOrderCall(
 
     // Walk lambda body with parameter bindings
     paths.push(
-      ...walkLambdaWithBindings(
-        funcName,
-        callback.lambda,
-        dataArgPaths,
-        dataArg,
-        semantics,
-        callback.scope,
-        scope,
-      ),
+      ...(funcName === "reduce"
+        ? walkReduceLambdaWithBindings(callback.lambda, args, callback.scope, scope)
+        : walkLambdaWithBindings(
+            funcName,
+            callback.lambda,
+            dataArgPaths,
+            dataArg,
+            semantics,
+            callback.scope,
+            scope,
+          )),
     );
   }
 
   return paths;
+}
+
+function walkReduceLambdaWithBindings(
+  lambda: LambdaNode,
+  args: AstNode[],
+  parentScope: ScopeTracker,
+  dataArgScope: ScopeTracker,
+): string[] {
+  const dataArg = args[0];
+  const accumulatorArg = args[2] ?? dataArg;
+  const dataArgPaths = dataArg ? extractBasePaths(dataArg, dataArgScope) : [];
+  const accumulatorPaths = accumulatorArg
+    ? extractBasePaths(accumulatorArg, dataArgScope)
+    : dataArgPaths;
+  let lambdaScope = childScope(parentScope);
+
+  for (let i = 0; i < lambda.arguments.length; i++) {
+    const param = lambda.arguments[i];
+    const role = HIGHER_ORDER_SEMANTICS.reduce[i];
+
+    if (!role) continue;
+    lambdaScope =
+      role === "accumulator"
+        ? bindHigherOrderParameter(
+            lambdaScope,
+            "reduce",
+            param,
+            role,
+            accumulatorPaths,
+            accumulatorArg,
+            dataArgScope,
+          )
+        : bindHigherOrderParameter(
+            lambdaScope,
+            "reduce",
+            param,
+            role,
+            dataArgPaths,
+            dataArg,
+            dataArgScope,
+          );
+  }
+
+  return walkNode(lambda.body, lambdaScope);
 }
 
 function findHigherOrderCallback(
