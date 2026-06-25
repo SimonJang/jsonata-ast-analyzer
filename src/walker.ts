@@ -1353,6 +1353,11 @@ function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
   if (node.type === "name") {
     return [(node as NameNode).value];
   }
+  if (node.type === "object") {
+    return (node as ObjectNode).entries.flatMap(([, value]) =>
+      extractBasePaths(value, scope),
+    );
+  }
   // For other node types, walkNode is fine (no filter stages to strip)
   return walkNode(node, scope);
 }
@@ -1612,7 +1617,14 @@ function getFunctionResultDynamicObjectAlias(
     return getReduceResultDynamicObjectAlias(args, argScope);
   }
 
-  return null;
+  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return null;
+  if (funcName === "lookup") return null;
+  if (funcName === "append" || funcName === "zip") {
+    return mergeDynamicObjectAliases(
+      args.map((arg) => dynamicObjectAliasForNode(arg, argScope)),
+    );
+  }
+  return args.length > 0 ? dynamicObjectAliasForNode(args[0], argScope) : null;
 }
 
 function getCustomFunctionResultObjectAlias(
