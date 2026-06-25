@@ -35,6 +35,39 @@ describe("function semantics", () => {
     );
   });
 
+  it("clears stale lambda bindings when rebound to partials", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function($v){$v.name}; $f := $lookup(products, ?); $f(customerId).price)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customerId", confidence: "static" },
+        { path: "products", confidence: "static" },
+        { path: "products.price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("clears stale partial bindings when rebound to lambdas", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := $lookup(products, ?); $f := function($v){$v.name}; $f(customer).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "customer.name.name", confidence: "static" },
+        { path: "products", confidence: "static" },
+      ]),
+    );
+  });
+
   it("propagates higher-order callback reads", () => {
     expect(
       sortPaths(
