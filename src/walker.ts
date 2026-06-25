@@ -1067,6 +1067,10 @@ function getFunctionResultBasePaths(
     argScope = partialBinding.scope;
   }
 
+  if (funcName === "map") {
+    return getMapResultBasePaths(args, argScope);
+  }
+
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
   if (funcName === "append" || funcName === "zip") {
     return args.flatMap((arg) => getResultBasePathsFromArg(arg, argScope));
@@ -1075,6 +1079,28 @@ function getFunctionResultBasePaths(
     return args.length > 0 ? getMergeResultBasePaths(args[0], argScope) : [];
   }
   return args.length > 0 ? getResultBasePathsFromArg(args[0], argScope) : [];
+}
+
+function getMapResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
+  const callback = findHigherOrderCallback(args, scope);
+  if (!callback) return [];
+
+  const dataArg = args[0];
+  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
+  let lambdaScope = childScope(callback.scope);
+
+  for (let i = 0; i < callback.lambda.arguments.length; i++) {
+    const param = callback.lambda.arguments[i];
+    const role = HIGHER_ORDER_SEMANTICS.map[i];
+
+    if (role === "element" || role === "array") {
+      lambdaScope = bindVariable(lambdaScope, param.value, dataArgPaths);
+    } else if (role === "index") {
+      lambdaScope = bindVariable(lambdaScope, param.value, []);
+    }
+  }
+
+  return bindingAliasPaths(callback.lambda.body, lambdaScope);
 }
 
 function getMergeResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {

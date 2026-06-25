@@ -374,4 +374,50 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves identity $map callback aliases in chained fields", () => {
+    expect(sortPaths(extractPaths("$map(items, function($v) { $v }).name"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected $map callback aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$map(items, function($v) { $v.detail }).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $map callback result aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths("($m := $map(items, function($v) { $v.detail }); $m.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed $map callback results onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('$map(items, function($v) { {"name": $v.label} }).name')),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.label", confidence: "static" },
+      ]),
+    );
+  });
 });
