@@ -432,10 +432,11 @@ function walkFilterStages(
       const varNode = filterStage.expr as VariableNode;
       const resolved = resolveVariable(scope, varNode.value);
       if (nonPathVariables.has(varNode.value)) continue;
-      if (!resolved || resolved.length === 0) {
+      if (!resolved) {
         paths.push(`${contextPrefix}[*]`);
         continue; // [*] replaces predicate walk -- do not also walk the predicate
       }
+      if (resolved.length === 0) continue;
     }
 
     paths.push(

@@ -27,6 +27,24 @@ describe("path-stage semantics", () => {
     ]);
   });
 
+  it("does not mark variables bound to numeric indexes as dynamic selectors", () => {
+    expect(extractPaths("($i := 0; items[$i].name)")).toEqual([
+      { path: "items.name", confidence: "static" },
+    ]);
+  });
+
+  it("does not mark variables bound to scalar predicates as dynamic selectors", () => {
+    expect(extractPaths("($flag := true; items[$flag].name)")).toEqual([
+      { path: "items.name", confidence: "static" },
+    ]);
+  });
+
+  it("does not mark variables bound to scalar function results as dynamic selectors", () => {
+    expect(extractPaths("($idx := $random(); items[$idx].name)")).toEqual([
+      { path: "items.name", confidence: "static" },
+    ]);
+  });
+
   it("preserves parent reads inside object projection", () => {
     expect(
       sortPaths(
