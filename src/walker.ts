@@ -172,7 +172,7 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
     case "name":
       return [(node as NameNode).value];
     case "path":
-      return extractBasePaths(node, scope);
+      return getResultBasePathsFromArg(node, scope);
     case "variable":
       return [...(resolveVariable(scope, (node as VariableNode).value) ?? [])];
     case "array":
@@ -440,13 +440,18 @@ function walkContextExpression(
   contextPrefix: string,
   scope: ScopeTracker,
   stageVariables: ReadonlySet<string> = new Set(),
+  keepBarePathsRootRelative = false,
 ): string[] {
   const localPaths = walkNode(expr, childScope(createScope()));
-  const paths = prefixPaths(contextPrefix, localPaths);
   const localSet = new Set(localPaths);
 
   const variables = collectVariableNames(expr);
   const hasStageVariable = [...variables].some((name) => stageVariables.has(name));
+  if (keepBarePathsRootRelative && stageVariables.size > 0) {
+    return hasStageVariable ? walkNode(expr, scope) : [...localPaths];
+  }
+
+  const paths = prefixPaths(contextPrefix, localPaths);
   if (hasStageVariable) {
     for (const scopedPath of walkNode(expr, scope)) {
       if (!localSet.has(scopedPath)) paths.push(scopedPath);
@@ -571,14 +576,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   );
   const funcStepIndex = node.steps.findIndex((s) => s.type === "function");
   if (basePath && resultAliasStepIndex >= 0) {
-    const resultStep = node.steps[resultAliasStepIndex];
-    const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
-    const resultPaths = selectResultAliasStepPaths(
-      resultStep,
-      node.steps.slice(resultAliasStepIndex + 1),
-      scope,
-    );
-    if (resultPaths) paths.push(...prefixProjectionPaths(contextPrefix, resultPaths));
+    if (resultAliasStepIndex === 0) {
+      const resultStep = node.steps[resultAliasStepIndex];
+      const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
+      const resultPaths = selectResultAliasStepPaths(
+        resultStep,
+        node.steps.slice(resultAliasStepIndex + 1),
+        scope,
+      );
+      if (resultPaths) paths.push(...prefixProjectionPaths(contextPrefix, resultPaths));
+    }
   } else if (basePath && funcStepIndex >= 0) {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
     // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
@@ -606,7 +613,13 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         node.steps.slice(i + 1),
         stageScope,
       );
-      if (resultPaths) paths.push(...prefixProjectionPaths(projectionPrefix, resultPaths));
+      if (resultPaths) {
+        paths.push(
+          ...(stageVariables.size > 0
+            ? resultPaths
+            : prefixProjectionPaths(projectionPrefix, resultPaths)),
+        );
+      }
     }
 
     if (step.type === "name") {
@@ -646,10 +659,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const objectStep = step as ObjectNode;
       for (const [key, val] of objectStep.entries) {
         paths.push(
-          ...walkContextExpression(key, contextPrefix, stageScope, stageVariables),
+          ...walkContextExpression(key, contextPrefix, stageScope, stageVariables, true),
         );
         paths.push(
-          ...walkContextExpression(val, contextPrefix, stageScope, stageVariables),
+          ...walkContextExpression(val, contextPrefix, stageScope, stageVariables, true),
         );
       }
     } else if (step.type === "array") {
@@ -657,7 +670,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const arrayStep = step as ArrayNode;
       for (const expr of arrayStep.expressions) {
         paths.push(
-          ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables),
+          ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables, true),
         );
       }
     } else if (step.type === "block") {
@@ -667,7 +680,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const blockStep = step as BlockNode;
       for (const expr of blockStep.expressions) {
         paths.push(
-          ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables),
+          ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables, true),
         );
       }
     } else if (step.type === "function") {
