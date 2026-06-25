@@ -765,4 +765,43 @@ describe("function semantics", () => {
       sortPaths(extractPaths('({"x": {"name": primary.label}}).x.name')),
     ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
   });
+
+  it("preserves nested object constructor key aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"outer": {"x": primary}}).outer.x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves nested object constructor wildcard aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('({"outer": {"x": primary, "y": fallback}}).outer.*.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds nested object constructor key aliases as suffixable variables", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"outer": {"x": primary}}; $o.outer.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed nested object leaf values onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('({"outer": {"x": {"name": primary.label}}}).outer.x.name')),
+    ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
+  });
 });
