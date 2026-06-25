@@ -784,6 +784,7 @@ function walkAliasSuffixProjectionSteps(
               scope,
               suffixBasePaths,
               preserveUnmappedLocalPaths,
+              true,
             )
           : []),
       );
@@ -1163,15 +1164,34 @@ function selectAliasExpressionPaths(
   scope: ScopeTracker,
   suffixBasePaths: readonly string[] = [],
   preserveUnmappedLocalPaths = false,
+  skipLocalPaths = false,
 ): string[] {
   const paths: string[] = [];
   const localPaths = new Set(walkNode(expression, childScope(createScope())));
+  const localAliasPaths = skipLocalPaths
+    ? new Set(
+        [...localPaths].flatMap((path) => {
+          const suffixSteps = aliasSuffixStepsFromPath(path);
+          return suffixSteps
+            ? selectAliasSuffixPaths(
+                objectAlias,
+                dynamicObject,
+                suffixSteps,
+                suffixBasePaths,
+              )
+            : [];
+        }),
+      )
+    : new Set<string>();
 
   for (const path of walkNode(expression, scope)) {
     if (path.startsWith(ROOT_PATH) || !localPaths.has(path)) {
+      if (skipLocalPaths && localAliasPaths.has(path)) continue;
       paths.push(path);
       continue;
     }
+
+    if (skipLocalPaths) continue;
 
     if (preserveUnmappedLocalPaths) {
       paths.push(path);
@@ -1184,18 +1204,32 @@ function selectAliasExpressionPaths(
       continue;
     }
 
-    const suffix = buildPathString(suffixSteps);
-    const aliasPaths = [
-      ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
-      ...(dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : []),
-      ...(suffix ? suffixBasePaths.map((path) => appendPath(path, suffix)) : []),
-    ];
+    const aliasPaths = selectAliasSuffixPaths(
+      objectAlias,
+      dynamicObject,
+      suffixSteps,
+      suffixBasePaths,
+    );
     paths.push(
       ...(aliasPaths.length > 0 || !preserveUnmappedLocalPaths ? aliasPaths : [path]),
     );
   }
 
   return paths;
+}
+
+function selectAliasSuffixPaths(
+  objectAlias: ObjectAlias | null,
+  dynamicObject: DynamicObjectAlias | null,
+  suffixSteps: AstNode[],
+  suffixBasePaths: readonly string[],
+): string[] {
+  const suffix = buildPathString(suffixSteps);
+  return [
+    ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
+    ...(dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : []),
+    ...(suffix ? suffixBasePaths.map((path) => appendPath(path, suffix)) : []),
+  ];
 }
 
 function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): string[] {
