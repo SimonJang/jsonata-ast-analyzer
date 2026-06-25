@@ -1253,6 +1253,36 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves constructed object aliases inside function sort terms", () => {
+    expect(
+      sortPaths(
+        extractPaths("([{key: primary}])^(>$substring(x.name, 0, 1)).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable-bound constructed object aliases inside function sort terms", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($o := [{key: primary}]; $o^(>$substring(x.name, 0, 1)).x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
