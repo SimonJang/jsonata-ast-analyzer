@@ -710,7 +710,13 @@ function selectResultAliasStepPaths(
     scope,
   );
   if (aliasPaths) {
-    return [...stepReadPaths, ...resultBasePaths, ...aliasPaths];
+    const suffix = buildPathString(suffixSteps);
+    const suffixBasePaths = suffix
+      ? getFunctionResultSuffixBasePaths(step, scope).map((path) =>
+          appendPath(path, suffix),
+        )
+      : [];
+    return [...stepReadPaths, ...resultBasePaths, ...aliasPaths, ...suffixBasePaths];
   }
 
   if (resultBasePaths.length === 0) {
@@ -2694,6 +2700,54 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   }
 
   return bindingAliasPaths(callback.lambda.body, lambdaScope);
+}
+
+function getFunctionResultSuffixBasePaths(
+  node: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  if (node.type !== "function") return [];
+
+  const func = node as FunctionNode;
+  if (func.procedure.type === "lambda") return [];
+
+  const partialBinding = resolvePartial(scope, func.procedure.value);
+  let funcName = func.procedure.value;
+  let args = func.arguments;
+  let argScope = scope;
+
+  if (partialBinding) {
+    funcName = partialBinding.partial.procedure.value;
+    args = applyPartialArguments(partialBinding.partial, func.arguments);
+    argScope = partialBinding.scope;
+  }
+
+  const lambdaBinding = resolveLambda(argScope, funcName);
+  if (lambdaBinding || funcName !== "reduce") return [];
+
+  return getReduceInitialSuffixBasePaths(args, argScope);
+}
+
+function getReduceInitialSuffixBasePaths(
+  args: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const accumulatorArg = args[2];
+  if (!accumulatorArg) return [];
+
+  switch (accumulatorArg.type) {
+    case "name":
+    case "path":
+    case "variable":
+    case "function":
+    case "apply":
+    case "wildcard":
+    case "descendant":
+    case "parent":
+      return getResultBasePathsFromArg(accumulatorArg, scope);
+    default:
+      return [];
+  }
 }
 
 function lookupSelectorSteps(keyNode: AstNode | undefined): AstNode[] {
