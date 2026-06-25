@@ -2756,7 +2756,13 @@ function getFunctionResultSuffixBasePaths(
   if (node.type !== "function") return [];
 
   const func = node as FunctionNode;
-  if (func.procedure.type === "lambda") return [];
+  if (func.procedure.type === "lambda") {
+    return getCustomFunctionResultSuffixBasePaths(
+      { lambda: func.procedure, scope },
+      func.arguments,
+      scope,
+    );
+  }
 
   const partialBinding = resolvePartial(scope, func.procedure.value);
   let funcName = func.procedure.value;
@@ -2770,7 +2776,9 @@ function getFunctionResultSuffixBasePaths(
   }
 
   const lambdaBinding = resolveLambda(argScope, funcName);
-  if (lambdaBinding) return [];
+  if (lambdaBinding) {
+    return getCustomFunctionResultSuffixBasePaths(lambdaBinding, args, argScope);
+  }
 
   if (funcName === "map" || funcName === "each") {
     return getCallbackResultSuffixBasePaths(funcName, args, argScope);
@@ -2821,6 +2829,26 @@ function getReduceInitialSuffixBasePaths(
   if (!accumulatorArg) return [];
 
   return getSuffixableResultBasePaths(accumulatorArg, scope);
+}
+
+function getCustomFunctionResultSuffixBasePaths(
+  binding: LambdaBinding,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): string[] {
+  const { lambda, scope } = binding;
+  let lambdaScope = childScope(scope);
+
+  for (let i = 0; i < lambda.arguments.length; i++) {
+    const param = lambda.arguments[i];
+    const argPaths = i < callArgs.length ? extractBasePaths(callArgs[i], callScope) : [];
+    lambdaScope =
+      i < callArgs.length
+        ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
+        : bindVariable(lambdaScope, param.value, argPaths);
+  }
+
+  return getResultSuffixBasePaths(lambda.body, lambdaScope);
 }
 
 function getCallbackResultSuffixBasePaths(
