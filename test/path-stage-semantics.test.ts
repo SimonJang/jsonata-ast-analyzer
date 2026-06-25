@@ -207,6 +207,38 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves variable focus-bound suffix filter predicate reads", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($items := orders.items; $items@$v.($v.children[$v.active]).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.active", confidence: "static" },
+        { path: "orders.items.children", confidence: "static" },
+        { path: "orders.items.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable focus-bound child suffix filter predicate reads", () => {
+    expect(
+      sortPaths(
+        extractPaths("($items := orders.items; $items@$v.($v.children[enabled]).name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.children", confidence: "static" },
+        { path: "orders.items.children.enabled", confidence: "static" },
+        { path: "orders.items.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),
