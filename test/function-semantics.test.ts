@@ -1140,6 +1140,53 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $lookup dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths('$lookup({key: primary}, "x").name'))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $lookup dynamic object aliases with dynamic lookup keys", () => {
+    expect(sortPaths(extractPaths("$lookup({key: primary}, lookupKey).name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "lookupKey", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed static and dynamic $lookup object aliases", () => {
+    expect(
+      sortPaths(extractPaths('$lookup({key: primary, "fixed": fallback}, "fixed").name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $lookup dynamic object-key result aliases as variables", () => {
+    expect(
+      sortPaths(extractPaths('($p := $lookup({key: primary}, "x"); $p.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
