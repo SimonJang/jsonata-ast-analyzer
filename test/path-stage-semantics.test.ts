@@ -147,6 +147,44 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps bare focus projection paths root-relative", () => {
+    expect(sortPaths(extractPaths("items@$v.(price & $v.type)"))).toEqual(
+      sortPaths([
+        { path: "items.type", confidence: "static" },
+        { path: "price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps bare-only focus projection paths root-relative", () => {
+    expect(extractPaths("items@$v.(price)")).toEqual([
+      { path: "price", confidence: "static" },
+    ]);
+  });
+
+  it("keeps bare lookup inputs root-relative in focus projections", () => {
+    expect(sortPaths(extractPaths("ids@$id.($lookup(products, $id)).name"))).toEqual(
+      sortPaths([
+        { path: "ids", confidence: "static" },
+        { path: "products", confidence: "static" },
+        { path: "products.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps projected bare lookup results root-relative in focus projections", () => {
+    expect(
+      sortPaths(extractPaths("ids@$id.($lookup(products, $id).detail).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "ids", confidence: "static" },
+        { path: "products", confidence: "static" },
+        { path: "products.detail", confidence: "static" },
+        { path: "products.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("summarizes descendant reads without expanding them", () => {
     expect(extractPaths("account.**.price")).toEqual([
       { path: "account.**.price", confidence: "static" },
