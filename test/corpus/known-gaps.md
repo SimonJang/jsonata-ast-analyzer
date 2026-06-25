@@ -123,3 +123,65 @@ Actual paths:
 ```
 
 Issue: https://github.com/SimonJang/jsonata-ast-analyzer/issues/22
+
+## #23 Variables bound to constructed values
+
+Category: variable bindings / constructed values
+
+Failure type: false positive
+
+Expression:
+
+```jsonata
+($o := {"x": account.name}; $o.x)
+```
+
+Expected paths:
+
+```json
+[
+  { "path": "account.name", "confidence": "static" }
+]
+```
+
+Actual paths:
+
+```json
+[
+  { "path": "account.name", "confidence": "static" },
+  { "path": "account.name.x", "confidence": "static" }
+]
+```
+
+Issue: https://github.com/SimonJang/jsonata-ast-analyzer/issues/23
+
+## #24 Variables bound to scalar indexes
+
+Category: dynamic brackets / variable bindings
+
+Failure type: false positive / confidence classification problem
+
+Expression:
+
+```jsonata
+($i := 0; items[$i].name)
+```
+
+Expected paths:
+
+```json
+[
+  { "path": "items.name", "confidence": "static" }
+]
+```
+
+Actual paths:
+
+```json
+[
+  { "path": "items.name", "confidence": "static" },
+  { "path": "items[*]", "confidence": "dynamic" }
+]
+```
+
+Issue: https://github.com/SimonJang/jsonata-ast-analyzer/issues/24
