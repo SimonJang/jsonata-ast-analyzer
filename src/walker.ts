@@ -1805,13 +1805,29 @@ function walkCustomFunctionCall(
   for (let i = 0; i < lambda.arguments.length; i++) {
     const param = lambda.arguments[i];
     const argPaths = i < argPathSets.length ? argPathSets[i] : [];
-    lambdaScope = bindVariable(lambdaScope, param.value, argPaths);
+    lambdaScope =
+      i < callArgs.length
+        ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
+        : bindVariable(lambdaScope, param.value, argPaths);
   }
 
   // Walk the lambda body with parameter bindings
   paths.push(...walkNode(lambda.body, lambdaScope));
 
   return paths;
+}
+
+function bindArgumentParameter(
+  scope: ScopeTracker,
+  param: VariableNode,
+  argPaths: readonly string[],
+  arg: AstNode,
+  argScope: ScopeTracker,
+): ScopeTracker {
+  let nextScope = bindVariable(scope, param.value, argPaths);
+  nextScope = bindObjectAliasIfPresent(nextScope, param.value, arg, argScope);
+  nextScope = bindDynamicObjectAliasIfPresent(nextScope, param.value, arg, argScope);
+  return nextScope;
 }
 
 function applyPartialArguments(
@@ -1936,7 +1952,10 @@ function getCustomFunctionResultObjectAlias(
   for (let i = 0; i < lambda.arguments.length; i++) {
     const param = lambda.arguments[i];
     const argPaths = i < callArgs.length ? extractBasePaths(callArgs[i], callScope) : [];
-    lambdaScope = bindVariable(lambdaScope, param.value, argPaths);
+    lambdaScope =
+      i < callArgs.length
+        ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
+        : bindVariable(lambdaScope, param.value, argPaths);
   }
 
   return objectAliasForNode(lambda.body, lambdaScope);
@@ -1953,7 +1972,10 @@ function getCustomFunctionResultDynamicObjectAlias(
   for (let i = 0; i < lambda.arguments.length; i++) {
     const param = lambda.arguments[i];
     const argPaths = i < callArgs.length ? extractBasePaths(callArgs[i], callScope) : [];
-    lambdaScope = bindVariable(lambdaScope, param.value, argPaths);
+    lambdaScope =
+      i < callArgs.length
+        ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
+        : bindVariable(lambdaScope, param.value, argPaths);
   }
 
   return dynamicObjectAliasForNode(lambda.body, lambdaScope);
@@ -2113,7 +2135,10 @@ function getCustomFunctionResultBasePaths(
   for (let i = 0; i < lambda.arguments.length; i++) {
     const param = lambda.arguments[i];
     const argPaths = i < callArgs.length ? extractBasePaths(callArgs[i], callScope) : [];
-    lambdaScope = bindVariable(lambdaScope, param.value, argPaths);
+    lambdaScope =
+      i < callArgs.length
+        ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
+        : bindVariable(lambdaScope, param.value, argPaths);
   }
 
   return bindingAliasPaths(lambda.body, lambdaScope);
