@@ -527,4 +527,49 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves block-local $map result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v) { ($d := $v.detail; $d) }).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local custom function result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($project := function($v) { ($d := $v.detail; $d) }; $project(item).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed block-local function results onto input paths", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map(items, function($v) { ($o := {"name": $v.label}; $o) }).name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.label", confidence: "static" },
+      ]),
+    );
+  });
 });
