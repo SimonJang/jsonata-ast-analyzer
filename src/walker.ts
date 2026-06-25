@@ -258,8 +258,47 @@ function mergeObjectAliases(aliases: Array<ObjectAlias | null>): ObjectAlias | n
   return fields.size > 0 ? fields : null;
 }
 
+function objectAliasFromPathProjection(
+  node: PathNode,
+  scope: ScopeTracker,
+): ObjectAlias | null {
+  const projectionStep = node.steps[node.steps.length - 1];
+  if (projectionStep?.type !== "object") return null;
+
+  const prefixSteps = node.steps.slice(0, -1);
+  const varStep = prefixSteps.find((step) => step.type === "variable") as
+    | VariableNode
+    | undefined;
+  const objectAlias = varStep ? resolveObjectAlias(scope, varStep.value) : null;
+  const dynamicObjectAlias = varStep
+    ? resolveDynamicObjectAlias(scope, varStep.value)
+    : null;
+  const contextPrefix = buildPathString(prefixSteps) ?? "";
+  const contextPrefixes =
+    contextPrefix || !varStep
+      ? [contextPrefix]
+      : [...(resolveVariable(scope, varStep.value) ?? [])];
+  const fields = new Map<string, string[]>();
+
+  for (const [keyNode, valueNode] of (projectionStep as ObjectNode).entries) {
+    const key = staticObjectKey(keyNode);
+    if (!key) continue;
+
+    const aliases =
+      objectAlias || dynamicObjectAlias
+        ? selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, valueNode, scope)
+        : contextPrefixes.flatMap((prefix) =>
+            walkContextExpression(valueNode, prefix, scope),
+          );
+    if (aliases.length > 0) fields.set(key, aliases);
+  }
+
+  return fields.size > 0 ? fields : null;
+}
+
 function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
   if (node.type === "object") return objectAliasFromObject(node as ObjectNode, scope);
+  if (node.type === "path") return objectAliasFromPathProjection(node as PathNode, scope);
   if (node.type === "array") {
     return mergeObjectAliases(
       (node as ArrayNode).expressions.map((expr) => objectAliasForNode(expr, scope)),
