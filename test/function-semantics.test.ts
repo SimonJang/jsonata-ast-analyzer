@@ -628,4 +628,52 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("preserves conditional branch aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("(flag ? primary : fallback).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected conditional branch aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths("(flag ? primary.detail : fallback.detail).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback.detail", confidence: "static" },
+        { path: "fallback.detail.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary.detail", confidence: "static" },
+        { path: "primary.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves Elvis result aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("(primary ?: fallback).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves coalescing result aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("(primary ?? fallback).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
 });
