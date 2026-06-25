@@ -971,6 +971,77 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves conditional dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("(flag ? {key: primary} : {key: fallback}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed static and dynamic conditional object aliases", () => {
+    expect(
+      sortPaths(extractPaths('(flag ? {key: primary} : {"x": fallback}).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves Elvis dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("({key: primary} ?: {key: fallback}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves array dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths("([{key: primary}, {key: fallback}]).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves wildcard conditional dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("((flag ? {key: primary} : {key: fallback})).*.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves conditional object aliases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
