@@ -2328,12 +2328,23 @@ function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
       const objectAlias = resolveObjectAlias(scope, varStep.value);
       const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
       if (objectAlias || dynamicObjectAlias) {
-        const aliasPaths = selectVariableObjectAliasPaths(
-          objectAlias,
-          dynamicObjectAlias,
-          pathNode.steps.slice(varStepIndex + 1),
-          scope,
-        );
+        const suffixSteps = pathNode.steps.slice(varStepIndex + 1);
+        const suffixBasePaths = resolveSuffixBasePaths(scope, varStep.value) ?? [];
+        const aliasPaths =
+          suffixSteps.length > 0 && suffixBasePaths.length > 0
+            ? selectAliasSuffixContextPaths(
+                suffixSteps,
+                objectAlias,
+                dynamicObjectAlias,
+                scope,
+                suffixBasePaths,
+              )
+            : selectVariableObjectAliasPaths(
+                objectAlias,
+                dynamicObjectAlias,
+                suffixSteps,
+                scope,
+              );
         if (aliasPaths) return aliasPaths;
       }
 
