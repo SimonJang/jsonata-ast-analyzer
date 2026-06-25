@@ -486,7 +486,14 @@ function selectSortAliasPaths(
 
   for (const term of sortNode.terms) {
     if (term.expression.type !== "path") {
-      paths.push(...walkNode(term.expression, scope));
+      paths.push(
+        ...selectAliasExpressionPaths(
+          objectAlias,
+          dynamicObjectAlias,
+          term.expression,
+          scope,
+        ),
+      );
       continue;
     }
 
@@ -652,6 +659,71 @@ function selectResultAliasStepPaths(
     ...resultBasePaths,
     ...resultBasePaths.map((path) => appendPath(path, suffix)),
   ];
+}
+
+function aliasSuffixStepsFromPath(path: string): AstNode[] | null {
+  if (!path || path.startsWith(ROOT_PATH)) return null;
+
+  const steps: AstNode[] = [];
+  for (const segment of path.split(".")) {
+    if (!segment || segment.includes("[") || segment === "**" || segment === "%") {
+      return null;
+    }
+    if (segment === "*") {
+      steps.push({ type: "wildcard", value: "*", position: 0 } as WildcardNode);
+    } else {
+      steps.push({ type: "name", value: segment, position: 0 } as NameNode);
+    }
+  }
+
+  return steps;
+}
+
+function selectResultAliasExpressionPaths(
+  step: AstNode,
+  expression: AstNode,
+  scope: ScopeTracker,
+): string[] | null {
+  const objectAlias = objectAliasForNode(step, scope);
+  const dynamicObject = dynamicObjectAliasForNode(step, scope);
+  if (!objectAlias && !dynamicObject) return null;
+
+  const paths = [
+    ...bindingAliasPaths(step, scope),
+    ...selectAliasExpressionPaths(objectAlias, dynamicObject, expression, scope),
+  ];
+
+  return paths.length > 0 ? paths : null;
+}
+
+function selectAliasExpressionPaths(
+  objectAlias: ObjectAlias | null,
+  dynamicObject: DynamicObjectAlias | null,
+  expression: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+  const localPaths = new Set(walkNode(expression, childScope(createScope())));
+
+  for (const path of walkNode(expression, scope)) {
+    if (path.startsWith(ROOT_PATH) || !localPaths.has(path)) {
+      paths.push(path);
+      continue;
+    }
+
+    const suffixSteps = aliasSuffixStepsFromPath(path);
+    if (!suffixSteps) {
+      paths.push(path);
+      continue;
+    }
+
+    paths.push(
+      ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
+      ...(dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : []),
+    );
+  }
+
+  return paths;
 }
 
 function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): string[] {
@@ -980,12 +1052,14 @@ function walkSortTerms(
   const paths: string[] = [];
   for (const term of sortNode.terms) {
     const aliasPaths =
-      aliasStep && term.expression.type === "path"
-        ? selectResultAliasStepPaths(
-            aliasStep,
-            (term.expression as PathNode).steps,
-            scope,
-          )
+      aliasStep
+        ? term.expression.type === "path"
+          ? selectResultAliasStepPaths(
+              aliasStep,
+              (term.expression as PathNode).steps,
+              scope,
+            )
+          : selectResultAliasExpressionPaths(aliasStep, term.expression, scope)
         : null;
     paths.push(
       ...(aliasPaths ??
