@@ -188,6 +188,25 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves variable focus-bound conditional projection condition reads", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($items := orders.items; $items@$v.($v.flag ? $v.primary : $v.fallback).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.fallback", confidence: "static" },
+        { path: "orders.items.fallback.name", confidence: "static" },
+        { path: "orders.items.flag", confidence: "static" },
+        { path: "orders.items.primary", confidence: "static" },
+        { path: "orders.items.primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus-bound conditional projection aliases before chained fields", () => {
     expect(
       sortPaths(extractPaths("items@$v.($v.flag ? $v.primary : $v.fallback).name")),
