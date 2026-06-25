@@ -872,6 +872,35 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves dynamic aliases under static object fields", () => {
+    const expected = sortPaths([
+      { path: "customer", confidence: "static" },
+      { path: "customer.name", confidence: "static" },
+      { path: "inner", confidence: "static" },
+    ]);
+
+    expect(
+      sortPaths(extractPaths('{"fixed": {(inner): customer}}.fixed.y.name')),
+    ).toEqual(expected);
+    expect(
+      sortPaths(
+        extractPaths('($o := {"fixed": {(inner): customer}}; $o.fixed.y.name)'),
+      ),
+    ).toEqual(expected);
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function(){ {"fixed": {(inner): customer}} }; $fn().fixed.y.name)',
+        ),
+      ),
+    ).toEqual(expected);
+    expect(
+      sortPaths(
+        extractPaths('$lookup({"fixed": {(inner): customer}}, "fixed").y.name'),
+      ),
+    ).toEqual(expected);
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
