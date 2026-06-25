@@ -447,6 +447,61 @@ function selectLookupDynamicObjectAliasPaths(
   return paths;
 }
 
+function selectVariableObjectAliasPaths(
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] | null {
+  const [selector, ...rest] = suffixSteps;
+  if (selector?.type === "sort") {
+    const sortPaths = selectSortAliasPaths(
+      selector as SortNode,
+      objectAlias,
+      dynamicObjectAlias,
+      scope,
+    );
+    const resultPaths =
+      selectVariableObjectAliasPaths(objectAlias, dynamicObjectAlias, rest, scope) ?? [];
+    const paths = [...sortPaths, ...resultPaths];
+    return paths.length > 0 ? paths : null;
+  }
+
+  const paths = [
+    ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
+    ...(dynamicObjectAlias
+      ? selectDynamicObjectAliasPaths(dynamicObjectAlias, suffixSteps)
+      : []),
+  ];
+  return paths.length > 0 ? paths : null;
+}
+
+function selectSortAliasPaths(
+  sortNode: SortNode,
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+
+  for (const term of sortNode.terms) {
+    if (term.expression.type !== "path") {
+      paths.push(...walkNode(term.expression, scope));
+      continue;
+    }
+
+    const suffixSteps = (term.expression as PathNode).steps;
+    paths.push(
+      ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
+      ...(dynamicObjectAlias
+        ? selectDynamicObjectAliasPaths(dynamicObjectAlias, suffixSteps)
+        : []),
+    );
+  }
+
+  return paths;
+}
+
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
   if (node.type === "object") return { variants: [{ node: node as ObjectNode, scope }] };
   if (node.type !== "block") return null;
@@ -702,21 +757,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   if (varStepIndex >= 0) {
     const varStep = node.steps[varStepIndex] as VariableNode;
     const objectAlias = resolveObjectAlias(scope, varStep.value);
-    if (objectAlias) {
-      const objectPaths = selectObjectAliasPaths(
-        objectAlias,
-        node.steps.slice(varStepIndex + 1),
-      );
-      if (objectPaths) return objectPaths;
-    }
-
     const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
-    if (dynamicObjectAlias) {
-      const dynamicObjectPaths = selectDynamicObjectAliasPaths(
+    if (objectAlias || dynamicObjectAlias) {
+      const objectPaths = selectVariableObjectAliasPaths(
+        objectAlias,
         dynamicObjectAlias,
         node.steps.slice(varStepIndex + 1),
+        scope,
       );
-      if (dynamicObjectPaths.length > 0) return dynamicObjectPaths;
+      if (objectPaths) return objectPaths;
     }
 
     const resolved = resolveVariable(scope, varStep.value);
