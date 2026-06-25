@@ -388,15 +388,60 @@ function selectDynamicObjectValuePaths(
   return paths;
 }
 
-function dynamicObjectSource(node: AstNode): ObjectNode | null {
-  if (node.type === "object") return node as ObjectNode;
+interface DynamicObjectSource {
+  node: ObjectNode;
+  scope: ScopeTracker;
+}
+
+function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectSource | null {
+  if (node.type === "object") return { node: node as ObjectNode, scope };
   if (node.type !== "block") return null;
 
   const block = node as BlockNode;
-  const [expr] = block.expressions;
-  return block.expressions.length === 1 && expr?.type === "object"
-    ? (expr as ObjectNode)
-    : null;
+  let currentScope = scope;
+
+  for (const [index, expr] of block.expressions.entries()) {
+    const isLast = index === block.expressions.length - 1;
+    if (isLast) {
+      return expr.type === "object"
+        ? { node: expr as ObjectNode, scope: currentScope }
+        : null;
+    }
+
+    if (expr.type === "bind") {
+      const bindNode = expr as BindNode;
+      const closureScope = currentScope;
+      currentScope = bindVariable(
+        currentScope,
+        bindNode.lhs.value,
+        bindingAliasPaths(bindNode.rhs, currentScope),
+      );
+      currentScope = bindObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+
+      if (bindNode.rhs.type === "lambda") {
+        currentScope = bindLambda(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as LambdaNode,
+          closureScope,
+        );
+      } else if (bindNode.rhs.type === "partial") {
+        currentScope = bindPartial(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as PartialNode,
+          closureScope,
+        );
+      }
+    }
+  }
+
+  return null;
 }
 
 function bindObjectAliasIfPresent(
@@ -430,9 +475,15 @@ function selectResultAliasStepPaths(
   const objectPaths = objectAlias
     ? selectObjectAliasPaths(objectAlias, suffixSteps)
     : null;
-  const dynamicObject = dynamicObjectSource(step);
+  const dynamicObject = dynamicObjectSource(step, scope);
   const dynamicObjectPaths =
-    dynamicObject ? selectDynamicObjectValuePaths(dynamicObject, suffixSteps, scope) : [];
+    dynamicObject
+      ? selectDynamicObjectValuePaths(
+          dynamicObject.node,
+          suffixSteps,
+          dynamicObject.scope,
+        )
+      : [];
   if (objectPaths || dynamicObjectPaths.length > 0) {
     return [...resultBasePaths, ...(objectPaths ?? []), ...dynamicObjectPaths];
   }
