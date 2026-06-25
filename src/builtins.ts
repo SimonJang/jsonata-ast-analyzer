@@ -17,7 +17,7 @@ export const BUILTIN_FUNCTIONS = new Set([
   // Type
   "type", "clone",
   // Higher-order
-  "map", "filter", "reduce", "sift", "lookup",
+  "map", "filter", "single", "reduce", "sift", "lookup",
   // Date/Time
   "now", "millis", "fromMillis", "toMillis",
   // Encoding
@@ -39,6 +39,7 @@ export const BUILTIN_FUNCTIONS = new Set([
 export const HIGHER_ORDER_SEMANTICS: Record<string, Record<number, string>> = {
   map:    { 0: "element", 1: "index", 2: "array" },
   filter: { 0: "element", 1: "index", 2: "array" },
+  single: { 0: "element", 1: "index", 2: "array" },
   each:   { 0: "value", 1: "key" },
   reduce: { 0: "accumulator", 1: "element", 2: "array" },
   sift:   { 0: "value", 1: "key" },

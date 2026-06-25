@@ -209,4 +209,60 @@ describe("function semantics", () => {
       ]),
     );
   });
+
+  it("resolves $single predicates and chained item fields", () => {
+    expect(
+      sortPaths(extractPaths("$single(items, function($v) { $v.id = target }).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.id", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "target", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $single results as suffixable item aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($one := $single(items, function($v) { $v.id = target }); $one.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.id", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "target", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves all $append result aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$append(primary.items, secondary.items).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "primary.items", confidence: "static" },
+        { path: "primary.items.name", confidence: "static" },
+        { path: "secondary.items", confidence: "static" },
+        { path: "secondary.items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $append results as suffixable aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($all := $append(primary.items, secondary.items); $all.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "primary.items", confidence: "static" },
+        { path: "primary.items.name", confidence: "static" },
+        { path: "secondary.items", confidence: "static" },
+        { path: "secondary.items.name", confidence: "static" },
+      ]),
+    );
+  });
 });

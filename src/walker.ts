@@ -36,7 +36,9 @@ const ROOT_PATH = "\0";
 const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
   "lookup",
   "filter",
+  "single",
   "sort",
+  "append",
   "reverse",
   "shuffle",
   "distinct",
@@ -298,9 +300,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const funcStep = node.steps[funcStepIndex] as FunctionNode;
     const resultBasePaths = getFunctionResultBasePaths(funcStep, scope);
     if (resultBasePaths.length > 0) {
-      const firstArgPaths = resultBasePaths;
-      if (firstArgPaths.length > 0) {
-        paths.push(...prefixPaths(firstArgPaths[0], [basePath]));
+      for (const resultBasePath of resultBasePaths) {
+        paths.push(...prefixPaths(resultBasePath, [basePath]));
       }
       // Don't push bare basePath -- it's not a standalone data path
     }
@@ -1053,16 +1054,21 @@ function getFunctionResultBasePaths(
   scope: ScopeTracker,
 ): string[] {
   const partialBinding = resolvePartial(scope, node.procedure.value);
+  let funcName = node.procedure.value;
+  let args = node.arguments;
+  let argScope = scope;
+
   if (partialBinding) {
-    if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(partialBinding.partial.procedure.value)) {
-      return [];
-    }
-    const args = applyPartialArguments(partialBinding.partial, node.arguments);
-    return args.length > 0 ? walkNode(args[0], partialBinding.scope).slice(0, 1) : [];
+    funcName = partialBinding.partial.procedure.value;
+    args = applyPartialArguments(partialBinding.partial, node.arguments);
+    argScope = partialBinding.scope;
   }
 
-  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(node.procedure.value)) return [];
-  return node.arguments.length > 0 ? walkNode(node.arguments[0], scope).slice(0, 1) : [];
+  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
+  if (funcName === "append") {
+    return args.flatMap((arg) => walkNode(arg, argScope).slice(0, 1));
+  }
+  return args.length > 0 ? walkNode(args[0], argScope).slice(0, 1) : [];
 }
 
 /**
