@@ -985,6 +985,23 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("suppresses raw suffix stages after unmatched direct result aliases", () => {
+    const expected = sortPaths([
+      { path: "customer", confidence: "static" },
+      { path: "outer", confidence: "static" },
+    ]);
+
+    expect(
+      sortPaths(extractPaths('{(outer): {"fixed": customer}}.a.y[active].name')),
+    ).toEqual(expected);
+    expect(
+      sortPaths(extractPaths('{(outer): {"fixed": customer}}.a.y^(score).name')),
+    ).toEqual(expected);
+    expect(
+      sortPaths(extractPaths('{(outer): {"fixed": customer}}.a.y.{"out": name}')),
+    ).toEqual(expected);
+  });
+
   it("preserves path-like mixed object alias branches in transform patterns", () => {
     expect(
       sortPaths(
