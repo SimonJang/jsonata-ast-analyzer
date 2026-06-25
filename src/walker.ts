@@ -1846,6 +1846,22 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
 function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
   if (!node.predicate || node.predicate.length === 0) return [];
 
+  const objectAlias = getFunctionResultObjectAlias(node, scope);
+  const dynamicObjectAlias = getFunctionResultDynamicObjectAlias(node, scope);
+
+  if (objectAlias || dynamicObjectAlias) {
+    return node.predicate.flatMap((stage) =>
+      stage.type === "filter"
+        ? selectAliasExpressionPaths(
+            objectAlias,
+            dynamicObjectAlias,
+            (stage as unknown as FilterStage).expr,
+            scope,
+          )
+        : [],
+    );
+  }
+
   return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
     walkFilterStages(node.predicate!, basePath, scope),
   );
