@@ -677,19 +677,35 @@ function walkAliasSuffixSortTerms(
 ): string[] {
   const paths: string[] = [];
 
-  for (const step of suffixSteps) {
+  for (const [index, step] of suffixSteps.entries()) {
     if (step.type !== "sort") continue;
 
+    const contextPrefixSteps = suffixSteps.slice(0, index);
+    const contextPaths =
+      contextPrefixSteps.length > 0
+        ? selectAliasSuffixContextPaths(
+            contextPrefixSteps,
+            objectAlias,
+            dynamicObjectAlias,
+            scope,
+            suffixBasePaths,
+          )
+        : [];
     for (const term of (step as SortNode).terms) {
       paths.push(
-        ...selectAliasExpressionPaths(
-          objectAlias,
-          dynamicObjectAlias,
-          term.expression,
-          scope,
-          suffixBasePaths,
-          preserveUnmappedLocalPaths,
+        ...contextPaths.flatMap((contextPath) =>
+          walkContextExpression(term.expression, contextPath, scope),
         ),
+        ...(collectVariableNames(term.expression).size > 0
+          ? selectAliasExpressionPaths(
+              objectAlias,
+              dynamicObjectAlias,
+              term.expression,
+              scope,
+              suffixBasePaths,
+              preserveUnmappedLocalPaths,
+            )
+          : []),
       );
     }
   }
