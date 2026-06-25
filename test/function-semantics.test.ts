@@ -919,6 +919,34 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves custom function argument dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($clone := function($v){$v}; $clone({(key): primary}).x.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function argument dynamic object-key reads", () => {
+    expect(
+      sortPaths(
+        extractPaths("($read := function($v){$v.x.name}; $read({(key): primary}))"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $map callback dynamic object-key result aliases", () => {
     expect(
       sortPaths(extractPaths("$map(items, function($v){{key: $v}}).x.name")),
