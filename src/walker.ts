@@ -2707,7 +2707,7 @@ function walkReduceLambdaWithBindings(
           );
   }
 
-  return walkNode(lambda.body, lambdaScope);
+  return resolveCallbackParentPaths(walkNode(lambda.body, lambdaScope), dataArgPaths);
 }
 
 function findHigherOrderCallback(
@@ -2768,7 +2768,24 @@ function walkLambdaWithBindings(
     );
   }
 
-  return walkNode(lambda.body, lambdaScope);
+  return resolveCallbackParentPaths(walkNode(lambda.body, lambdaScope), dataArgPaths);
+}
+
+function resolveCallbackParentPaths(
+  paths: string[],
+  dataArgPaths: readonly string[],
+): string[] {
+  const parentContexts = dataArgPaths.map(parentPath);
+  if (parentContexts.length === 0) return paths;
+
+  return paths.flatMap((path) => {
+    if (!isParentRelativePath(path)) return [path];
+
+    const suffix = stripParentRelativePath(path);
+    return parentContexts.map((parentContext) =>
+      appendPath(parentContext, suffix || null),
+    );
+  });
 }
 
 function bindHigherOrderParameter(
