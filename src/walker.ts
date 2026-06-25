@@ -205,6 +205,13 @@ function objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAli
 
     const aliases = bindingAliasPaths(valueNode, scope);
     if (aliases.length > 0) fields.set(key, aliases);
+
+    const nestedAlias = objectAliasForNode(valueNode, scope);
+    if (nestedAlias) {
+      for (const [nestedKey, nestedAliases] of nestedAlias) {
+        fields.set(`${key}.${nestedKey}`, nestedAliases);
+      }
+    }
   }
 
   return fields.size > 0 ? fields : null;
@@ -253,12 +260,41 @@ function selectObjectAliasPaths(
   const [selector, ...rest] = suffixSteps;
   if (!selector) return [...alias.values()].flatMap((paths) => [...paths]);
 
-  const suffix = buildPathString(rest);
   if (selector.type === "name") {
-    const paths = alias.get((selector as NameNode).value);
-    return paths ? paths.map((path) => appendPath(path, suffix)) : null;
+    const keyParts: string[] = [];
+    let best: { paths: readonly string[]; consumed: number } | null = null;
+
+    for (const [index, step] of suffixSteps.entries()) {
+      if (step.type !== "name") break;
+
+      keyParts.push((step as NameNode).value);
+      const paths = alias.get(keyParts.join("."));
+      if (paths) best = { paths, consumed: index + 1 };
+    }
+
+    const wildcardStep = suffixSteps[keyParts.length];
+    if (!best && wildcardStep?.type === "wildcard") {
+      const prefix = `${keyParts.join(".")}.`;
+      const suffix = buildPathString(suffixSteps.slice(keyParts.length + 1));
+      const wildcardPaths: string[] = [];
+
+      for (const [key, paths] of alias) {
+        const restKey = key.startsWith(prefix) ? key.slice(prefix.length) : "";
+        if (restKey && !restKey.includes(".")) {
+          wildcardPaths.push(...paths.map((path) => appendPath(path, suffix)));
+        }
+      }
+
+      return wildcardPaths.length > 0 ? wildcardPaths : null;
+    }
+
+    if (!best) return null;
+
+    const suffix = buildPathString(suffixSteps.slice(best.consumed));
+    return best.paths.map((path) => appendPath(path, suffix));
   }
   if (selector.type === "wildcard") {
+    const suffix = buildPathString(rest);
     return [...alias.values()].flatMap((paths) =>
       paths.map((path) => appendPath(path, suffix)),
     );
