@@ -769,17 +769,12 @@ function walkAliasSuffixProjectionSteps(
         : [];
 
     for (const expr of expressions) {
-      const parentPath =
-        expr.type === "path" && (expr as PathNode).steps[0]?.type === "parent"
-          ? ({
-              ...(expr as PathNode),
-              steps: (expr as PathNode).steps.slice(1),
-            } as PathNode)
-          : null;
-      const expressionContextPaths = parentPath ? parentContextPaths : contextPaths;
       paths.push(
-        ...expressionContextPaths.flatMap((contextPath) =>
-          walkContextExpression(parentPath ?? expr, contextPath, scope),
+        ...walkAliasSuffixProjectionExpression(
+          expr,
+          contextPaths,
+          parentContextPaths,
+          scope,
         ),
         ...(collectVariableNames(expr).size > 0
           ? selectAliasExpressionPaths(
@@ -796,6 +791,36 @@ function walkAliasSuffixProjectionSteps(
   }
 
   return paths;
+}
+
+function walkAliasSuffixProjectionExpression(
+  expr: AstNode,
+  contextPaths: readonly string[],
+  parentContextPaths: readonly string[],
+  scope: ScopeTracker,
+): string[] {
+  const localPaths = walkNode(expr, childScope(createScope()));
+  const alignedParentContexts =
+    parentContextPaths.length === contextPaths.length ? parentContextPaths : null;
+
+  return contextPaths.flatMap((contextPath, index) => {
+    const parentPaths = alignedParentContexts
+      ? [alignedParentContexts[index]].filter(Boolean)
+      : parentContextPaths;
+
+    return localPaths.flatMap((localPath) => {
+      if (!isParentRelativePath(localPath)) {
+        return prefixPaths(contextPath, [localPath]);
+      }
+
+      if (parentPaths.length === 0) {
+        return prefixPaths(contextPath, [localPath]);
+      }
+
+      const suffix = stripParentRelativePath(localPath);
+      return parentPaths.map((parentPath) => appendPath(parentPath, suffix || null));
+    });
+  });
 }
 
 function walkAliasSuffixGroupEntries(
@@ -1239,6 +1264,14 @@ function walkContextExpression(
   }
 
   return paths;
+}
+
+function isParentRelativePath(path: string): boolean {
+  return path === "%" || path.startsWith("%.");
+}
+
+function stripParentRelativePath(path: string): string {
+  return path === "%" ? "" : path.slice(2);
 }
 
 function collectVariableNames(node: AstNode, names = new Set<string>()): Set<string> {
