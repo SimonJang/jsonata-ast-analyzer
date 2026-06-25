@@ -214,6 +214,9 @@ export function resolveLambda(
     if (current.lambdas.has(name)) {
       return current.lambdas.get(name)!;
     }
+    if (current.bindings.has(name)) {
+      return null;
+    }
     current = current.parent;
   }
   return null;
@@ -227,6 +230,9 @@ export function resolvePartial(
   while (current !== null) {
     if (current.partials.has(name)) {
       return current.partials.get(name)!;
+    }
+    if (current.bindings.has(name)) {
+      return null;
     }
     current = current.parent;
   }
