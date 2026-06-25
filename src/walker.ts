@@ -690,6 +690,11 @@ function selectResultAliasStepPaths(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
 ): string[] | null {
+  const conditionPaths =
+    step.type === "condition"
+      ? walkNode((step as ConditionNode).condition, scope)
+      : [];
+  const stepReadPaths = step.type === "block" ? walkNode(step, scope) : conditionPaths;
   const resultBasePaths = bindingAliasPaths(step, scope);
   const objectAlias = objectAliasForNode(step, scope);
   const objectPaths = objectAlias
@@ -699,14 +704,22 @@ function selectResultAliasStepPaths(
   const dynamicObjectPaths =
     dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : [];
   if (objectPaths || dynamicObjectPaths.length > 0) {
-    return [...resultBasePaths, ...(objectPaths ?? []), ...dynamicObjectPaths];
+    return [
+      ...stepReadPaths,
+      ...resultBasePaths,
+      ...(objectPaths ?? []),
+      ...dynamicObjectPaths,
+    ];
   }
 
-  if (resultBasePaths.length === 0) return null;
-  if (dynamicObject) return resultBasePaths;
+  if (resultBasePaths.length === 0) {
+    return stepReadPaths.length > 0 ? stepReadPaths : null;
+  }
+  if (dynamicObject) return [...stepReadPaths, ...resultBasePaths];
 
   const suffix = buildPathString(suffixSteps);
   return [
+    ...stepReadPaths,
     ...resultBasePaths,
     ...resultBasePaths.map((path) => appendPath(path, suffix)),
   ];
