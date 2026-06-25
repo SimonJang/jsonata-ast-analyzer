@@ -160,6 +160,20 @@ function prefixTransformContextPaths(prefix: string, paths: string[]): string[] 
   });
 }
 
+function walkTransformContextExpression(
+  prefix: string,
+  expr: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  const localPaths = new Set(walkNode(expr, childScope(createScope())));
+
+  return walkNode(expr, scope).flatMap((path) =>
+    path.startsWith(ROOT_PATH) || localPaths.has(path)
+      ? prefixTransformContextPaths(prefix, [path])
+      : markAbsolute([resolveParentPathSegments(path)]),
+  );
+}
+
 function resolveParentPathSegments(path: string): string {
   if (!path || path.startsWith(ROOT_PATH)) return path;
 
@@ -2078,20 +2092,18 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
 
   // Walk update and prefix results with pattern path
   if (node.update) {
-    const updatePaths = walkNode(node.update, scope);
     paths.push(
       ...patternPrefixes.flatMap((patternPrefix) =>
-        prefixTransformContextPaths(patternPrefix, updatePaths),
+        walkTransformContextExpression(patternPrefix, node.update!, scope),
       ),
     );
   }
 
   // Delete clause: string literals only, no paths extracted
   if (node.delete) {
-    const deletePaths = walkNode(node.delete, scope);
     paths.push(
       ...patternPrefixes.flatMap((patternPrefix) =>
-        prefixTransformContextPaths(patternPrefix, deletePaths),
+        walkTransformContextExpression(patternPrefix, node.delete!, scope),
       ),
     );
   }
