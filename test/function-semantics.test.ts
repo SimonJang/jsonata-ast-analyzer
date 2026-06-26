@@ -35,6 +35,115 @@ describe("function semantics", () => {
     );
   });
 
+  it("clears stale lambda bindings when rebound to partials", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function($v){$v.name}; $f := $lookup(products, ?); $f(customerId).price)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customerId", confidence: "static" },
+        { path: "products", confidence: "static" },
+        { path: "products.price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("clears stale partial bindings when rebound to lambdas", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := $lookup(products, ?); $f := function($v){$v.name}; $f(customer).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "customer.name.name", confidence: "static" },
+        { path: "products", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("respects nested partial bindings shadowing parent lambdas", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function($v){$v.name}; ($f := $lookup(products, ?); $f(customerId).price))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customerId", confidence: "static" },
+        { path: "products", confidence: "static" },
+        { path: "products.price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("respects nested lambda bindings shadowing parent partials", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := $lookup(products, ?); ($f := function($v){$v.name}; $f(customer).name))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "customer.name.name", confidence: "static" },
+        { path: "products", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("respects nested path bindings shadowing parent object aliases", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"x": account}; ($o := customer; $o.x.name))')),
+    ).toEqual(
+      sortPaths([
+        { path: "account", confidence: "static" },
+        { path: "customer", confidence: "static" },
+        { path: "customer.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("respects nested path bindings shadowing mixed parent object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($o := flag ? {"x": account} : fallback; ($o := customer; $o.x.name))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "account", confidence: "static" },
+        { path: "customer", confidence: "static" },
+        { path: "customer.x.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("respects nested path bindings shadowing parent dynamic object aliases", () => {
+    expect(
+      sortPaths(extractPaths("($o := {key: account}; ($o := customer; $o.x.name))")),
+    ).toEqual(
+      sortPaths([
+        { path: "account", confidence: "static" },
+        { path: "customer", confidence: "static" },
+        { path: "customer.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("propagates higher-order callback reads", () => {
     expect(
       sortPaths(
@@ -81,6 +190,13 @@ describe("function semantics", () => {
         { path: "items.name", confidence: "static" },
       ]),
     );
+  });
+
+  it("traces inline lambda function calls", () => {
+    expect(extractPaths("function($x){$x.name}(account)")).toEqual([
+      { path: "account", confidence: "static" },
+      { path: "account.name", confidence: "static" },
+    ]);
   });
 
   it("resolves variable-bound callbacks in filtered path chains", () => {
@@ -266,6 +382,30 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed $append object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths('$append({"x": primary}, fallback).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed $append object aliases with path inputs", () => {
+    expect(
+      sortPaths(extractPaths('($all := $append({"x": primary}, fallback); $all.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves apply-chain $single result aliases with path suffixes", () => {
     expect(
       sortPaths(
@@ -335,6 +475,26 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $merge static object aliases in chained fields", () => {
+    expect(sortPaths(extractPaths('$merge([{"x": primary}]).x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $merge object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths('$merge([{"x": primary}, fallback]).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $zip input aliases in chained fields", () => {
     expect(sortPaths(extractPaths("$zip(a.items, b.items).name"))).toEqual(
       sortPaths([
@@ -342,6 +502,17 @@ describe("function semantics", () => {
         { path: "a.items.name", confidence: "static" },
         { path: "b.items", confidence: "static" },
         { path: "b.items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $zip object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths('$zip({"x": primary}, fallback).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
       ]),
     );
   });
@@ -371,6 +542,1807 @@ describe("function semantics", () => {
       sortPaths([
         { path: "record", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $spread static object aliases in wildcard chained fields", () => {
+    expect(sortPaths(extractPaths('$spread({"x": primary}).*.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $clone static object aliases in chained fields", () => {
+    expect(sortPaths(extractPaths('$clone({"x": primary}).x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves identity $map callback aliases in chained fields", () => {
+    expect(sortPaths(extractPaths("$map(items, function($v) { $v }).name"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected $map callback aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$map(items, function($v) { $v.detail }).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $map callback result aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths("($m := $map(items, function($v) { $v.detail }); $m.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed $map callback results onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('$map(items, function($v) { {"name": $v.label} }).name')),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.label", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves identity $each callback aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$each(record, function($v) { $v }).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected $each callback aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$each(record, function($v) { $v.detail }).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.detail", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sift result aliases in wildcard chained fields", () => {
+    expect(
+      sortPaths(extractPaths("$sift(record, function($v) { $v.active }).*.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+        { path: "record.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $sift results as suffixable object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($s := $sift(record, function($v) { $v.active }); $s.*.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+        { path: "record.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $clone result aliases in chained fields", () => {
+    expect(sortPaths(extractPaths("$clone(record).name"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $clone results as suffixable aliases", () => {
+    expect(sortPaths(extractPaths("($c := $clone(record); $c.detail.name)"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves identity custom function result aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths("($project := function($v) { $v }; $project(item).name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected custom function result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("($project := function($v) { $v.detail }; $project(item).name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed custom function results onto input paths", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($project := function($v) { {"name": $v.label} }; $project(item).name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.label", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local $map result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v) { ($d := $v.detail; $d) }).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local custom function result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($project := function($v) { ($d := $v.detail; $d) }; $project(item).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local suffix bases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(($f := fallback; flag ? {"x": primary} : $f)).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local dynamic suffix bases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths("(($f := fallback; flag ? {key: primary} : $f)).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds block-local suffix bases as variables", () => {
+    expect(
+      sortPaths(
+        extractPaths('($o := ($f := fallback; flag ? {"x": primary} : $f); $o.x.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed block-local function results onto input paths", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map(items, function($v) { ($o := {"name": $v.label}; $o) }).name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.label", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves identity $reduce result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v) { $append($acc, $v) }, []).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected $reduce result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v) { $append($acc, $v.detail) }, []).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $reduce callback result aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($r := $reduce(items, function($acc, $v) { $append($acc, $v.detail) }, []); $r.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds explicit $reduce initial base aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $reduce(items, function($acc, $v){{"x": $v.detail}}, seed); $r.x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds implicit $reduce initial item aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $reduce(items, function($acc, $v){{"x": $v.detail}}); $r.x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "items.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $reduce accumulator callbacks to the accumulator source", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$reduce(items, function($acc, $v){{"x": $append($acc.x, $v.detail)}}, {"x": seed}).x.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves implicit $reduce initial item aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('$reduce(items, function($acc, $v){{"x": $v.detail}}).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "items.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves explicit $reduce initial object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$reduce(items, function($acc, $v){{"x": $v.detail}}, {"x": seed}).x.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix scalar $reduce results onto input paths", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v) { $acc + $v.price }, 0).name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves conditional branch aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("(flag ? primary : fallback).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected conditional branch aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths("(flag ? primary.detail : fallback.detail).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback.detail", confidence: "static" },
+        { path: "fallback.detail.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary.detail", confidence: "static" },
+        { path: "primary.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves Elvis result aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("(primary ?: fallback).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves coalescing result aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("(primary ?? fallback).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves array constructor element aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("([primary, fallback]).name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves projected array constructor aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths("([primary.detail, fallback.detail]).name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback.detail", confidence: "static" },
+        { path: "fallback.detail.name", confidence: "static" },
+        { path: "primary.detail", confidence: "static" },
+        { path: "primary.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds array constructor aliases as suffixable variables", () => {
+    expect(sortPaths(extractPaths("($a := [primary, fallback]; $a.name)"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed array elements onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('([{"name": primary.label}]).name')),
+    ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
+  });
+
+  it("preserves object constructor key aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"x": primary}).x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("selects the matching object constructor key alias in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"x": primary, "y": fallback}).y.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves object constructor wildcard aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"x": primary, "y": fallback}).*.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds object constructor key aliases as suffixable variables", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"x": primary, "y": fallback}; $o.y.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed object values onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('({"x": {"name": primary.label}}).x.name')),
+    ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
+  });
+
+  it("preserves nested object constructor key aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths('({"outer": {"x": primary}}).outer.x.name'))).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves nested object constructor wildcard aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('({"outer": {"x": primary, "y": fallback}}).outer.*.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds nested object constructor key aliases as suffixable variables", () => {
+    expect(
+      sortPaths(extractPaths('($o := {"outer": {"x": primary}}; $o.outer.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not suffix constructed nested object leaf values onto input paths", () => {
+    expect(
+      sortPaths(extractPaths('({"outer": {"x": {"name": primary.label}}}).outer.x.name')),
+    ).toEqual(sortPaths([{ path: "primary.label", confidence: "static" }]));
+  });
+
+  it("preserves dynamic object-key value aliases in direct chained fields", () => {
+    expect(sortPaths(extractPaths("({foo: primary}).x.name"))).toEqual(
+      sortPaths([
+        { path: "foo", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves dynamic object-key value aliases in wildcard chained fields", () => {
+    expect(sortPaths(extractPaths("({foo: primary}).*.name"))).toEqual(
+      sortPaths([
+        { path: "foo", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves nested static aliases below dynamic object keys", () => {
+    expect(sortPaths(extractPaths('({foo: {"x": primary}}).x.x.name'))).toEqual(
+      sortPaths([
+        { path: "foo", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-scoped dynamic object-key value aliases", () => {
+    expect(sortPaths(extractPaths("($k := key; {($k): primary}).x.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-scoped dynamic object-key wildcard aliases", () => {
+    expect(sortPaths(extractPaths("($k := key; {($k): primary}).*.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block-local value aliases below dynamic object keys", () => {
+    expect(
+      sortPaths(extractPaths("($k := key; $v := primary; {($k): $v}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds dynamic object-key aliases as suffixable variables", () => {
+    expect(sortPaths(extractPaths("($o := {key: primary}; $o.x.name)"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds block dynamic object-key aliases as suffixable variables", () => {
+    expect(
+      sortPaths(extractPaths("($o := ($k := key; {($k): primary}); $o.x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds block-local dynamic object values as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths("($o := ($k := key; $v := primary; {($k): $v}); $o.x.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($make := function(){($k := key; {($k): primary})}; $make().x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function argument dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($clone := function($v){$v}; $clone({(key): primary}).x.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function argument dynamic object-key reads", () => {
+    expect(
+      sortPaths(
+        extractPaths("($read := function($v){$v.x.name}; $read({(key): primary}))"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $map callback argument dynamic object-key reads", () => {
+    expect(
+      sortPaths(extractPaths("$map([{key: primary}], function($v){$v.x.name})")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sort callback argument dynamic object-key reads", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "$sort([{key: primary}], function($l,$r){$l.x.name < $r.x.name}).x.name",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $map callback argument dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$map([{key: primary}], function($v){$v}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $map callback dynamic object-key reads inside projected result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map([{key: primary}], function($v){{"out": $v.x.name}}).out'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $map callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$map(items, function($v){{key: $v}}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $map callback dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v){flag ? {key: $v.detail} : fallback}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves block $map callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v){($k := key; {($k): $v})}).*.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $each callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$each(obj, function($v, $k){{key: $v}}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "obj", confidence: "static" },
+        { path: "obj.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $each callback dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths("$each(obj, function($v){flag ? {key: $v.detail} : fallback}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "obj", confidence: "static" },
+        { path: "obj.detail", confidence: "static" },
+        { path: "obj.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $reduce callback dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v){{key: $v}}, {}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves explicit $reduce initial dynamic object-key base aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v){{key: $v.detail}}, seed).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves implicit $reduce initial dynamic object-key base aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v){{key: $v.detail}}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "items.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds explicit $reduce initial dynamic object-key base aliases as variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($r := $reduce(items, function($acc, $v){{key: $v.detail}}, seed); $r.x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds implicit $reduce initial dynamic object-key base aliases as variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($r := $reduce(items, function($acc, $v){{key: $v.detail}}); $r.x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "items.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves explicit $reduce initial dynamic object-key aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$reduce(items, function($acc, $v){{key: $v.detail}}, {key: seed}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves conditional dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("(flag ? {key: primary} : {key: fallback}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed dynamic conditional object aliases with path branches", () => {
+    expect(sortPaths(extractPaths("(flag ? {key: primary} : fallback).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed dynamic conditional object aliases with path branches", () => {
+    expect(
+      sortPaths(extractPaths("($o := flag ? {key: primary} : fallback; $o.x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed static and dynamic conditional object aliases", () => {
+    expect(
+      sortPaths(extractPaths('(flag ? {key: primary} : {"x": fallback}).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves Elvis dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("({key: primary} ?: {key: fallback}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves array dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths("([{key: primary}, {key: fallback}]).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed array dynamic object aliases with path elements", () => {
+    expect(sortPaths(extractPaths("([{key: primary}, fallback]).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed array dynamic object aliases with path elements", () => {
+    expect(
+      sortPaths(extractPaths("($o := [{key: primary}, fallback]; $o.x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves wildcard conditional dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("((flag ? {key: primary} : {key: fallback})).*.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $clone dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths("$clone({key: primary}).x.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $append dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$append([{key: primary}], [{key: fallback}]).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $append dynamic object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths("$append({key: primary}, fallback).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $filter dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$filter([{key: primary}], function($v){true}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $filter dynamic object aliases with path inputs", () => {
+    expect(
+      sortPaths(
+        extractPaths("$filter([{key: primary}, fallback], function($v){true}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $single dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$single([{key: primary}], function($v){true}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sort dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("$sort([{key: primary}], function($l, $r){0}).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $merge dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$merge([{key: primary}, {key: fallback}]).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $merge dynamic object aliases with path inputs", () => {
+    expect(sortPaths(extractPaths("$merge([{key: primary}, fallback]).x.name"))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $spread dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths("$spread({key: primary}).*.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $sift dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths("$sift({key: primary}, function($v){$v.name}).x.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $lookup dynamic object-key result aliases", () => {
+    expect(sortPaths(extractPaths('$lookup({key: primary}, "x").name'))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $lookup dynamic object aliases with dynamic lookup keys", () => {
+    expect(sortPaths(extractPaths("$lookup({key: primary}, lookupKey).name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "lookupKey", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed static and dynamic $lookup object aliases", () => {
+    expect(
+      sortPaths(extractPaths('$lookup({key: primary, "fixed": fallback}, "fixed").name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds $lookup dynamic object-key result aliases as variables", () => {
+    expect(
+      sortPaths(extractPaths('($p := $lookup({key: primary}, "x"); $p.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves thunked custom function $clone dynamic object aliases", () => {
+    expect(
+      sortPaths(extractPaths("($f := function(){$clone({key: primary})}; $f().x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves thunked custom function $merge dynamic object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function(){$merge([{key: primary}, {key: fallback}])}; $f().x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves thunked custom function $map dynamic object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths("($f := function(){$map(items, function($v){{key: $v}})}; $f().x.name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves constructed object aliases in sort terms", () => {
+    expect(sortPaths(extractPaths("([{key: primary}])^(>x.name).x.name"))).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable-bound constructed object aliases in sort terms", () => {
+    expect(
+      sortPaths(extractPaths("($o := [{key: primary}]; $o^(>x.name).x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves constructed object aliases inside function sort terms", () => {
+    expect(
+      sortPaths(
+        extractPaths("([{key: primary}])^(>$substring(x.name, 0, 1)).x.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable-bound constructed object aliases inside function sort terms", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($o := [{key: primary}]; $o^(>$substring(x.name, 0, 1)).x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves conditional object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(flag ? {"x": primary} : {"x": fallback}).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed conditional object aliases with path branches", () => {
+    expect(sortPaths(extractPaths('(flag ? {"x": primary} : fallback).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves Elvis object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(({"x": primary}) ?: ({"x": fallback})).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves coalescing object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(({"x": primary}) ?? ({"x": fallback})).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves array object aliases in direct chained fields", () => {
+    expect(
+      sortPaths(extractPaths('([{"x": primary}, {"x": fallback}]).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed array object aliases with path elements", () => {
+    expect(sortPaths(extractPaths('([{"x": primary}, fallback]).x.name'))).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed array object aliases with path elements", () => {
+    expect(
+      sortPaths(extractPaths('($o := [{"x": primary}, fallback]; $o.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds conditional object aliases as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths('($o := flag ? {"x": primary} : {"x": fallback}; $o.x.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed conditional object aliases with path branches", () => {
+    expect(
+      sortPaths(extractPaths('($o := flag ? {"x": primary} : fallback; $o.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $map callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(extractPaths('$map(items, function($v) { {"x": $v.detail} }).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $map callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map(items, function($v){flag ? {"x": $v.detail} : fallback}).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed $map callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $r.x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves apply-chain $map callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('(items ~> $map(function($v) { {"x": $v.detail} })).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $each callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('$each(record, function($v) { {"x": $v.detail} }).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.detail", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('($project := function($v) { {"x": $v.detail} }; $project(item).x.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed custom function object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function($v){flag ? {"x": $v.detail} : fallback}; $fn(item).x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed inline function object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths('function($v){flag ? {"x": $v.detail} : fallback}(item).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed custom function dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($fn := function($v){flag ? {key: $v.detail} : fallback}; $fn(item).x.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "item", confidence: "static" },
+        { path: "item.detail", confidence: "static" },
+        { path: "item.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $each callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths('$each(record, function($v) { flag ? {"x": $v.detail} : fallback }).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.detail", confidence: "static" },
+        { path: "record.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function dynamic object-key reads inside projected result aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function($v){{"out": $v.x.name}}; $fn({(key): primary}).out)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves custom function path projection object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function($v){$v.{"out": x.name}}; $fn({(key): primary}).out)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves $reduce callback object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('$reduce(items, function($acc, $v) { {"x": $v.detail} }, seed).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $reduce callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$reduce(items, function($acc, $v) { flag ? {"x": $v.detail} : fallback }, seed).x.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("binds mixed $reduce callback object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $reduce(items, function($acc, $v) { flag ? {"x": $v.detail} : fallback }, seed); $r.x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves mixed $reduce callback dynamic object aliases with path results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "$reduce(items, function($acc, $v) { flag ? {key: $v.detail} : fallback }, seed).x.name",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+        { path: "seed", confidence: "static" },
+        { path: "seed.x.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("invokes variable-bound functions on bare apply RHS", () => {
+    expect(
+      sortPaths(extractPaths("($project := function($x) { $x.name }; items ~> $project)")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable apply result aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths("($project := function($x) { $x.detail }; (items ~> $project).name)"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves variable apply object aliases in chained fields", () => {
+    expect(
+      sortPaths(
+        extractPaths('($project := function($x) { {"k": $x.detail} }; (items ~> $project).k.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("invokes variable-bound partials on bare apply RHS", () => {
+    expect(
+      sortPaths(extractPaths("($f := $lookup(products, ?); (sku ~> $f).name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "products", confidence: "static" },
+        { path: "products.name", confidence: "static" },
+        { path: "sku", confidence: "static" },
       ]),
     );
   });
