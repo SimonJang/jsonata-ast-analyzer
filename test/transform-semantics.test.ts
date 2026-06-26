@@ -41,6 +41,39 @@ describe("transform semantics", () => {
     );
   });
 
+  it("prefixes root update reads with the transform pattern", () => {
+    expect(
+      sortPaths(extractPaths('payload ~> |Account|{"id": $.rootId}|')),
+    ).toEqual(
+      sortPaths([
+        { path: "payload", confidence: "static" },
+        { path: "payload.Account", confidence: "static" },
+        { path: "payload.Account.rootId", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves bare root update reads as the transform pattern", () => {
+    expect(sortPaths(extractPaths('payload ~> |Account|{"copy": $}|'))).toEqual(
+      sortPaths([
+        { path: "payload", confidence: "static" },
+        { path: "payload.Account", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("prefixes root delete reads with the transform pattern", () => {
+    expect(
+      sortPaths(extractPaths('payload ~> |Account|{}, [$.oldFields.password]|')),
+    ).toEqual(
+      sortPaths([
+        { path: "payload", confidence: "static" },
+        { path: "payload.Account", confidence: "static" },
+        { path: "payload.Account.oldFields.password", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not report literal delete targets as input reads", () => {
     expect(extractPaths('| account | {"status": "archived"}, ["password"] |')).toEqual([
       { path: "account", confidence: "static" },
@@ -59,6 +92,19 @@ describe("transform semantics", () => {
         { path: "payload.Account.Order", confidence: "static" },
         { path: "payload.Account.Order.Price", confidence: "static" },
         { path: "payload.Account.Order.Qty", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("prefixes transform update reads for every pattern path", () => {
+    expect(
+      sortPaths(extractPaths('| [Account, Contact] | {"display": name} |')),
+    ).toEqual(
+      sortPaths([
+        { path: "Account", confidence: "static" },
+        { path: "Account.name", confidence: "static" },
+        { path: "Contact", confidence: "static" },
+        { path: "Contact.name", confidence: "static" },
       ]),
     );
   });
