@@ -6,6 +6,18 @@ import type { PathResult, Confidence } from "./types.js";
 export type { PathResult } from "./types.js";
 export type { Confidence } from "./types.js";
 
+interface AnalysisDetails {
+  rawPaths: string[];
+  uniquePaths: string[];
+}
+
+export interface BenchmarkStats {
+  expression: string;
+  durationMs: number;
+  rawPathCount: number;
+  uniquePathCount: number;
+}
+
 /**
  * Derive confidence level from a path string.
  * Priority order: "partial" > "dynamic" > "static"
@@ -38,9 +50,27 @@ function deriveConfidence(path: string): Confidence {
  * @throws On invalid JSONata input (parser error propagates unmodified)
  */
 export function extractPaths(expression: string): PathResult[] {
+  const { uniquePaths } = analyzePaths(expression);
+  return uniquePaths.map((path) => ({ path, confidence: deriveConfidence(path) }));
+}
+
+function analyzePaths(expression: string): AnalysisDetails {
   const ast = parse(expression);
   const scope = createScope();
-  const rawPaths = walkNode(ast, scope);
-  const unique = [...new Set(rawPaths)];
-  return unique.map((path) => ({ path, confidence: deriveConfidence(path) }));
+  const rawPaths = walkNode(ast, scope)
+    .map((path) => path.replace(/^\0\.?/, ""))
+    .filter((path) => path !== "");
+  return { rawPaths, uniquePaths: [...new Set(rawPaths)] };
+}
+
+/** Internal release-check helper; not part of the public API contract. */
+export function __benchmarkExpression(expression: string): BenchmarkStats {
+  const startedAt = performance.now();
+  const { rawPaths, uniquePaths } = analyzePaths(expression);
+  return {
+    expression,
+    durationMs: performance.now() - startedAt,
+    rawPathCount: rawPaths.length,
+    uniquePathCount: uniquePaths.length,
+  };
 }

@@ -454,6 +454,7 @@ describe("API Reshaping", () => {
         name: "FOCV-R09: cross-referenced focus variables in nested filter resolve inner focus correctly",
         expression: `library.loans@$l.books@$b[$l.isbn = $b.isbn].title`,
         expectedPaths: [
+          { path: "library.loans.isbn", confidence: "static" },
           { path: "library.loans.books.isbn", confidence: "static" },
           { path: "library.loans.books.title", confidence: "static" },
         ],

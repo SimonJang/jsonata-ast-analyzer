@@ -8,40 +8,62 @@ export interface PathResult {
   confidence: Confidence;
 }
 
+export interface SourceAstMetadata {
+  type: string;
+  value?: unknown;
+  position?: number;
+}
+
+interface AnalyzerNode {
+  source?: SourceAstMetadata;
+}
+
+export interface ContextBindingNode extends AnalyzerNode {
+  type: "context-binding";
+  name: string;
+  position?: number;
+}
+
+export interface PositionBindingNode extends AnalyzerNode {
+  type: "position-binding";
+  name: string;
+  position?: number;
+}
+
 // --- AST Node Types (discriminated union on `type` field) ---
 
-export interface PathNode {
+export interface PathNode extends AnalyzerNode {
   type: "path";
   steps: AstNode[];
   keepSingletonArray?: boolean;
   keepArray?: boolean;
-  group?: AstNode; // group-by expression
+  group?: GroupByNode; // group-by expression
 }
 
-export interface NameNode {
+export interface NameNode extends AnalyzerNode {
   type: "name";
   value: string;
   position: number;
   stages?: AstNode[]; // filter/sort/index stages (Phase 3)
   keepArray?: boolean;
   tuple?: boolean;
-  focus?: string; // context variable name from @$v (without $)
-  index?: string; // positional variable name from #$i (without $)
+  focusBinding?: ContextBindingNode; // context variable from @$v
+  indexBinding?: PositionBindingNode; // positional variable from #$i
 }
 
-export interface WildcardNode {
+export interface WildcardNode extends AnalyzerNode {
   type: "wildcard";
   value: "*";
   position: number;
 }
 
-export interface DescendantNode {
+export interface DescendantNode extends AnalyzerNode {
   type: "descendant";
   value: "**";
   position: number;
 }
 
-export interface BinaryNode {
+export interface BinaryNode extends AnalyzerNode {
   type: "binary";
   value: string; // "+", "-", "*", "/", "%", ">", "<", ">=", "<=", "=", "!=", "and", "or", "&", "in", ".."
   position: number;
@@ -49,7 +71,7 @@ export interface BinaryNode {
   rhs: AstNode;
 }
 
-export interface ConditionNode {
+export interface ConditionNode extends AnalyzerNode {
   type: "condition";
   position: number;
   condition: AstNode;
@@ -57,55 +79,68 @@ export interface ConditionNode {
   else?: AstNode;
 }
 
-export interface BlockNode {
+export interface BlockNode extends AnalyzerNode {
   type: "block";
   position: number;
   expressions: AstNode[];
+  group?: GroupByNode;
+  predicate?: AstNode[];
 }
 
-export interface UnaryNode {
-  type: "unary";
-  value: string; // "-" (negate), "[" (array constructor), "{" (object constructor)
+export interface NegateNode extends AnalyzerNode {
+  type: "negate";
   position: number;
-  expression?: AstNode; // for negation: -price
-  expressions?: AstNode[]; // for array constructor: [a, b, c]
-  lhs?: [AstNode, AstNode][]; // for object constructor: {"key": value} pairs
+  expression?: AstNode;
 }
 
-export interface StringNode {
+export interface ArrayNode extends AnalyzerNode {
+  type: "array";
+  position: number;
+  expressions: AstNode[];
+  predicate?: AstNode[];
+}
+
+export interface ObjectNode extends AnalyzerNode {
+  type: "object";
+  position: number;
+  entries: [AstNode, AstNode][];
+  predicate?: AstNode[];
+}
+
+export interface StringNode extends AnalyzerNode {
   type: "string";
   value: string;
   position: number;
 }
 
-export interface NumberNode {
+export interface NumberNode extends AnalyzerNode {
   type: "number";
   value: number;
   position: number;
 }
 
-export interface ValueNode {
+export interface ValueNode extends AnalyzerNode {
   type: "value";
   value: boolean | null; // true, false, null
   position: number;
 }
 
-export interface VariableNode {
+export interface VariableNode extends AnalyzerNode {
   type: "variable";
   value: string; // variable name WITHOUT $ prefix
   position: number;
   predicate?: AstNode[]; // filter stages (same structure as NameNode.stages but different property name)
-  focus?: string; // context variable name from @$v (without $)
-  group?: AstNode; // group-by expression (mirrors PathNode.group)
+  focusBinding?: ContextBindingNode; // context variable from @$v
+  group?: GroupByNode; // group-by expression (mirrors PathNode.group)
 }
 
-export interface RegexNode {
+export interface RegexNode extends AnalyzerNode {
   type: "regex";
   value: RegExp;
   position: number;
 }
 
-export interface BindNode {
+export interface BindNode extends AnalyzerNode {
   type: "bind";
   value: ":=";
   position: number;
@@ -113,15 +148,17 @@ export interface BindNode {
   rhs: AstNode; // the value expression
 }
 
-export interface FunctionNode {
+export interface FunctionNode extends AnalyzerNode {
   type: "function";
   value: "(";
   position: number;
-  procedure: VariableNode; // function name (without $)
+  procedure: VariableNode | LambdaNode; // function name or inline lambda
   arguments: AstNode[]; // call arguments
+  group?: GroupByNode;
+  predicate?: AstNode[];
 }
 
-export interface LambdaNode {
+export interface LambdaNode extends AnalyzerNode {
   type: "lambda";
   arguments: VariableNode[]; // parameter names (without $)
   position: number;
@@ -130,7 +167,7 @@ export interface LambdaNode {
   thunk?: boolean; // parser-generated wrapper lambda (no args, wraps nested calls)
 }
 
-export interface ApplyNode {
+export interface ApplyNode extends AnalyzerNode {
   type: "apply";
   value: "~>";
   position: number;
@@ -139,7 +176,7 @@ export interface ApplyNode {
 }
 
 /** Filter stage on a NameNode -- appears in NameNode.stages array. */
-export interface FilterStage {
+export interface FilterStage extends AnalyzerNode {
   type: "filter";
   expr: AstNode;
   position?: number;
@@ -152,14 +189,14 @@ export interface SortTerm {
 }
 
 /** Sort step in PathNode.steps -- appears as a separate step (NOT a stage on NameNode). */
-export interface SortNode {
+export interface SortNode extends AnalyzerNode {
   type: "sort";
   terms: SortTerm[];
   position?: number;
 }
 
 /** Transform node -- top-level node type for the JSONata transform operator (|...|...|). */
-export interface TransformNode {
+export interface TransformNode extends AnalyzerNode {
   type: "transform";
   pattern: AstNode;
   update: AstNode;
@@ -168,23 +205,31 @@ export interface TransformNode {
 }
 
 /** Parent operator node -- appears as a step in PathNode.steps or as a filter stage expr. */
-export interface ParentNode {
+export interface ParentNode extends AnalyzerNode {
   type: "parent";
   slot: { label: string; level: number; index: number };
   position?: number;
 }
 
 /** Group-by structure on PathNode.group. Contains array of [key, value] expression pairs. */
-export interface GroupByNode {
-  type: string;
-  lhs: [AstNode, AstNode][];
+export interface GroupByNode extends AnalyzerNode {
+  type: "group";
+  entries: [AstNode, AstNode][];
   position?: number;
+}
+
+export interface PartialNode extends AnalyzerNode {
+  type: "partial";
+  value: "(";
+  position: number;
+  procedure: VariableNode;
+  arguments: AstNode[];
 }
 
 // Catch-all for node types not yet handled (parent, partial, error).
 // The walker returns empty paths for these — skip silently per
 // over-approximation principle.
-export interface GenericNode {
+export interface GenericNode extends AnalyzerNode {
   type: string;
   [key: string]: unknown;
 }
@@ -197,7 +242,9 @@ export type AstNode =
   | BinaryNode
   | ConditionNode
   | BlockNode
-  | UnaryNode
+  | NegateNode
+  | ArrayNode
+  | ObjectNode
   | StringNode
   | NumberNode
   | ValueNode
@@ -210,4 +257,8 @@ export type AstNode =
   | SortNode
   | TransformNode
   | ParentNode   // explicit union member before GenericNode
+  | GroupByNode
+  | PartialNode
+  | ContextBindingNode
+  | PositionBindingNode
   | GenericNode;
