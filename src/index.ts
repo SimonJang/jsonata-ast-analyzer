@@ -57,7 +57,9 @@ export function extractPaths(expression: string): PathResult[] {
 function analyzePaths(expression: string): AnalysisDetails {
   const ast = parse(expression);
   const scope = createScope();
-  const rawPaths = walkNode(ast, scope);
+  const rawPaths = walkNode(ast, scope)
+    .map((path) => path.replace(/^\0\.?/, ""))
+    .filter((path) => path !== "");
   return { rawPaths, uniquePaths: [...new Set(rawPaths)] };
 }
 
