@@ -1,4 +1,4 @@
-import type { LambdaNode, PartialNode } from "./types.js";
+import type { LambdaNode, ObjectNode, PartialNode } from "./types.js";
 
 export interface LambdaBinding {
   readonly lambda: LambdaNode;
@@ -8,6 +8,19 @@ export interface LambdaBinding {
 export interface PartialBinding {
   readonly partial: PartialNode;
   readonly scope: ScopeTracker;
+}
+
+export type ObjectAlias = ReadonlyMap<string, readonly string[]>;
+
+export interface DynamicObjectAliasVariant {
+  readonly node: ObjectNode;
+  readonly scope: ScopeTracker;
+  readonly parentDataArgPaths?: readonly string[];
+  readonly prefixSteps?: readonly string[];
+}
+
+export interface DynamicObjectAlias {
+  readonly variants: readonly DynamicObjectAliasVariant[];
 }
 
 /**
@@ -22,6 +35,9 @@ export interface ScopeTracker {
   readonly bindings: ReadonlyMap<string, readonly string[]>;
   readonly lambdas: ReadonlyMap<string, LambdaBinding>;
   readonly partials: ReadonlyMap<string, PartialBinding>;
+  readonly objectAliases: ReadonlyMap<string, ObjectAlias>;
+  readonly dynamicObjectAliases: ReadonlyMap<string, DynamicObjectAlias>;
+  readonly suffixBaseBindings: ReadonlyMap<string, readonly string[]>;
   readonly parent: ScopeTracker | null;
 }
 
@@ -29,6 +45,9 @@ const EMPTY_SCOPE: ScopeTracker = {
   bindings: new Map(),
   lambdas: new Map(),
   partials: new Map(),
+  objectAliases: new Map(),
+  dynamicObjectAliases: new Map(),
+  suffixBaseBindings: new Map(),
   parent: null,
 };
 
@@ -39,7 +58,15 @@ export function createScope(): ScopeTracker {
 
 /** Create a child scope inheriting from parent. */
 export function childScope(parent: ScopeTracker): ScopeTracker {
-  return { bindings: new Map(), lambdas: new Map(), partials: new Map(), parent };
+  return {
+    bindings: new Map(),
+    lambdas: new Map(),
+    partials: new Map(),
+    objectAliases: new Map(),
+    dynamicObjectAliases: new Map(),
+    suffixBaseBindings: new Map(),
+    parent,
+  };
 }
 
 /**
@@ -53,11 +80,82 @@ export function bindVariable(
   paths: readonly string[],
 ): ScopeTracker {
   const newBindings = new Map(scope.bindings);
+  const newLambdas = new Map(scope.lambdas);
+  const newPartials = new Map(scope.partials);
+  const newObjectAliases = new Map(scope.objectAliases);
+  const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
+  const newSuffixBaseBindings = new Map(scope.suffixBaseBindings);
   newBindings.set(name, paths);
+  newLambdas.delete(name);
+  newPartials.delete(name);
+  newObjectAliases.delete(name);
+  newDynamicObjectAliases.delete(name);
+  newSuffixBaseBindings.delete(name);
   return {
     bindings: newBindings,
+    lambdas: newLambdas,
+    partials: newPartials,
+    objectAliases: newObjectAliases,
+    dynamicObjectAliases: newDynamicObjectAliases,
+    suffixBaseBindings: newSuffixBaseBindings,
+    parent: scope.parent,
+  };
+}
+
+export function bindSuffixBasePaths(
+  scope: ScopeTracker,
+  name: string,
+  paths: readonly string[],
+): ScopeTracker {
+  if (paths.length === 0) return scope;
+
+  const newSuffixBaseBindings = new Map(scope.suffixBaseBindings);
+  newSuffixBaseBindings.set(name, paths);
+  return {
+    bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: newSuffixBaseBindings,
+    parent: scope.parent,
+  };
+}
+
+export function bindObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+  alias: ObjectAlias,
+): ScopeTracker {
+  const newObjectAliases = new Map(scope.objectAliases);
+  const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
+  newObjectAliases.set(name, alias);
+  newDynamicObjectAliases.delete(name);
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    objectAliases: newObjectAliases,
+    dynamicObjectAliases: newDynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
+    parent: scope.parent,
+  };
+}
+
+export function bindDynamicObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+  alias: DynamicObjectAlias,
+): ScopeTracker {
+  const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
+  newDynamicObjectAliases.set(name, alias);
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: newDynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -79,6 +177,9 @@ export function bindLambda(
     bindings: scope.bindings,
     lambdas: newLambdas,
     partials: scope.partials,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -95,6 +196,9 @@ export function bindPartial(
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: newPartials,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
     parent: scope.parent,
   };
 }
@@ -112,6 +216,9 @@ export function resolveLambda(
     if (current.lambdas.has(name)) {
       return current.lambdas.get(name)!;
     }
+    if (current.bindings.has(name)) {
+      return null;
+    }
     current = current.parent;
   }
   return null;
@@ -125,6 +232,9 @@ export function resolvePartial(
   while (current !== null) {
     if (current.partials.has(name)) {
       return current.partials.get(name)!;
+    }
+    if (current.bindings.has(name)) {
+      return null;
     }
     current = current.parent;
   }
@@ -147,4 +257,55 @@ export function resolveVariable(
     current = current.parent;
   }
   return null; // unresolvable
+}
+
+export function resolveSuffixBasePaths(
+  scope: ScopeTracker,
+  name: string,
+): readonly string[] | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.suffixBaseBindings.has(name)) {
+      return current.suffixBaseBindings.get(name)!;
+    }
+    if (current.bindings.has(name)) {
+      return null;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+export function resolveObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+): ObjectAlias | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.objectAliases.has(name)) {
+      return current.objectAliases.get(name)!;
+    }
+    if (current.bindings.has(name)) {
+      return null;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+export function resolveDynamicObjectAlias(
+  scope: ScopeTracker,
+  name: string,
+): DynamicObjectAlias | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.dynamicObjectAliases.has(name)) {
+      return current.dynamicObjectAliases.get(name)!;
+    }
+    if (current.bindings.has(name)) {
+      return null;
+    }
+    current = current.parent;
+  }
+  return null;
 }
