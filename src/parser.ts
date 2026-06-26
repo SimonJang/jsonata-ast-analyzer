@@ -1,5 +1,6 @@
 import jsonata from "jsonata";
 import type { AstNode } from "./types.js";
+import { normalizeAst } from "./normalizer.js";
 
 /**
  * Parse a JSONata expression string and return the AST as a typed AstNode.
@@ -10,5 +11,5 @@ import type { AstNode } from "./types.js";
  */
 export function parse(expression: string): AstNode {
   const expr = jsonata(expression);
-  return expr.ast() as AstNode;
+  return normalizeAst(expr.ast() as unknown as Record<string, unknown>);
 }
