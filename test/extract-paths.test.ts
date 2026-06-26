@@ -748,9 +748,9 @@ describe("extractPaths", () => {
       expect(result).toContainEqual({ path: "item.fieldName", confidence: "static" });
     });
 
-    it('variable bound to literal resolves to [] -> emits [*]: "($f := \\"price\\"; item[$f])"', () => {
+    it('variable bound to literal is known non-path: "($f := \\"price\\"; item[$f])"', () => {
       const result = extractPaths('($f := "price"; item[$f])');
-      expect(result).toContainEqual({ path: "item[*]", confidence: "dynamic" });
+      expect(result).toEqual([{ path: "item", confidence: "static" }]);
     });
 
     it('resolved variable with unbound filter: "($data := orders; $data[$field].price)" emits dynamic wildcard', () => {
