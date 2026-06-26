@@ -83,6 +83,8 @@ export interface BlockNode extends AnalyzerNode {
   type: "block";
   position: number;
   expressions: AstNode[];
+  group?: GroupByNode;
+  predicate?: AstNode[];
 }
 
 export interface NegateNode extends AnalyzerNode {
@@ -95,12 +97,14 @@ export interface ArrayNode extends AnalyzerNode {
   type: "array";
   position: number;
   expressions: AstNode[];
+  predicate?: AstNode[];
 }
 
 export interface ObjectNode extends AnalyzerNode {
   type: "object";
   position: number;
   entries: [AstNode, AstNode][];
+  predicate?: AstNode[];
 }
 
 export interface StringNode extends AnalyzerNode {
@@ -148,8 +152,10 @@ export interface FunctionNode extends AnalyzerNode {
   type: "function";
   value: "(";
   position: number;
-  procedure: VariableNode; // function name (without $)
+  procedure: VariableNode | LambdaNode; // function name or inline lambda
   arguments: AstNode[]; // call arguments
+  group?: GroupByNode;
+  predicate?: AstNode[];
 }
 
 export interface LambdaNode extends AnalyzerNode {

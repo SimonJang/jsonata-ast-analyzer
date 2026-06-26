@@ -2,6 +2,7 @@ import type {
   AstNode,
   ContextBindingNode,
   GroupByNode,
+  LambdaNode,
   PositionBindingNode,
   SourceAstMetadata,
   VariableNode,
@@ -75,6 +76,17 @@ function normalizeVariable(node: RawAstNode): VariableNode {
   };
 }
 
+function normalizeFunctionProcedure(node: RawAstNode): VariableNode | LambdaNode {
+  if (node.type === "lambda") return normalizeAst(node) as LambdaNode;
+
+  const expressions = node.type === "block" ? rawList(node.expressions) : [];
+  if (expressions.length === 1 && expressions[0].type === "lambda") {
+    return normalizeAst(expressions[0]) as LambdaNode;
+  }
+
+  return normalizeVariable(node);
+}
+
 /**
  * Convert the upstream jsonata parser AST into analyzer-owned node kinds.
  *
@@ -141,6 +153,8 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "block",
         position: positionOf(node),
         expressions: rawList(node.expressions).map(normalizeAst),
+        group: normalizeGroup(node.group),
+        predicate: rawList(node.predicate).map(normalizeAst),
         source: sourceOf(node),
       };
     case "unary":
@@ -149,6 +163,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
           type: "array",
           position: positionOf(node),
           expressions: rawList(node.expressions).map(normalizeAst),
+          predicate: rawList(node.predicate).map(normalizeAst),
           source: sourceOf(node),
         };
       }
@@ -157,6 +172,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
           type: "object",
           position: positionOf(node),
           entries: normalizePairs(node.lhs),
+          predicate: rawList(node.predicate).map(normalizeAst),
           source: sourceOf(node),
         };
       }
@@ -210,8 +226,10 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "function",
         value: "(",
         position: positionOf(node),
-        procedure: normalizeVariable(node.procedure as RawAstNode),
+        procedure: normalizeFunctionProcedure(node.procedure as RawAstNode),
         arguments: rawList(node.arguments).map(normalizeAst),
+        group: normalizeGroup(node.group),
+        predicate: rawList(node.predicate).map(normalizeAst),
         source: sourceOf(node),
       };
     case "lambda":
