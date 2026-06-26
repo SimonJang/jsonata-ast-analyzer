@@ -170,6 +170,44 @@ const paths = extractPaths(
 // ]
 ```
 
+### Advanced JSONata constructs
+
+The analyzer also tracks reads through common advanced JSONata constructs:
+
+```javascript
+extractPaths(
+  'library.loans@$l.books@$b[$l.isbn=$b.isbn].{"title":$b.title}'
+);
+// [
+//   { path: "library.loans.books",       confidence: "static" },
+//   { path: "library.loans.books.isbn",  confidence: "static" },
+//   { path: "library.loans.books.title", confidence: "static" },
+//   { path: "library.loans.isbn",        confidence: "static" }
+// ]
+```
+
+- Joins and context bindings with `@`, while `#` position bindings do not create data paths.
+- Grouping with `{}` and ordering with `^()`.
+- Higher-order functions, custom lambdas, closure captures, `~>` chains, and partial application placeholders.
+- Regex predicates and helper built-ins such as `$contains`, `$match`, and `$replace`.
+- Transform expressions, including update reads and dynamic delete expressions.
+
+### Benchmarks and Release Checks
+
+Run the benchmark smoke locally after building:
+
+```sh
+pnpm bench
+```
+
+Each benchmark reports parse-plus-analyze time plus raw path count before dedupe and unique path count after dedupe.
+
+Run the release gate used by CI:
+
+```sh
+pnpm release:check
+```
+
 ## How It Works
 
 ```
@@ -197,6 +235,12 @@ The analyzer is designed to over-approximate: it reports a superset of the paths
 **Dynamic path wildcards** -- When a variable in bracket position cannot be statically resolved, the analyzer emits a `[*]` wildcard segment and marks the path as `dynamic`. This acknowledges that a field is accessed while signaling that the exact field name depends on runtime data.
 
 **Parent operator approximation** -- The parent operator (`%`) navigates to an enclosing context that is only fully determined at runtime. The analyzer preserves `%` as a literal path segment and marks the result as `partial`, recording the structural relationship without claiming to know the exact target.
+
+**Descendant summaries** -- Descendant paths such as `**.price` are preserved as broad static summaries. The analyzer does not enumerate every possible concrete path under `**`.
+
+**Transform writes** -- Transform locations and update/delete expressions are analyzed for reads, but write targets are not exposed as a separate public API. Literal delete targets such as `["password"]` do not create input reads.
+
+**Internal benchmark helper** -- `__benchmarkExpression()` is exported only so the repository benchmark can measure raw and deduped path counts. Treat it as internal; `extractPaths()` remains the supported API.
 
 ## License
 
