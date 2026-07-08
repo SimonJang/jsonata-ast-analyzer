@@ -1811,6 +1811,25 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const suffixSteps = node.steps.slice(varStepIndex + 1);
       const suffix = buildPathString(suffixSteps);
       let handledFocusProjection = false;
+      const suffixScopeFor = (resolvedPath: string) => {
+        let suffixScope = scope;
+        const suffixStageVariables = new Set([varStep.value]);
+
+        if (varStep.focusBinding) {
+          suffixScope = bindVariable(
+            childScope(scope),
+            varStep.focusBinding.name,
+            [resolvedPath],
+          );
+          suffixStageVariables.add(varStep.focusBinding.name);
+        }
+        if (varStep.indexBinding) {
+          if (suffixScope === scope) suffixScope = childScope(suffixScope);
+          suffixScope = bindVariable(suffixScope, varStep.indexBinding.name, []);
+        }
+
+        return { suffixScope, suffixStageVariables };
+      };
 
       if (varStep.focusBinding) {
         const projectionStepIndex = suffixSteps.findIndex(isResultAliasStep);
@@ -1838,23 +1857,25 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
 
       for (const resolvedPath of resolved) {
+        const { suffixScope, suffixStageVariables } = suffixScopeFor(resolvedPath);
         paths.push(
           ...walkResolvedVariableSuffixFilterStages(
             suffixSteps,
             resolvedPath,
-            scope,
-            new Set([varStep.value]),
+            suffixScope,
+            suffixStageVariables,
           ),
         );
       }
 
       for (const resolvedPath of resolved) {
+        const { suffixScope, suffixStageVariables } = suffixScopeFor(resolvedPath);
         paths.push(
           ...walkResolvedVariableSuffixSortTerms(
             suffixSteps,
             resolvedPath,
-            scope,
-            new Set([varStep.value]),
+            suffixScope,
+            suffixStageVariables,
           ),
         );
       }
@@ -1862,12 +1883,13 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       if (node.group) {
         for (const resolvedPath of resolved) {
           const suffixBase = buildPathString(suffixSteps) ?? "";
+          const { suffixScope, suffixStageVariables } = suffixScopeFor(resolvedPath);
           paths.push(
             ...walkContextGroupEntries(
               node.group,
               appendPath(resolvedPath, suffixBase),
-              scope,
-              new Set([varStep.value]),
+              suffixScope,
+              suffixStageVariables,
             ),
           );
         }

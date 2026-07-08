@@ -1529,6 +1529,24 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps focus bindings across variable predicate sort and group stages", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($items := orders.items; $items@$v[$v.active]^(<$v.rank){$v.category: $v.total})",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.active", confidence: "static" },
+        { path: "orders.items.category", confidence: "static" },
+        { path: "orders.items.rank", confidence: "static" },
+        { path: "orders.items.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves focus-bound block predicate object aliases", () => {
     expect(
       sortPaths(extractPaths('({"x": $.items})@$v[$v.x.active].x.name')),
