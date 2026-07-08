@@ -3197,15 +3197,20 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
     // Inspect predicates on the standalone VariableNode (mirrors walkPath variable branch)
     const predicates = node.predicate;
     if (predicates && predicates.length > 0) {
+      const objectAlias = resolveObjectAlias(scope, node.value);
+      const dynamicObjectAlias = resolveDynamicObjectAlias(scope, node.value);
       for (const resolvedPath of variableBasePaths) {
         let predicateScope = scope;
         const predicateStageVariables = new Set<string>();
         const predicateNonPathVariables = new Set<string>();
         if (node.focusBinding) {
-          predicateScope = bindVariable(
-            childScope(scope),
+          predicateScope = bindFocusObjectAliasScope(
+            scope,
             node.focusBinding.name,
+            objectAlias,
+            dynamicObjectAlias,
             [resolvedPath],
+            suffixBasePaths.length > 0 ? suffixBasePaths : [resolvedPath],
           );
           predicateStageVariables.add(node.focusBinding.name);
         }
