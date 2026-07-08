@@ -1512,6 +1512,39 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps sorted indexed array projection constructor reads contextual", () => {
+    expect(
+      sortPaths(
+        extractPaths("orders.items.[price]#$i^(<rank){category: total}"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.rank", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps sorted indexed object projection constructor reads contextual", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          'orders.items.{"x": price}#$i[x.active]^(<x.rank){x.category: x.total}',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.rank", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps focus bindings on object constructor sort terms", () => {
     expect(sortPaths(extractPaths('{"x": items}@$v^(<$v.x.rank)'))).toEqual(
       sortPaths([

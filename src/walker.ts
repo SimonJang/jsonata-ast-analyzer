@@ -2454,13 +2454,14 @@ function walkSortTerms(
           : selectResultAliasExpressionPaths(aliasStep, term.expression, scope)
         : null;
     paths.push(
-      ...(aliasPaths ??
-        walkContextExpression(
-          term.expression,
-          contextPrefix,
-          scope,
-          stageVariables,
-        )),
+      ...(aliasPaths
+        ? prefixProjectionPaths(contextPrefix, aliasPaths)
+        : walkContextExpression(
+            term.expression,
+            contextPrefix,
+            scope,
+            stageVariables,
+          )),
     );
   }
   return paths;
