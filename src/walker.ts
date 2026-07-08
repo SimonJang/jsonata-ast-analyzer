@@ -1896,15 +1896,23 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         ...suffixBasePaths,
       ];
       const suffixGroupPaths = node.group
-        ? walkAliasSuffixGroupEntries(
-            node.group,
-            groupBasePaths,
-            objectAlias,
-            dynamicObjectAlias,
-            aliasScope,
-            suffixBaseBinding,
-            Boolean(varStep.focusBinding),
-          )
+        ? suffixSteps.length === 0
+          ? walkAliasGroupEntries(
+              node.group,
+              objectAlias,
+              dynamicObjectAlias,
+              aliasScope,
+              unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
+            )
+          : walkAliasSuffixGroupEntries(
+              node.group,
+              groupBasePaths,
+              objectAlias,
+              dynamicObjectAlias,
+              aliasScope,
+              suffixBaseBinding,
+              Boolean(varStep.focusBinding),
+            )
         : [];
       return [
         ...variableStagePaths,

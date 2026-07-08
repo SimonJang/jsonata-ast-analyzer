@@ -1744,6 +1744,18 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves variable-bound nested block object group aliases contextually", () => {
+    expect(
+      sortPaths(extractPaths('($p := orders.items.({"x": price}); $p#$i{x.category: x.total})')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps focus bindings across variable predicate sort and group stages", () => {
     expect(
       sortPaths(
