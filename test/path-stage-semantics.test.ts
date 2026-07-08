@@ -1706,6 +1706,14 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("does not add projection parent paths when reading variable-bound projections", () => {
+    expect(sortPaths(extractPaths("($p := orders.items.(price); $p)"))).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps variable-bound nested array predicate reads contextual", () => {
     expect(
       sortPaths(extractPaths("($p := orders.items.[price]; $p#$i[active])")),

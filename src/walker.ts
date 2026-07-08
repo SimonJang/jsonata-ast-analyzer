@@ -3167,12 +3167,15 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
   // Check scope first (scope bindings shadow built-ins)
   const resolved = resolveVariable(scope, node.value);
   if (resolved) {
-    const paths = [...resolved];
+    const suffixBasePaths = [...(resolveSuffixBasePaths(scope, node.value) ?? [])];
+    const variableBasePaths =
+      suffixBasePaths.length > 0 ? suffixBasePaths : [...resolved];
+    const paths = [...variableBasePaths];
 
     // Inspect predicates on the standalone VariableNode (mirrors walkPath variable branch)
     const predicates = node.predicate;
     if (predicates && predicates.length > 0) {
-      for (const resolvedPath of resolved) {
+      for (const resolvedPath of variableBasePaths) {
         let predicateScope = scope;
         const predicateStageVariables = new Set<string>();
         const predicateNonPathVariables = new Set<string>();
@@ -3213,11 +3216,11 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
               objectAlias,
               dynamicObjectAlias,
               scope,
-              resolveSuffixBasePaths(scope, node.value) ?? [],
+              suffixBasePaths,
             )
           : walkContextGroupEntries(
               groupNode,
-              resolved.length > 0 ? resolved[0] : "",
+              variableBasePaths.length > 0 ? variableBasePaths[0] : "",
               scope,
             )),
       );
