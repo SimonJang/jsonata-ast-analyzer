@@ -185,6 +185,9 @@ function transformPatternPrefixes(
   );
   if (arrayConstructorBasePaths.length > 0) return arrayConstructorBasePaths;
 
+  const blockBasePaths = transformBlockPatternPrefixes(pattern, scope);
+  if (blockBasePaths.length > 0) return blockBasePaths;
+
   const basePaths = extractBasePaths(pattern, scope).map(resolveParentPathSegments);
   if (basePaths.length > 0) return basePaths;
   return patternPaths.length > 0 ? [...patternPaths] : [""];
@@ -203,6 +206,24 @@ function transformArrayConstructorPatternPrefixes(
   const contextPrefix = buildPathString(pathNode.steps.slice(0, arrayStepIndex)) ?? "";
   return arrayConstructorContextBasePaths(
     pathNode.steps[arrayStepIndex] as ArrayNode,
+    contextPrefix,
+    scope,
+  ).map(resolveParentPathSegments);
+}
+
+function transformBlockPatternPrefixes(
+  pattern: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  if (pattern.type !== "path") return [];
+
+  const pathNode = pattern as PathNode;
+  const blockStepIndex = pathNode.steps.findIndex((step) => step.type === "block");
+  if (blockStepIndex < 0) return [];
+
+  const contextPrefix = buildPathString(pathNode.steps.slice(0, blockStepIndex)) ?? "";
+  return blockContextBasePaths(
+    pathNode.steps[blockStepIndex] as BlockNode,
     contextPrefix,
     scope,
   ).map(resolveParentPathSegments);
