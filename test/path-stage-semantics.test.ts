@@ -1442,6 +1442,76 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps indexed array constructor predicate reads", () => {
+    expect(sortPaths(extractPaths("[items]#$i[active]"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps indexed object constructor predicate reads", () => {
+    expect(
+      sortPaths(extractPaths('{"x": items}#$i[$i = 0 and x.active]')),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps indexed array projection constructor predicate reads", () => {
+    expect(sortPaths(extractPaths("orders.items.[price]#$i[active]"))).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps indexed object projection constructor predicate reads", () => {
+    expect(
+      sortPaths(extractPaths('orders.items.{"x": price}#$i[x.active]')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps indexed array projection constructor group reads contextual", () => {
+    expect(
+      sortPaths(extractPaths("orders.items.[price]#$i{category: total}")),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps indexed object projection constructor group reads contextual", () => {
+    expect(
+      sortPaths(
+        extractPaths('orders.items.{"x": price}#$i{x.category: x.total}'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps focus bindings on object constructor sort terms", () => {
     expect(sortPaths(extractPaths('{"x": items}@$v^(<$v.x.rank)'))).toEqual(
       sortPaths([

@@ -1428,6 +1428,48 @@ function selectResultAliasExpressionPaths(
   return paths.length > 0 ? paths : null;
 }
 
+function contextBindingAliasPaths(
+  node: AstNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+): string[] {
+  return prefixProjectionPaths(contextPrefix, bindingAliasPaths(node, scope));
+}
+
+function arrayConstructorContextBasePaths(
+  node: ArrayNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+): string[] {
+  return node.expressions.flatMap((expr) =>
+    contextBindingAliasPaths(expr, contextPrefix, scope),
+  );
+}
+
+function objectConstructorContextBasePaths(
+  node: ObjectNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+): string[] {
+  return node.entries.flatMap(([, value]) =>
+    contextBindingAliasPaths(value, contextPrefix, scope),
+  );
+}
+
+function objectConstructorContextAlias(
+  node: ObjectNode,
+  prefixSteps: AstNode[],
+  scope: ScopeTracker,
+): ObjectAlias | null {
+  if (prefixSteps.length === 0) return objectAliasForNode(node, scope);
+
+  return objectAliasFromPathProjection({
+    type: "path",
+    steps: [...prefixSteps, node],
+    source: node.source,
+  } as PathNode, scope);
+}
+
 function selectResultAliasProjectionStepPaths(
   step: AstNode,
   projectionStep: AstNode,
@@ -2065,7 +2107,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
       // Object constructor step in path: orders.items.{"key": val}
       // Walk value expressions and prefix with path up to this step
-      const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const prefixSteps = node.steps.slice(0, i);
+      const contextPrefix = buildPathString(prefixSteps) ?? "";
       const objectStep = step as ObjectNode;
       const aliasPaths =
         i > 0 && isResultAliasStep(node.steps[i - 1])
@@ -2082,6 +2125,51 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(
           ...walkContextExpression(val, contextPrefix, stageScope, stageVariables, true),
         );
+      }
+      if (objectStep.predicate && objectStep.predicate.length > 0) {
+        const objectAlias = objectConstructorContextAlias(
+          objectStep,
+          prefixSteps,
+          stageScope,
+        );
+        const dynamicObjectAlias = dynamicObjectAliasForNode(objectStep, stageScope);
+        const resultBasePaths = objectConstructorContextBasePaths(
+          objectStep,
+          contextPrefix,
+          stageScope,
+        );
+        let predicateScope = stageScope;
+
+        if (objectStep.focusBinding) {
+          predicateScope = bindFocusObjectAliasScope(
+            predicateScope,
+            objectStep.focusBinding.name,
+            objectAlias,
+            dynamicObjectAlias,
+            resultBasePaths,
+            [],
+          );
+        }
+        if (objectStep.indexBinding) {
+          if (predicateScope === stageScope) predicateScope = childScope(predicateScope);
+          predicateScope = bindVariable(
+            predicateScope,
+            objectStep.indexBinding.name,
+            [],
+          );
+        }
+
+        for (const stage of objectStep.predicate) {
+          if (stage.type !== "filter") continue;
+          paths.push(
+            ...selectAliasExpressionPaths(
+              objectAlias,
+              dynamicObjectAlias,
+              (stage as unknown as FilterStage).expr,
+              predicateScope,
+            ),
+          );
+        }
       }
     } else if (step.type === "array") {
       if (resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart) {
@@ -2101,6 +2189,49 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(
           ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables, true),
         );
+      }
+      if (arrayStep.predicate && arrayStep.predicate.length > 0) {
+        const resultBasePaths = arrayConstructorContextBasePaths(
+          arrayStep,
+          contextPrefix,
+          stageScope,
+        );
+        let predicateScope = stageScope;
+        const predicateStageVariables = new Set(stageVariables);
+        const predicateNonPathVariables = new Set(nonPathVariables);
+
+        if (arrayStep.focusBinding) {
+          predicateScope = bindFocusObjectAliasScope(
+            predicateScope,
+            arrayStep.focusBinding.name,
+            objectAliasForNode(arrayStep, stageScope),
+            dynamicObjectAliasForNode(arrayStep, stageScope),
+            resultBasePaths,
+            resultBasePaths,
+          );
+          predicateStageVariables.add(arrayStep.focusBinding.name);
+        }
+        if (arrayStep.indexBinding) {
+          if (predicateScope === stageScope) predicateScope = childScope(predicateScope);
+          predicateScope = bindVariable(
+            predicateScope,
+            arrayStep.indexBinding.name,
+            [],
+          );
+          predicateNonPathVariables.add(arrayStep.indexBinding.name);
+        }
+
+        for (const resultBasePath of resultBasePaths) {
+          paths.push(
+            ...walkFilterStages(
+              arrayStep.predicate,
+              resultBasePath,
+              predicateScope,
+              predicateNonPathVariables,
+              predicateStageVariables,
+            ),
+          );
+        }
       }
     } else if (step.type === "block") {
       if (resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart) {
@@ -2348,10 +2479,20 @@ function walkGroupBy(
   const groupNode = node.group;
   if (!groupNode) return [];
 
-  const resultAliasStep = node.steps.find(isResultAliasStep);
-  if (resultAliasStep) {
+  const resultAliasStepIndex = node.steps.findIndex(isResultAliasStep);
+  if (resultAliasStepIndex >= 0) {
+    const resultAliasStep = node.steps[resultAliasStepIndex];
+    const prefixSteps = node.steps.slice(0, resultAliasStepIndex);
+    const contextPrefix = buildPathString(prefixSteps) ?? "";
     const groupScope = bindStepFocusScope(resultAliasStep, scope);
-    const objectAlias = objectAliasForNode(resultAliasStep, scope);
+    const objectAlias =
+      resultAliasStep.type === "object"
+        ? objectConstructorContextAlias(
+            resultAliasStep as ObjectNode,
+            prefixSteps,
+            scope,
+          )
+        : objectAliasForNode(resultAliasStep, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
     if (objectAlias || dynamicObjectAlias) {
       return walkAliasGroupEntries(
@@ -2375,7 +2516,20 @@ function walkGroupBy(
     const groupStageVariables = new Set(
       focusBinding ? [focusBinding.name] : [],
     );
-    const resultBasePaths = bindingAliasPaths(resultAliasStep, scope);
+    const resultBasePaths =
+      resultAliasStep.type === "array"
+        ? arrayConstructorContextBasePaths(
+            resultAliasStep as ArrayNode,
+            contextPrefix,
+            scope,
+          )
+        : resultAliasStep.type === "object"
+          ? objectConstructorContextBasePaths(
+              resultAliasStep as ObjectNode,
+              contextPrefix,
+              scope,
+            )
+          : bindingAliasPaths(resultAliasStep, scope);
     if (resultBasePaths.length > 0) {
       return resultBasePaths.flatMap((basePath) =>
         walkContextGroupEntries(groupNode, basePath, groupScope, groupStageVariables),
