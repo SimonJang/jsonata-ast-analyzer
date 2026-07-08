@@ -176,6 +176,23 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("contextualizes terminal function path step arguments", () => {
+    expect(extractPaths("orders.items.$sum(price)")).toEqual([
+      { path: "orders.items.price", confidence: "static" },
+    ]);
+  });
+
+  it("contextualizes lookup object arguments in path steps", () => {
+    expect(
+      sortPaths(extractPaths('orders.items.$lookup({"x": price}, "x").name')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not suffix regex match result properties onto input paths", () => {
     expect(extractPaths("$match(description, /urgent/i).match")).toEqual([
       { path: "description", confidence: "static" },

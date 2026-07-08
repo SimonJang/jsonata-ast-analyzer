@@ -2467,8 +2467,18 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
     } else if (step.type === "function") {
       // Function call step (e.g., $lookup(obj, key) in $lookup(obj, key).field)
-      // Walk the function call to extract argument paths
-      paths.push(...walkFunction(step as FunctionNode, stageScope));
+      // Function arguments in a path step are evaluated against the prior path context.
+      const functionContextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      paths.push(
+        ...(functionContextPrefix
+          ? walkContextExpression(
+              step,
+              functionContextPrefix,
+              stageScope,
+              stageVariables,
+            )
+          : walkFunction(step as FunctionNode, stageScope)),
+      );
     } else if (step.type === "apply") {
       paths.push(...walkApply(step as ApplyNode, stageScope));
     }
