@@ -2517,6 +2517,7 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
   }
 
   if (node.group) {
+    const groupScope = bindStepFocusScope(node, currentScope);
     const objectAlias = objectAliasFromBlock(node, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
     paths.push(
@@ -2525,10 +2526,10 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
             node.group,
             objectAlias,
             dynamicObjectAlias,
-            currentScope,
+            groupScope,
           )
         : bindingAliasPathsFromBlock(node, scope).flatMap((basePath) =>
-            walkContextGroupEntries(node.group!, basePath, currentScope),
+            walkContextGroupEntries(node.group!, basePath, groupScope),
           )),
     );
   }

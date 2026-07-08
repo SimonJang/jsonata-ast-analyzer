@@ -1471,6 +1471,16 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps block focus bindings for group entries", () => {
+    expect(sortPaths(extractPaths('({"x": $.items})@$v{$v.x.category: $v.x.total}'))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+        { path: "items.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps bare lookup inputs root-relative in focus projections", () => {
     expect(sortPaths(extractPaths("ids@$id.($lookup(products, $id)).name"))).toEqual(
       sortPaths([
