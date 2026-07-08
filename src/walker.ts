@@ -1512,6 +1512,19 @@ function blockContextBasePaths(
   return prefixProjectionPaths(contextPrefix, bindingAliasPaths(node, scope));
 }
 
+function prefixObjectAlias(
+  alias: ObjectAlias | null,
+  contextPrefix: string,
+): ObjectAlias | null {
+  if (!alias || !contextPrefix) return alias;
+
+  const fields = new Map<string, string[]>();
+  for (const [key, paths] of alias) {
+    fields.set(key, prefixProjectionPaths(contextPrefix, [...paths]));
+  }
+  return fields;
+}
+
 function selectResultAliasProjectionStepPaths(
   step: AstNode,
   projectionStep: AstNode,
@@ -2288,7 +2301,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         contextPrefix,
         stageScope,
       );
-      const blockObjectAlias = objectAliasForNode(blockStep, stageScope);
+      const blockObjectAlias = prefixObjectAlias(
+        objectAliasForNode(blockStep, stageScope),
+        contextPrefix,
+      );
       const blockDynamicObjectAlias = dynamicObjectAliasForNode(blockStep, stageScope);
       const blockSuffixBasePaths = getResultSuffixBasePaths(blockStep, stageScope);
       if (blockStep.focusBinding) {
@@ -2354,15 +2370,29 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         }
 
         for (const prefix of predicatePrefixes) {
-          paths.push(
-            ...walkFilterStages(
-              blockStep.predicate,
-              prefix,
-              predicateScope,
-              predicateNonPathVariables,
-              predicateStageVariables,
-            ),
-          );
+          if (blockObjectAlias || blockDynamicObjectAlias) {
+            for (const stage of blockStep.predicate) {
+              if (stage.type !== "filter") continue;
+              paths.push(
+                ...selectAliasExpressionPaths(
+                  blockObjectAlias,
+                  blockDynamicObjectAlias,
+                  (stage as unknown as FilterStage).expr,
+                  predicateScope,
+                ),
+              );
+            }
+          } else {
+            paths.push(
+              ...walkFilterStages(
+                blockStep.predicate,
+                prefix,
+                predicateScope,
+                predicateNonPathVariables,
+                predicateStageVariables,
+              ),
+            );
+          }
         }
       }
     } else if (step.type === "function") {
