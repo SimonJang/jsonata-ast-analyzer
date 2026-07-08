@@ -1228,6 +1228,11 @@ function bindFocusObjectAliasScope(
 }
 
 function bindStepFocusScope(step: AstNode, scope: ScopeTracker): ScopeTracker {
+  if (step.type === "apply") {
+    const func = appliedFunctionFromApply(step as ApplyNode);
+    return func ? bindStepFocusScope(func, scope) : scope;
+  }
+
   if (
     step.type !== "block" &&
     step.type !== "array" &&
@@ -2364,6 +2369,8 @@ function walkGroupBy(
       resultAliasStep.type === "function"
         ? (resultAliasStep as BlockNode | ArrayNode | ObjectNode | FunctionNode)
             .focusBinding
+        : resultAliasStep.type === "apply"
+          ? appliedFunctionFromApply(resultAliasStep as ApplyNode)?.focusBinding
         : undefined;
     const groupStageVariables = new Set(
       focusBinding ? [focusBinding.name] : [],
