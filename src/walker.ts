@@ -1319,6 +1319,7 @@ function selectResultAliasStepPaths(
   step: AstNode,
   suffixSteps: AstNode[],
   scope: ScopeTracker,
+  includeStepReadPaths = true,
 ): string[] | null {
   const suffixScope = bindStepFocusScope(step, scope);
   const conditionPaths =
@@ -1326,9 +1327,10 @@ function selectResultAliasStepPaths(
       ? walkNode((step as ConditionNode).condition, scope)
       : [];
   const stepReadPaths =
-    step.type === "block" ||
-    (step.type === "array" && ((step as ArrayNode).predicate?.length ?? 0) > 0) ||
-    (step.type === "object" && ((step as ObjectNode).predicate?.length ?? 0) > 0)
+    includeStepReadPaths &&
+    (step.type === "block" ||
+      (step.type === "array" && ((step as ArrayNode).predicate?.length ?? 0) > 0) ||
+      (step.type === "object" && ((step as ObjectNode).predicate?.length ?? 0) > 0))
       ? walkNode(step, scope)
       : conditionPaths;
   const resultBasePaths = bindingAliasPaths(step, scope);
@@ -2101,6 +2103,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         step,
         node.steps.slice(i + 1),
         stageScope,
+        !(step.type === "block" && projectionPrefix),
       );
       if (resultPaths) {
         paths.push(
@@ -2526,6 +2529,7 @@ function walkSortTerms(
               aliasStep,
               (term.expression as PathNode).steps,
               scope,
+              !(aliasStep.type === "block" && contextPrefix),
             )
           : selectResultAliasExpressionPaths(aliasStep, term.expression, scope)
         : null;
@@ -2569,6 +2573,8 @@ function walkGroupBy(
             prefixSteps,
             scope,
           )
+        : resultAliasStep.type === "block"
+          ? prefixObjectAlias(objectAliasForNode(resultAliasStep, scope), contextPrefix)
         : objectAliasForNode(resultAliasStep, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
     if (objectAlias || dynamicObjectAlias) {
