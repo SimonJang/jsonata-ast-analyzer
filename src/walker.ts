@@ -174,6 +174,16 @@ function walkTransformContextExpression(
   );
 }
 
+function transformPatternPrefixes(
+  pattern: AstNode,
+  patternPaths: readonly string[],
+  scope: ScopeTracker,
+): string[] {
+  const basePaths = extractBasePaths(pattern, scope).map(resolveParentPathSegments);
+  if (basePaths.length > 0) return basePaths;
+  return patternPaths.length > 0 ? [...patternPaths] : [""];
+}
+
 function resolveParentPathSegments(path: string): string {
   if (!path || path.startsWith(ROOT_PATH)) return path;
 
@@ -2654,7 +2664,11 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
 
   // Walk pattern for base paths
   const patternPaths = walkNode(node.pattern, scope).map(resolveParentPathSegments);
-  const patternPrefixes = patternPaths.length > 0 ? patternPaths : [""];
+  const patternPrefixes = transformPatternPrefixes(
+    node.pattern,
+    patternPaths,
+    scope,
+  );
   paths.push(...patternPaths);
 
   // Walk update and prefix results with pattern path
