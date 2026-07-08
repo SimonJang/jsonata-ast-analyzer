@@ -179,6 +179,9 @@ function transformPatternPrefixes(
   patternPaths: readonly string[],
   scope: ScopeTracker,
 ): string[] {
+  const variableBasePaths = transformVariablePatternPrefixes(pattern, scope);
+  if (variableBasePaths.length > 0) return variableBasePaths;
+
   const arrayConstructorBasePaths = transformArrayConstructorPatternPrefixes(
     pattern,
     scope,
@@ -191,6 +194,17 @@ function transformPatternPrefixes(
   const basePaths = extractBasePaths(pattern, scope).map(resolveParentPathSegments);
   if (basePaths.length > 0) return basePaths;
   return patternPaths.length > 0 ? [...patternPaths] : [""];
+}
+
+function transformVariablePatternPrefixes(
+  pattern: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  if (pattern.type !== "variable") return [];
+
+  const suffixBasePaths =
+    resolveSuffixBasePaths(scope, (pattern as VariableNode).value) ?? [];
+  return suffixBasePaths.map(resolveParentPathSegments);
 }
 
 function transformArrayConstructorPatternPrefixes(

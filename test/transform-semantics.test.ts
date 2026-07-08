@@ -111,6 +111,23 @@ describe("transform semantics", () => {
     );
   });
 
+  it("uses variable-bound projection transform patterns as update prefixes", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($p := orders.items.(price); payload ~> |$p|{"name": name}|)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "payload", confidence: "static" },
+        { path: "payload.orders.items.price", confidence: "static" },
+        { path: "payload.orders.items.price.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("prefixes root update reads with the transform pattern", () => {
     expect(
       sortPaths(extractPaths('payload ~> |Account|{"id": $.rootId}|')),
