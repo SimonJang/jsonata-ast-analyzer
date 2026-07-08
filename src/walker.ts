@@ -688,7 +688,12 @@ function selectVariableObjectAliasPaths(
     scope,
     preserveUnmappedLocalPaths,
   );
-  if (projectionPaths) return projectionPaths;
+  if (projectionPaths) {
+    const suffix = buildPathString(rest);
+    return suffix && selector?.type !== "object"
+      ? [...projectionPaths, ...projectionPaths.map((path) => appendPath(path, suffix))]
+      : projectionPaths;
+  }
 
   const paths = [
     ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
@@ -1200,6 +1205,28 @@ function bindFocusObjectAliasScope(
   return focusScope;
 }
 
+function bindStepFocusScope(step: AstNode, scope: ScopeTracker): ScopeTracker {
+  if (step.type !== "block") return scope;
+
+  const block = step as BlockNode;
+  let nextScope = scope;
+  if (block.focusBinding) {
+    nextScope = bindFocusObjectAliasScope(
+      scope,
+      block.focusBinding.name,
+      objectAliasForNode(block, scope),
+      dynamicObjectAliasForNode(block, scope),
+      bindingAliasPaths(block, scope),
+      getResultSuffixBasePaths(block, scope),
+    );
+  }
+  if (block.indexBinding) {
+    if (nextScope === scope) nextScope = childScope(scope);
+    nextScope = bindVariable(nextScope, block.indexBinding.name, []);
+  }
+  return nextScope;
+}
+
 function bindSuffixBasePathsIfPresent(
   scope: ScopeTracker,
   name: string,
@@ -1225,6 +1252,7 @@ function selectResultAliasStepPaths(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
 ): string[] | null {
+  const suffixScope = bindStepFocusScope(step, scope);
   const conditionPaths =
     step.type === "condition"
       ? walkNode((step as ConditionNode).condition, scope)
@@ -1242,7 +1270,7 @@ function selectResultAliasStepPaths(
     objectAlias,
     dynamicObject,
     suffixSteps,
-    scope,
+    suffixScope,
   );
   if (aliasPaths) {
     const suffix = buildPathString(suffixSteps);
@@ -1274,6 +1302,7 @@ function walkResultAliasSuffixStages(
   const objectAlias = objectAliasForNode(step, scope);
   const dynamicObjectAlias = dynamicObjectAliasForNode(step, scope);
   if (!objectAlias && !dynamicObjectAlias) return [];
+  const suffixScope = bindStepFocusScope(step, scope);
 
   const suffixBasePaths = getResultSuffixBasePaths(step, scope);
   const selectedPaths =
@@ -1281,7 +1310,7 @@ function walkResultAliasSuffixStages(
       objectAlias,
       dynamicObjectAlias,
       suffixSteps,
-      scope,
+      suffixScope,
       suffixBasePaths,
     ) ?? [];
   const suffix = buildPathString(suffixSteps);
@@ -1300,21 +1329,21 @@ function walkResultAliasSuffixStages(
       suffixSteps,
       objectAlias,
       dynamicObjectAlias,
-      scope,
+      suffixScope,
       suffixBasePaths,
     ),
     ...walkAliasSuffixSortTerms(
       suffixSteps,
       objectAlias,
       dynamicObjectAlias,
-      scope,
+      suffixScope,
       suffixBasePaths,
     ),
     ...walkAliasSuffixProjectionSteps(
       suffixSteps,
       objectAlias,
       dynamicObjectAlias,
-      scope,
+      suffixScope,
       suffixBasePaths,
     ),
     ...(groupNode
@@ -1323,7 +1352,7 @@ function walkResultAliasSuffixStages(
           groupBasePaths,
           objectAlias,
           dynamicObjectAlias,
-          scope,
+          suffixScope,
           suffixBasePaths,
         )
       : []),
@@ -2019,6 +2048,25 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Walk all expressions and prefix with path up to this step
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const blockStep = step as BlockNode;
+      const blockBasePaths = bindingAliasPaths(blockStep, stageScope);
+      const blockObjectAlias = objectAliasForNode(blockStep, stageScope);
+      const blockDynamicObjectAlias = dynamicObjectAliasForNode(blockStep, stageScope);
+      const blockSuffixBasePaths = getResultSuffixBasePaths(blockStep, stageScope);
+      if (blockStep.focusBinding) {
+        stageScope = bindFocusObjectAliasScope(
+          stageScope,
+          blockStep.focusBinding.name,
+          blockObjectAlias,
+          blockDynamicObjectAlias,
+          blockBasePaths,
+          blockSuffixBasePaths,
+        );
+        stageVariables.add(blockStep.focusBinding.name);
+      }
+      if (blockStep.indexBinding) {
+        stageScope = bindVariable(stageScope, blockStep.indexBinding.name, []);
+        nonPathVariables.add(blockStep.indexBinding.name);
+      }
       const aliasPaths =
         i > 0 && isResultAliasStep(node.steps[i - 1])
           ? selectResultAliasProjectionStepPaths(node.steps[i - 1], step, stageScope)
@@ -2033,10 +2081,6 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         );
       }
       if (blockStep.predicate && blockStep.predicate.length > 0) {
-        const blockBasePaths = bindingAliasPaths(blockStep, stageScope);
-        const blockObjectAlias = objectAliasForNode(blockStep, stageScope);
-        const blockDynamicObjectAlias = dynamicObjectAliasForNode(blockStep, stageScope);
-        const blockSuffixBasePaths = getResultSuffixBasePaths(blockStep, stageScope);
         const predicatePrefixes =
           blockBasePaths.length > 0
             ? blockBasePaths
