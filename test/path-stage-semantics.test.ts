@@ -1470,6 +1470,15 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps block focus bindings for terminal sort terms", () => {
+    expect(sortPaths(extractPaths('({"x": $.items})@$v^(<$v.x.rank)'))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps block focus bindings for suffix projections", () => {
     expect(sortPaths(extractPaths('({"x": $.items})@$v.($v.x.detail).name'))).toEqual(
       sortPaths([

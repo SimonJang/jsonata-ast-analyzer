@@ -714,6 +714,19 @@ function selectSortAliasPaths(
   const paths: string[] = [];
 
   for (const term of sortNode.terms) {
+    if (collectVariableNames(term.expression).size > 0) {
+      paths.push(
+        ...selectAliasExpressionPaths(
+          objectAlias,
+          dynamicObjectAlias,
+          term.expression,
+          scope,
+          suffixBasePaths,
+        ),
+      );
+      continue;
+    }
+
     if (term.expression.type !== "path") {
       paths.push(
         ...selectAliasExpressionPaths(
