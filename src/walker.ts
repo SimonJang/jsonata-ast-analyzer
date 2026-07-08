@@ -2365,7 +2365,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         contextPrefix,
       );
       const blockDynamicObjectAlias = dynamicObjectAliasForNode(blockStep, stageScope);
-      const blockSuffixBasePaths = getResultSuffixBasePaths(blockStep, stageScope);
+      const blockSuffixBasePaths = blockBasePaths;
+      const blockExpressionStageVariables = new Set(stageVariables);
       if (blockStep.focusBinding) {
         stageScope = bindFocusObjectAliasScope(
           stageScope,
@@ -2391,7 +2392,13 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
       for (const expr of blockStep.expressions) {
         paths.push(
-          ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables, true),
+          ...walkContextExpression(
+            expr,
+            contextPrefix,
+            stageScope,
+            blockExpressionStageVariables,
+            true,
+          ),
         );
       }
       if (blockStep.predicate && blockStep.predicate.length > 0) {

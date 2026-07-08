@@ -1641,6 +1641,15 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps focus-bound nested block predicate reads contextual", () => {
+    expect(sortPaths(extractPaths("orders.items.(price)@$v[$v.active]"))).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves indexed nested block predicate object aliases contextually", () => {
     expect(
       sortPaths(extractPaths('orders.items.({"x": price})#$i[x.active]')),
