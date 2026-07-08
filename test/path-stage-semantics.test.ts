@@ -1695,6 +1695,55 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps variable-bound nested block predicate reads contextual", () => {
+    expect(
+      sortPaths(extractPaths("($p := orders.items.(price); $p#$i[active])")),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps variable-bound nested array predicate reads contextual", () => {
+    expect(
+      sortPaths(extractPaths("($p := orders.items.[price]; $p#$i[active])")),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("resolves variable-bound nested block object aliases contextually", () => {
+    expect(
+      sortPaths(extractPaths('($p := orders.items.({"x": price}); $p#$i[x.active])')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps variable-bound nested block group reads contextual", () => {
+    expect(
+      sortPaths(
+        extractPaths("($p := orders.items.(price); $p#$i^(<rank){category: total})"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.rank", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps focus bindings across variable predicate sort and group stages", () => {
     expect(
       sortPaths(

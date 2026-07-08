@@ -345,6 +345,11 @@ function objectAliasFromPathProjection(
   scope: ScopeTracker,
 ): ObjectAlias | null {
   const projectionStep = node.steps[node.steps.length - 1];
+  if (projectionStep?.type === "block") {
+    const contextPrefix = buildPathString(node.steps.slice(0, -1)) ?? "";
+    if (!contextPrefix) return null;
+    return prefixObjectAlias(objectAliasForNode(projectionStep, scope), contextPrefix);
+  }
   if (projectionStep?.type !== "object") return null;
 
   const prefixSteps = node.steps.slice(0, -1);
@@ -1514,6 +1519,32 @@ function blockContextBasePaths(
   return prefixProjectionPaths(contextPrefix, bindingAliasPaths(node, scope));
 }
 
+function pathResultAliasContextBasePaths(
+  node: PathNode,
+  scope: ScopeTracker,
+): string[] {
+  const resultAliasStepIndex = node.steps.findIndex(isResultAliasStep);
+  if (resultAliasStepIndex < 0) return getResultBasePathsFromArg(node, scope);
+
+  const resultAliasStep = node.steps[resultAliasStepIndex];
+  const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
+  if (resultAliasStep.type === "array") {
+    return arrayConstructorContextBasePaths(
+      resultAliasStep as ArrayNode,
+      contextPrefix,
+      scope,
+    );
+  }
+  if (resultAliasStep.type === "object") {
+    return [];
+  }
+  if (resultAliasStep.type === "block") {
+    return blockContextBasePaths(resultAliasStep as BlockNode, contextPrefix, scope);
+  }
+
+  return getResultBasePathsFromArg(node, scope);
+}
+
 function prefixObjectAlias(
   alias: ObjectAlias | null,
   contextPrefix: string,
@@ -1525,6 +1556,18 @@ function prefixObjectAlias(
     fields.set(key, prefixProjectionPaths(contextPrefix, [...paths]));
   }
   return fields;
+}
+
+function unmatchedAliasSuffixBasePaths(
+  objectAlias: ObjectAlias | null,
+  suffixBasePaths: readonly string[],
+): string[] {
+  if (!objectAlias || suffixBasePaths.length === 0) return [...suffixBasePaths];
+
+  const aliasValueRoots = new Set(
+    [...objectAlias.values()].flatMap((paths) => [...paths]),
+  );
+  return suffixBasePaths.filter((path) => !aliasValueRoots.has(path));
 }
 
 function selectResultAliasProjectionStepPaths(
@@ -1803,7 +1846,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
                 dynamicObjectAlias,
                 (stage as unknown as FilterStage).expr,
                 aliasScope,
-                suffixBaseBinding,
+                unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
               )
             : [],
         ),
@@ -1813,7 +1856,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
               objectAlias,
               dynamicObjectAlias,
               aliasScope,
-              suffixBaseBinding,
+              unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
             )
           : []),
       ];
@@ -1878,11 +1921,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
 
     if (resolved && resolved.length > 0) {
       const paths: string[] = [];
+      const resolvedSuffixBases = [
+        ...(resolveSuffixBasePaths(scope, varStep.value) ?? []),
+      ];
+      const suffixContextPaths =
+        resolvedSuffixBases.length > 0 ? resolvedSuffixBases : [...resolved];
 
       // Inspect predicates on the resolved VariableNode for ADV-02 wildcard emission
       const predicates = varStep.predicate;
       if (predicates && predicates.length > 0) {
-        for (const resolvedPath of resolved) {
+        for (const resolvedPath of suffixContextPaths) {
           let predicateScope = scope;
           const predicateStageVariables = new Set<string>();
           const predicateNonPathVariables = new Set<string>();
@@ -1957,10 +2005,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
 
       // Concatenate resolved paths with suffix
       if (!handledFocusProjection) {
-        paths.push(...resolved.map((p) => appendPath(p, suffix)));
+        paths.push(...suffixContextPaths.map((p) => appendPath(p, suffix)));
       }
 
-      for (const resolvedPath of resolved) {
+      for (const resolvedPath of suffixContextPaths) {
         const { suffixScope, suffixStageVariables } = suffixScopeFor(resolvedPath);
         paths.push(
           ...walkResolvedVariableSuffixFilterStages(
@@ -1972,7 +2020,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         );
       }
 
-      for (const resolvedPath of resolved) {
+      for (const resolvedPath of suffixContextPaths) {
         const { suffixScope, suffixStageVariables } = suffixScopeFor(resolvedPath);
         paths.push(
           ...walkResolvedVariableSuffixSortTerms(
@@ -1985,7 +2033,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
 
       if (node.group) {
-        for (const resolvedPath of resolved) {
+        for (const resolvedPath of suffixContextPaths) {
           const suffixBase = buildPathString(suffixSteps) ?? "";
           const { suffixScope, suffixStageVariables } = suffixScopeFor(resolvedPath);
           paths.push(
@@ -4288,6 +4336,10 @@ function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] 
       ...getSuffixableResultBasePaths(condition.then, scope),
       ...(condition.else ? getSuffixableResultBasePaths(condition.else, scope) : []),
     ];
+  }
+
+  if (node.type === "path") {
+    return pathResultAliasContextBasePaths(node as PathNode, scope);
   }
 
   if (node.type === "array") {
