@@ -240,6 +240,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("keeps focus bindings on sorted function result group entries", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map(items, function($v){$v})@$r^(<$r.rank){$r.category: $r.total}"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+        { path: "items.rank", confidence: "static" },
+        { path: "items.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves variable-bound callbacks in apply chains", () => {
     expect(
       sortPaths(

@@ -2332,8 +2332,10 @@ function walkGroupBy(
     const focusBinding =
       resultAliasStep.type === "block" ||
       resultAliasStep.type === "array" ||
-      resultAliasStep.type === "object"
-        ? (resultAliasStep as BlockNode | ArrayNode | ObjectNode).focusBinding
+      resultAliasStep.type === "object" ||
+      resultAliasStep.type === "function"
+        ? (resultAliasStep as BlockNode | ArrayNode | ObjectNode | FunctionNode)
+            .focusBinding
         : undefined;
     const groupStageVariables = new Set(
       focusBinding ? [focusBinding.name] : [],
