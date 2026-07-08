@@ -3998,6 +3998,8 @@ function getMergeResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
 }
 
 function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[] {
+  if (isRootReference(node)) return [ROOT_PATH];
+
   if (node.type === "function") {
     const paths = getFunctionResultBasePaths(node as FunctionNode, scope);
     return paths.length > 0 ? paths : walkNode(node, scope).slice(0, 1);

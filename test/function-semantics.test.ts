@@ -696,6 +696,12 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves root aliases through path-preserving functions", () => {
+    expect(sortPaths(extractPaths("$clone($).customer.name"))).toEqual(
+      sortPaths([{ path: "customer.name", confidence: "static" }]),
+    );
+  });
+
   it("binds $clone results as suffixable aliases", () => {
     expect(sortPaths(extractPaths("($c := $clone(record); $c.detail.name)"))).toEqual(
       sortPaths([
