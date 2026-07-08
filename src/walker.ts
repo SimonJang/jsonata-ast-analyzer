@@ -2240,6 +2240,22 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
             : prefixProjectionPaths(projectionPrefix, resultPaths)),
         );
       }
+      if (resultAliasSuffixStageStart < 0) {
+        const aliasSuffixStagePaths = walkResultAliasSuffixStages(
+          step,
+          node.steps.slice(i + 1),
+          undefined,
+          stageScope,
+        );
+        if (aliasSuffixStagePaths.length > 0) {
+          paths.push(
+            ...(stageVariables.size > 0
+              ? aliasSuffixStagePaths
+              : prefixProjectionPaths(projectionPrefix, aliasSuffixStagePaths)),
+          );
+          resultAliasSuffixStageStart = i;
+        }
+      }
     }
 
     if (step.type === "name") {

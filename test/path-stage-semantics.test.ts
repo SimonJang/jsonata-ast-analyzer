@@ -1181,6 +1181,18 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves parent predicates in direct object alias suffix paths", () => {
+    expect(
+      sortPaths(extractPaths('orders.items.({"x": price}).x[%.active].name')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.%.active", confidence: "partial" },
+        { path: "orders.items.price.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves nested parent paths in mixed object alias suffix filters", () => {
     expect(
       sortPaths(
