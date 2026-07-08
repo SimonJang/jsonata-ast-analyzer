@@ -1449,6 +1449,18 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves focus-bound block predicate object aliases", () => {
+    expect(
+      sortPaths(extractPaths('({"x": $.items})@$v[$v.x.active].x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps bare lookup inputs root-relative in focus projections", () => {
     expect(sortPaths(extractPaths("ids@$id.($lookup(products, $id)).name"))).toEqual(
       sortPaths([

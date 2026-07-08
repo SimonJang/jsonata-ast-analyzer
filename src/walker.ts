@@ -2034,6 +2034,9 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
       if (blockStep.predicate && blockStep.predicate.length > 0) {
         const blockBasePaths = bindingAliasPaths(blockStep, stageScope);
+        const blockObjectAlias = objectAliasForNode(blockStep, stageScope);
+        const blockDynamicObjectAlias = dynamicObjectAliasForNode(blockStep, stageScope);
+        const blockSuffixBasePaths = getResultSuffixBasePaths(blockStep, stageScope);
         const predicatePrefixes =
           blockBasePaths.length > 0
             ? blockBasePaths
@@ -2048,10 +2051,13 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           predicateScope = childScope(stageScope);
         }
         if (blockStep.focusBinding) {
-          predicateScope = bindVariable(
-            predicateScope,
+          predicateScope = bindFocusObjectAliasScope(
+            stageScope,
             blockStep.focusBinding.name,
+            blockObjectAlias,
+            blockDynamicObjectAlias,
             blockBasePaths,
+            blockSuffixBasePaths,
           );
           predicateStageVariables.add(blockStep.focusBinding.name);
         }
