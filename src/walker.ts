@@ -182,6 +182,9 @@ function transformPatternPrefixes(
   const variableBasePaths = transformVariablePatternPrefixes(pattern, scope);
   if (variableBasePaths.length > 0) return variableBasePaths;
 
+  const variableAliasBasePaths = transformVariableAliasPatternPrefixes(pattern, scope);
+  if (variableAliasBasePaths.length > 0) return variableAliasBasePaths;
+
   const arrayConstructorBasePaths = transformArrayConstructorPatternPrefixes(
     pattern,
     scope,
@@ -205,6 +208,32 @@ function transformVariablePatternPrefixes(
   const suffixBasePaths =
     resolveSuffixBasePaths(scope, (pattern as VariableNode).value) ?? [];
   return suffixBasePaths.map(resolveParentPathSegments);
+}
+
+function transformVariableAliasPatternPrefixes(
+  pattern: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  if (pattern.type !== "path") return [];
+
+  const pathNode = pattern as PathNode;
+  const varStepIndex = pathNode.steps.findIndex((step) => step.type === "variable");
+  if (varStepIndex < 0) return [];
+
+  const varStep = pathNode.steps[varStepIndex] as VariableNode;
+  const objectAlias = resolveObjectAlias(scope, varStep.value);
+  const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
+  if (!objectAlias && !dynamicObjectAlias) return [];
+
+  const suffixBasePaths = resolveSuffixBasePaths(scope, varStep.value) ?? [];
+  const aliasPaths = selectVariableObjectAliasPaths(
+    objectAlias,
+    dynamicObjectAlias,
+    pathNode.steps.slice(varStepIndex + 1),
+    scope,
+    unmatchedAliasSuffixBasePaths(objectAlias, suffixBasePaths),
+  );
+  return aliasPaths ? aliasPaths.map(resolveParentPathSegments) : [];
 }
 
 function transformArrayConstructorPatternPrefixes(
