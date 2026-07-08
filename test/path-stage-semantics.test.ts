@@ -1610,6 +1610,22 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps block focus bindings for context group entries", () => {
+    expect(
+      sortPaths(extractPaths("(flag ? items : fallback)@$v{$v.category: $v.total}")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.category", confidence: "static" },
+        { path: "fallback.total", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+        { path: "items.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps bare lookup inputs root-relative in focus projections", () => {
     expect(sortPaths(extractPaths("ids@$id.($lookup(products, $id)).name"))).toEqual(
       sortPaths([
