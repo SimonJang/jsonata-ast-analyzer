@@ -1774,6 +1774,17 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves variable-bound nested block object suffix aliases contextually", () => {
+    expect(
+      sortPaths(extractPaths('($p := orders.items.({"x": price}); $p.x.name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves variable focus-bound nested block object predicate aliases contextually", () => {
     expect(
       sortPaths(extractPaths('($p := orders.items.({"x": price}); $p@$v[$v.x.active])')),

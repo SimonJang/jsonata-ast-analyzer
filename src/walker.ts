@@ -1819,6 +1819,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
     if (objectAlias || dynamicObjectAlias) {
       const suffixBaseBinding = resolveSuffixBasePaths(scope, varStep.value) ?? [];
+      const unmatchedSuffixBaseBinding = unmatchedAliasSuffixBasePaths(
+        objectAlias,
+        suffixBaseBinding,
+      );
       const aliasScope = varStep.focusBinding
         ? bindFocusObjectAliasScope(
             scope,
@@ -1835,7 +1839,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         dynamicObjectAlias,
         suffixSteps,
         aliasScope,
-        unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
+        unmatchedSuffixBaseBinding,
         Boolean(varStep.focusBinding),
       );
       const variableStagePaths = [
@@ -1846,7 +1850,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
                 dynamicObjectAlias,
                 (stage as unknown as FilterStage).expr,
                 aliasScope,
-                unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
+                unmatchedSuffixBaseBinding,
               )
             : [],
         ),
@@ -1856,7 +1860,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
               objectAlias,
               dynamicObjectAlias,
               aliasScope,
-              unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
+              unmatchedSuffixBaseBinding,
             )
           : []),
       ];
@@ -1873,7 +1877,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         objectAlias,
         dynamicObjectAlias,
         aliasScope,
-        unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
+        unmatchedSuffixBaseBinding,
         Boolean(varStep.focusBinding),
       );
       const suffixProjectionPaths = walkAliasSuffixProjectionSteps(
@@ -1886,8 +1890,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       );
       const suffix = buildPathString(suffixSteps);
       const suffixBasePaths =
-        suffix && suffixBaseBinding.length > 0
-          ? suffixBaseBinding.map((path) => appendPath(path, suffix))
+        suffix && unmatchedSuffixBaseBinding.length > 0
+          ? unmatchedSuffixBaseBinding.map((path) => appendPath(path, suffix))
           : [];
       const selectedObjectPaths = objectPaths ?? [];
       const suffixBaseRoots = new Set(suffixBaseBinding);
@@ -1902,7 +1906,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
               objectAlias,
               dynamicObjectAlias,
               aliasScope,
-              unmatchedAliasSuffixBasePaths(objectAlias, suffixBaseBinding),
+              unmatchedSuffixBaseBinding,
             )
           : walkAliasSuffixGroupEntries(
               node.group,
