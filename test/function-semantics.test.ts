@@ -250,6 +250,22 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves static lookup keys in chained result paths", () => {
+    expect(sortPaths(extractPaths('$lookup(inventory, "customer").name'))).toEqual(
+      sortPaths([
+        { path: "inventory", confidence: "static" },
+        { path: "inventory.customer", confidence: "static" },
+        { path: "inventory.customer.name", confidence: "static" },
+      ]),
+    );
+    expect(sortPaths(extractPaths('$lookup($, "customer").name'))).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("binds filter results without suffixing predicate reads", () => {
     expect(
       sortPaths(

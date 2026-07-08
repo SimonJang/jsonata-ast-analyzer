@@ -3927,6 +3927,8 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   if (!objectArg) return [];
 
   const selectorSteps = lookupSelectorSteps(args[1]);
+  const staticSelector =
+    args[1]?.type === "string" ? buildPathString(selectorSteps) : null;
   const paths: string[] = [];
 
   const objectAlias = objectAliasForNode(objectArg, scope);
@@ -3956,7 +3958,14 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
     paths.push(...selectLookupDynamicObjectAliasPaths(dynamicObjectAlias, []));
   }
 
-  return paths.length > 0 ? paths : getResultBasePathsFromArg(objectArg, scope);
+  if (paths.length > 0) return paths;
+
+  const basePaths = isRootReference(objectArg)
+    ? [ROOT_PATH]
+    : getResultBasePathsFromArg(objectArg, scope);
+  return staticSelector
+    ? basePaths.map((path) => appendPath(path, staticSelector))
+    : basePaths;
 }
 
 function getLookupResultDynamicObjectAlias(
