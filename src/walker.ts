@@ -882,11 +882,15 @@ function selectAliasSuffixContextPaths(
       suffixBasePaths,
     ) ?? [];
   const suffix = buildPathString(suffixSteps);
+  const unmatchedSuffixBasePaths = unmatchedAliasSuffixBasePaths(
+    objectAlias,
+    suffixBasePaths,
+  );
   const suffixBaseContextPaths =
-    suffix && suffixBasePaths.length > 0
-      ? suffixBasePaths.map((path) => appendPath(path, suffix))
+    suffix && unmatchedSuffixBasePaths.length > 0
+      ? unmatchedSuffixBasePaths.map((path) => appendPath(path, suffix))
       : [];
-  const suffixBaseRoots = new Set(suffixBasePaths);
+  const suffixBaseRoots = new Set(unmatchedSuffixBasePaths);
   return [
     ...aliasPaths.filter((path) => !suffixBaseRoots.has(path)),
     ...suffixBaseContextPaths,
@@ -1958,7 +1962,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           ? unmatchedSuffixBaseBinding.map((path) => appendPath(path, suffix))
           : [];
       const selectedObjectPaths = objectPaths ?? [];
-      const suffixBaseRoots = new Set(suffixBaseBinding);
+      const suffixBaseRoots = new Set(unmatchedSuffixBaseBinding);
       const groupBasePaths = [
         ...selectedObjectPaths.filter((path) => !suffixBaseRoots.has(path)),
         ...suffixBasePaths,

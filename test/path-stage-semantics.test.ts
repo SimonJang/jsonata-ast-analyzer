@@ -1785,6 +1785,18 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses variable-bound object alias suffixes as predicate context", () => {
+    expect(
+      sortPaths(extractPaths('($p := orders.items.({"x": price}); $p.x[active].name)')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves variable focus-bound nested block object predicate aliases contextually", () => {
     expect(
       sortPaths(extractPaths('($p := orders.items.({"x": price}); $p@$v[$v.x.active])')),
@@ -1792,6 +1804,18 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("uses variable-bound object alias suffixes as group context", () => {
+    expect(
+      sortPaths(extractPaths('($p := orders.items.({"x": price}); $p.x{category: total})')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
       ]),
     );
   });
