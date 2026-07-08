@@ -3007,6 +3007,10 @@ function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string
 function walkFunctionGroupBy(node: FunctionNode, scope: ScopeTracker): string[] {
   if (!node.group) return [];
 
+  const groupScope = bindStepFocusScope(node, scope);
+  const groupStageVariables = new Set(
+    node.focusBinding ? [node.focusBinding.name] : [],
+  );
   const objectAlias = getFunctionResultObjectAlias(node, scope);
   const dynamicObjectAlias = getFunctionResultDynamicObjectAlias(node, scope);
 
@@ -3015,13 +3019,13 @@ function walkFunctionGroupBy(node: FunctionNode, scope: ScopeTracker): string[] 
       node.group,
       objectAlias,
       dynamicObjectAlias,
-      scope,
+      groupScope,
       getFunctionResultSuffixBasePaths(node, scope),
     );
   }
 
   return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
-    walkContextGroupEntries(node.group!, basePath, scope),
+    walkContextGroupEntries(node.group!, basePath, groupScope, groupStageVariables),
   );
 }
 
