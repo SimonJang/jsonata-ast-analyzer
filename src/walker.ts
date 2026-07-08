@@ -1781,6 +1781,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         for (const resolvedPath of resolved) {
           let predicateScope = scope;
           const predicateStageVariables = new Set<string>();
+          const predicateNonPathVariables = new Set<string>();
           if (varStep.focusBinding) {
             predicateScope = bindVariable(
               childScope(scope),
@@ -1789,12 +1790,17 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
             );
             predicateStageVariables.add(varStep.focusBinding.name);
           }
+          if (varStep.indexBinding) {
+            if (predicateScope === scope) predicateScope = childScope(predicateScope);
+            predicateScope = bindVariable(predicateScope, varStep.indexBinding.name, []);
+            predicateNonPathVariables.add(varStep.indexBinding.name);
+          }
           paths.push(
             ...walkFilterStages(
               predicates,
               resolvedPath,
               predicateScope,
-              new Set(),
+              predicateNonPathVariables,
               predicateStageVariables,
             ),
           );
@@ -2829,6 +2835,7 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
       for (const resolvedPath of resolved) {
         let predicateScope = scope;
         const predicateStageVariables = new Set<string>();
+        const predicateNonPathVariables = new Set<string>();
         if (node.focusBinding) {
           predicateScope = bindVariable(
             childScope(scope),
@@ -2837,12 +2844,17 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
           );
           predicateStageVariables.add(node.focusBinding.name);
         }
+        if (node.indexBinding) {
+          if (predicateScope === scope) predicateScope = childScope(predicateScope);
+          predicateScope = bindVariable(predicateScope, node.indexBinding.name, []);
+          predicateNonPathVariables.add(node.indexBinding.name);
+        }
         paths.push(
           ...walkFilterStages(
             predicates,
             resolvedPath,
             predicateScope,
-            new Set(),
+            predicateNonPathVariables,
             predicateStageVariables,
           ),
         );

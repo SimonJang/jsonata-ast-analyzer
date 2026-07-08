@@ -69,8 +69,12 @@ function normalizeVariable(node: RawAstNode): VariableNode {
     type: "variable",
     value: String(node.value ?? ""),
     position: positionOf(node),
-    predicate: rawList(node.predicate).map(normalizeAst),
+    predicate: [
+      ...rawList(node.predicate),
+      ...rawList(node.stages),
+    ].map(normalizeAst),
     focusBinding: contextBinding(node.focus, positionOf(node)),
+    indexBinding: positionBinding(node.index, positionOf(node)),
     group: normalizeGroup(node.group),
     source: sourceOf(node),
   };

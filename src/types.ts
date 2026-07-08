@@ -139,6 +139,7 @@ export interface VariableNode extends AnalyzerNode {
   position: number;
   predicate?: AstNode[]; // filter stages (same structure as NameNode.stages but different property name)
   focusBinding?: ContextBindingNode; // context variable from @$v
+  indexBinding?: PositionBindingNode; // positional variable from #$i
   group?: GroupByNode; // group-by expression (mirrors PathNode.group)
 }
 

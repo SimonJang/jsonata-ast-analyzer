@@ -1520,6 +1520,15 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps indexed variable stage predicate reads", () => {
+    expect(sortPaths(extractPaths("($items := orders.items; $items#$i[active])"))).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.active", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves focus-bound block predicate object aliases", () => {
     expect(
       sortPaths(extractPaths('({"x": $.items})@$v[$v.x.active].x.name')),
