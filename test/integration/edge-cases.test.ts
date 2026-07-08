@@ -125,7 +125,8 @@ describe("Edge Cases", () => {
         expression: `$lookup(inventory, itemCode).quantity`,
         expectedPaths: [
           { path: "inventory", confidence: "static" },
-          { path: "inventory.quantity", confidence: "static" },
+          { path: "inventory[*]", confidence: "dynamic" },
+          { path: "inventory[*].quantity", confidence: "dynamic" },
           { path: "itemCode", confidence: "static" },
         ],
       });
@@ -202,7 +203,8 @@ describe("Edge Cases", () => {
         expectedPaths: [
           { path: "code", confidence: "static" },
           { path: "inventory", confidence: "static" },
-          { path: "inventory.details.weight", confidence: "static" },
+          { path: "inventory[*]", confidence: "dynamic" },
+          { path: "inventory[*].details.weight", confidence: "dynamic" },
         ],
       },
       {
@@ -212,7 +214,8 @@ describe("Edge Cases", () => {
           { path: "a", confidence: "static" },
           { path: "b", confidence: "static" },
           { path: "ref", confidence: "static" },
-          { path: "ref.result", confidence: "static" },
+          { path: "ref[*]", confidence: "dynamic" },
+          { path: "ref[*].result", confidence: "dynamic" },
         ],
       },
       {
@@ -222,8 +225,10 @@ describe("Edge Cases", () => {
           { path: "key1", confidence: "static" },
           { path: "key2", confidence: "static" },
           { path: "outer", confidence: "static" },
-          { path: "outer.inner", confidence: "static" },
-          { path: "outer.inner.value", confidence: "static" },
+          { path: "outer[*]", confidence: "dynamic" },
+          { path: "outer[*].inner", confidence: "dynamic" },
+          { path: "outer[*].inner[*]", confidence: "dynamic" },
+          { path: "outer[*].inner[*].value", confidence: "dynamic" },
         ],
       },
       {
@@ -231,7 +236,8 @@ describe("Edge Cases", () => {
         expression: `$lookup(config.tables.data, key).status`,
         expectedPaths: [
           { path: "config.tables.data", confidence: "static" },
-          { path: "config.tables.data.status", confidence: "static" },
+          { path: "config.tables.data[*]", confidence: "dynamic" },
+          { path: "config.tables.data[*].status", confidence: "dynamic" },
           { path: "key", confidence: "static" },
         ],
       },
@@ -241,7 +247,8 @@ describe("Edge Cases", () => {
         expectedPaths: [
           { path: "order.sku", confidence: "static" },
           { path: "products", confidence: "static" },
-          { path: "products.description", confidence: "static" },
+          { path: "products[*]", confidence: "dynamic" },
+          { path: "products[*].description", confidence: "dynamic" },
         ],
       },
     ];

@@ -119,7 +119,12 @@ for (let i = 0; i < 15; i++) {
     "partials",
     `lookup partial ${i}`,
     `($lookup${i} := $lookup(customers${i}, ?); $lookup${i}(customer${i}.id${i}).name${i})`,
-    [path(`customer${i}.id${i}`), path(`customers${i}`), path(`customers${i}.name${i}`)],
+    [
+      path(`customer${i}.id${i}`),
+      path(`customers${i}`),
+      path(`customers${i}[*]`, "dynamic"),
+      path(`customers${i}[*].name${i}`, "dynamic"),
+    ],
   );
   add(
     "partials",

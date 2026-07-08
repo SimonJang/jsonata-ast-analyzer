@@ -4008,6 +4008,13 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
     paths.push(...selectLookupDynamicObjectAliasPaths(dynamicObjectAlias, []));
   }
 
+  if (!staticSelector && paths.length === 0 && !objectAlias && !dynamicObjectAlias) {
+    const basePaths = isRootReference(objectArg)
+      ? [ROOT_PATH]
+      : getResultBasePathsFromArg(objectArg, scope);
+    paths.push(...basePaths.map(appendDynamicLookupMarker));
+  }
+
   if (paths.length > 0) return paths;
 
   const basePaths = isRootReference(objectArg)
@@ -4016,6 +4023,10 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   return staticSelector
     ? basePaths.map((path) => appendPath(path, staticSelector))
     : basePaths;
+}
+
+function appendDynamicLookupMarker(basePath: string): string {
+  return basePath === ROOT_PATH ? appendPath(ROOT_PATH, "[*]") : `${basePath}[*]`;
 }
 
 function getLookupResultDynamicObjectAlias(

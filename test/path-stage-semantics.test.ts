@@ -1454,7 +1454,8 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "ids", confidence: "static" },
         { path: "products", confidence: "static" },
-        { path: "products.name", confidence: "static" },
+        { path: "products[*]", confidence: "dynamic" },
+        { path: "products[*].name", confidence: "dynamic" },
       ]),
     );
   });
@@ -1466,8 +1467,9 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "ids", confidence: "static" },
         { path: "products", confidence: "static" },
-        { path: "products.detail", confidence: "static" },
-        { path: "products.detail.name", confidence: "static" },
+        { path: "products[*]", confidence: "dynamic" },
+        { path: "products[*].detail", confidence: "dynamic" },
+        { path: "products[*].detail.name", confidence: "dynamic" },
       ]),
     );
   });

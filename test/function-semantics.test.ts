@@ -29,7 +29,8 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "customers", confidence: "static" },
-        { path: "customers.name", confidence: "static" },
+        { path: "customers[*]", confidence: "dynamic" },
+        { path: "customers[*].name", confidence: "dynamic" },
         { path: "customerId", confidence: "static" },
       ]),
     );
@@ -46,7 +47,8 @@ describe("function semantics", () => {
       sortPaths([
         { path: "customerId", confidence: "static" },
         { path: "products", confidence: "static" },
-        { path: "products.price", confidence: "static" },
+        { path: "products[*]", confidence: "dynamic" },
+        { path: "products[*].price", confidence: "dynamic" },
       ]),
     );
   });
@@ -79,7 +81,8 @@ describe("function semantics", () => {
       sortPaths([
         { path: "customerId", confidence: "static" },
         { path: "products", confidence: "static" },
-        { path: "products.price", confidence: "static" },
+        { path: "products[*]", confidence: "dynamic" },
+        { path: "products[*].price", confidence: "dynamic" },
       ]),
     );
   });
@@ -244,7 +247,8 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "products", confidence: "static" },
-        { path: "products.price", confidence: "static" },
+        { path: "products[*]", confidence: "dynamic" },
+        { path: "products[*].price", confidence: "dynamic" },
         { path: "sku", confidence: "static" },
       ]),
     );
@@ -259,6 +263,24 @@ describe("function semantics", () => {
     );
     expect(sortPaths(extractPaths('$lookup($, "customer")'))).toEqual(
       sortPaths([{ path: "customer", confidence: "static" }]),
+    );
+  });
+
+  it("marks dynamic lookup keys with wildcard result paths", () => {
+    expect(sortPaths(extractPaths("$lookup(inventory, category).name"))).toEqual(
+      sortPaths([
+        { path: "category", confidence: "static" },
+        { path: "inventory", confidence: "static" },
+        { path: "inventory[*]", confidence: "dynamic" },
+        { path: "inventory[*].name", confidence: "dynamic" },
+      ]),
+    );
+    expect(sortPaths(extractPaths("$lookup($, category).name"))).toEqual(
+      sortPaths([
+        { path: "category", confidence: "static" },
+        { path: "[*]", confidence: "dynamic" },
+        { path: "[*].name", confidence: "dynamic" },
+      ]),
     );
   });
 
@@ -348,8 +370,10 @@ describe("function semantics", () => {
         { path: "key1", confidence: "static" },
         { path: "key2", confidence: "static" },
         { path: "outer", confidence: "static" },
-        { path: "outer.inner", confidence: "static" },
-        { path: "outer.inner.value", confidence: "static" },
+        { path: "outer[*]", confidence: "dynamic" },
+        { path: "outer[*].inner", confidence: "dynamic" },
+        { path: "outer[*].inner[*]", confidence: "dynamic" },
+        { path: "outer[*].inner[*].value", confidence: "dynamic" },
       ]),
     );
   });
@@ -2392,7 +2416,8 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "products", confidence: "static" },
-        { path: "products.name", confidence: "static" },
+        { path: "products[*]", confidence: "dynamic" },
+        { path: "products[*].name", confidence: "dynamic" },
         { path: "sku", confidence: "static" },
       ]),
     );

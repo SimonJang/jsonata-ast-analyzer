@@ -138,6 +138,7 @@ describe("Business Rules", () => {
         expectedPaths: [
           { path: "orders.productId", confidence: "static" },
           { path: "products", confidence: "static" },
+          { path: "products[*]", confidence: "dynamic" },
         ],
       },
       {
@@ -163,7 +164,8 @@ describe("Business Rules", () => {
         expression: `$lookup(products, sku).price`,
         expectedPaths: [
           { path: "products", confidence: "static" },
-          { path: "products.price", confidence: "static" },
+          { path: "products[*]", confidence: "dynamic" },
+          { path: "products[*].price", confidence: "dynamic" },
           { path: "sku", confidence: "static" },
         ],
       });
@@ -241,7 +243,8 @@ describe("Business Rules", () => {
         expression: `($k := order.productId; $lookup(catalog, $k).name)`,
         expectedPaths: [
           { path: "catalog", confidence: "static" },
-          { path: "catalog.name", confidence: "static" },
+          { path: "catalog[*]", confidence: "dynamic" },
+          { path: "catalog[*].name", confidence: "dynamic" },
           { path: "order.productId", confidence: "static" },
         ],
       },
@@ -250,7 +253,8 @@ describe("Business Rules", () => {
         expression: `{"price": $lookup(products, sku).price}`,
         expectedPaths: [
           { path: "products", confidence: "static" },
-          { path: "products.price", confidence: "static" },
+          { path: "products[*]", confidence: "dynamic" },
+          { path: "products[*].price", confidence: "dynamic" },
           { path: "sku", confidence: "static" },
         ],
       },
@@ -261,9 +265,11 @@ describe("Business Rules", () => {
           { path: "key1", confidence: "static" },
           { path: "key2", confidence: "static" },
           { path: "tableA", confidence: "static" },
-          { path: "tableA.fieldA", confidence: "static" },
+          { path: "tableA[*]", confidence: "dynamic" },
+          { path: "tableA[*].fieldA", confidence: "dynamic" },
           { path: "tableB", confidence: "static" },
-          { path: "tableB.fieldB", confidence: "static" },
+          { path: "tableB[*]", confidence: "dynamic" },
+          { path: "tableB[*].fieldB", confidence: "dynamic" },
         ],
       },
       {
@@ -272,7 +278,8 @@ describe("Business Rules", () => {
         expectedPaths: [
           { path: "code", confidence: "static" },
           { path: "db.inventory", confidence: "static" },
-          { path: "db.inventory.available", confidence: "static" },
+          { path: "db.inventory[*]", confidence: "dynamic" },
+          { path: "db.inventory[*].available", confidence: "dynamic" },
         ],
       },
       {
@@ -281,6 +288,7 @@ describe("Business Rules", () => {
         expectedPaths: [
           { path: "orders.productId", confidence: "static" },
           { path: "products", confidence: "static" },
+          { path: "products[*]", confidence: "dynamic" },
         ],
       },
       {
@@ -288,7 +296,8 @@ describe("Business Rules", () => {
         expression: `status = "found" ? $lookup(cache, id).value : default`,
         expectedPaths: [
           { path: "cache", confidence: "static" },
-          { path: "cache.value", confidence: "static" },
+          { path: "cache[*]", confidence: "dynamic" },
+          { path: "cache[*].value", confidence: "dynamic" },
           { path: "default", confidence: "static" },
           { path: "id", confidence: "static" },
           { path: "status", confidence: "static" },
