@@ -722,6 +722,17 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds root arguments in function callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths("($project := function($v) { $v }; $project($).customer.name)"),
+      ),
+    ).toEqual(sortPaths([{ path: "customer.name", confidence: "static" }]));
+    expect(sortPaths(extractPaths("$map($, function($v) { $v.customer.name })"))).toEqual(
+      sortPaths([{ path: "customer.name", confidence: "static" }]),
+    );
+  });
+
   it("preserves projected custom function result aliases in chained fields", () => {
     expect(
       sortPaths(

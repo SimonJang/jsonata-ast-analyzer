@@ -2775,6 +2775,8 @@ function filterToBasePaths(paths: string[]): string[] {
  * Default: falls back to walkNode (no filter stages to strip)
  */
 function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+  if (isRootReference(node)) return [ROOT_PATH];
+
   if (node.type === "path") {
     const pathNode = node as PathNode;
     if (isRootReference(pathNode.steps[0])) {
