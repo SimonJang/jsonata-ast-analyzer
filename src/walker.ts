@@ -2695,6 +2695,10 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
     }
   }
 
+  if (funcName === "lookup") {
+    paths.push(...getLookupResultBasePaths(args, scope));
+  }
+
   return withFunctionStages(paths);
 }
 

@@ -250,6 +250,18 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves static lookup keys in direct result paths", () => {
+    expect(sortPaths(extractPaths('$lookup(inventory, "customer")'))).toEqual(
+      sortPaths([
+        { path: "inventory", confidence: "static" },
+        { path: "inventory.customer", confidence: "static" },
+      ]),
+    );
+    expect(sortPaths(extractPaths('$lookup($, "customer")'))).toEqual(
+      sortPaths([{ path: "customer", confidence: "static" }]),
+    );
+  });
+
   it("preserves static lookup keys in chained result paths", () => {
     expect(sortPaths(extractPaths('$lookup(inventory, "customer").name'))).toEqual(
       sortPaths([
