@@ -690,8 +690,17 @@ function selectVariableObjectAliasPaths(
   );
   if (projectionPaths) {
     const suffix = buildPathString(rest);
+    const projectionBasePaths =
+      selector && selector.type !== "object"
+        ? (projectionStepExpressions(selector) ?? []).flatMap((expr) =>
+            bindingAliasPaths(expr, scope),
+          )
+        : [];
     return suffix && selector?.type !== "object"
-      ? [...projectionPaths, ...projectionPaths.map((path) => appendPath(path, suffix))]
+      ? [
+          ...projectionPaths,
+          ...projectionBasePaths.map((path) => appendPath(path, suffix)),
+        ]
       : projectionPaths;
   }
 

@@ -1489,6 +1489,19 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("does not suffix block focus predicate reads from child projections", () => {
+    expect(
+      sortPaths(extractPaths('({"x": $.items})@$v.($v.x.children[$v.x.active]).name')),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "items.children", confidence: "static" },
+        { path: "items.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps block focus bindings for group entries", () => {
     expect(sortPaths(extractPaths('({"x": $.items})@$v{$v.x.category: $v.x.total}'))).toEqual(
       sortPaths([
