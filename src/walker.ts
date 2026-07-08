@@ -2241,10 +2241,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         );
       }
       if (resultAliasSuffixStageStart < 0) {
+        const suffixSteps = node.steps.slice(i + 1);
+        const suffixGroupNode = suffixSteps.some((suffixStep) => suffixStep.type === "sort")
+          ? undefined
+          : node.group;
         const aliasSuffixStagePaths = walkResultAliasSuffixStages(
           step,
-          node.steps.slice(i + 1),
-          undefined,
+          suffixSteps,
+          suffixGroupNode,
           stageScope,
         );
         if (aliasSuffixStagePaths.length > 0) {
@@ -2254,6 +2258,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
               : prefixProjectionPaths(projectionPrefix, aliasSuffixStagePaths)),
           );
           resultAliasSuffixStageStart = i;
+          skipResultAliasGroupBy = Boolean(suffixGroupNode);
         }
       }
     }
