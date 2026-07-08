@@ -100,6 +100,8 @@ export interface ArrayNode extends AnalyzerNode {
   position: number;
   expressions: AstNode[];
   predicate?: AstNode[];
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface ObjectNode extends AnalyzerNode {

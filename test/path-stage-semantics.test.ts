@@ -1424,6 +1424,15 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps focus bindings on array constructor predicates", () => {
+    expect(sortPaths(extractPaths("[items]@$v[$v.active]"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps bare focus projection paths root-relative", () => {
     expect(sortPaths(extractPaths("items@$v.(price & $v.type)"))).toEqual(
       sortPaths([

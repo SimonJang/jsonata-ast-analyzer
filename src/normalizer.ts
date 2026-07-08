@@ -165,7 +165,12 @@ export function normalizeAst(node: RawAstNode): AstNode {
           type: "array",
           position: positionOf(node),
           expressions: rawList(node.expressions).map(normalizeAst),
-          predicate: rawList(node.predicate).map(normalizeAst),
+          predicate: [
+            ...rawList(node.predicate),
+            ...rawList(node.stages),
+          ].map(normalizeAst),
+          focusBinding: contextBinding(node.focus, positionOf(node)),
+          indexBinding: positionBinding(node.index, positionOf(node)),
           source: sourceOf(node),
         };
       }

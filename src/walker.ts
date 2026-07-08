@@ -2629,8 +2629,38 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
     }
   }
   if (node.predicate && node.predicate.length > 0) {
-    for (const resultBasePath of bindingAliasPaths(node, scope)) {
-      paths.push(...walkFilterStages(node.predicate, resultBasePath, currentScope));
+    let predicateScope = currentScope;
+    const predicateStageVariables = new Set<string>();
+    const predicateNonPathVariables = new Set<string>();
+    const resultBasePaths = bindingAliasPaths(node, scope);
+
+    if (node.focusBinding) {
+      predicateScope = bindFocusObjectAliasScope(
+        predicateScope,
+        node.focusBinding.name,
+        objectAliasForNode(node, scope),
+        dynamicObjectAliasForNode(node, scope),
+        resultBasePaths,
+        getResultSuffixBasePaths(node, scope),
+      );
+      predicateStageVariables.add(node.focusBinding.name);
+    }
+    if (node.indexBinding) {
+      if (predicateScope === currentScope) predicateScope = childScope(predicateScope);
+      predicateScope = bindVariable(predicateScope, node.indexBinding.name, []);
+      predicateNonPathVariables.add(node.indexBinding.name);
+    }
+
+    for (const resultBasePath of resultBasePaths) {
+      paths.push(
+        ...walkFilterStages(
+          node.predicate,
+          resultBasePath,
+          predicateScope,
+          predicateNonPathVariables,
+          predicateStageVariables,
+        ),
+      );
     }
   }
   return paths;
