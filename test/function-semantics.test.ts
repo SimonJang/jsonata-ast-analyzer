@@ -182,6 +182,17 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("does not emit synthetic bases for terminal higher-order function path steps", () => {
+    expect(
+      sortPaths(extractPaths("orders.items.$map(tags, function($v){$v.name})")),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.tags", confidence: "static" },
+        { path: "orders.items.tags.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("contextualizes lookup object arguments in path steps", () => {
     expect(
       sortPaths(extractPaths('orders.items.$lookup({"x": price}, "x").name')),
