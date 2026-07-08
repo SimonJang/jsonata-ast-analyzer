@@ -3231,19 +3231,39 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
       const groupNode = node.group;
       const objectAlias = resolveObjectAlias(scope, node.value);
       const dynamicObjectAlias = resolveDynamicObjectAlias(scope, node.value);
+      let groupScope = scope;
+      const groupStageVariables = new Set<string>();
+      if (node.focusBinding) {
+        groupScope = bindFocusObjectAliasScope(
+          scope,
+          node.focusBinding.name,
+          objectAlias,
+          dynamicObjectAlias,
+          variableBasePaths,
+          suffixBasePaths.length > 0 ? suffixBasePaths : variableBasePaths,
+        );
+        groupStageVariables.add(node.focusBinding.name);
+      }
+      if (node.indexBinding) {
+        if (groupScope === scope) groupScope = childScope(scope);
+        groupScope = bindVariable(groupScope, node.indexBinding.name, []);
+      }
       paths.push(
         ...(objectAlias || dynamicObjectAlias
           ? walkAliasGroupEntries(
               groupNode,
               objectAlias,
               dynamicObjectAlias,
-              scope,
+              groupScope,
               suffixBasePaths,
             )
-          : walkContextGroupEntries(
-              groupNode,
-              variableBasePaths.length > 0 ? variableBasePaths[0] : "",
-              scope,
+          : variableBasePaths.flatMap((basePath) =>
+              walkContextGroupEntries(
+                groupNode,
+                basePath,
+                groupScope,
+                groupStageVariables,
+              ),
             )),
       );
     }

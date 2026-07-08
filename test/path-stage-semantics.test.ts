@@ -1789,9 +1789,37 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps variable focus-bound nested block group reads contextual", () => {
+    expect(
+      sortPaths(extractPaths("($p := orders.items.(price); $p@$v{$v.category: $v.total})")),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves variable-bound nested block object group aliases contextually", () => {
     expect(
       sortPaths(extractPaths('($p := orders.items.({"x": price}); $p#$i{x.category: x.total})')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("resolves variable focus-bound nested object group aliases contextually", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($p := orders.items.({"x": price}); $p@$v{$v.x.category: $v.x.total})',
+        ),
+      ),
     ).toEqual(
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
