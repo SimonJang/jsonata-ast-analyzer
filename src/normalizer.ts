@@ -155,6 +155,8 @@ export function normalizeAst(node: RawAstNode): AstNode {
         expressions: rawList(node.expressions).map(normalizeAst),
         group: normalizeGroup(node.group),
         predicate: rawList(node.predicate).map(normalizeAst),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "unary":

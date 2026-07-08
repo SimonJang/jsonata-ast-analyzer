@@ -85,6 +85,8 @@ export interface BlockNode extends AnalyzerNode {
   expressions: AstNode[];
   group?: GroupByNode;
   predicate?: AstNode[];
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface NegateNode extends AnalyzerNode {

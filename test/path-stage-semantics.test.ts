@@ -1439,6 +1439,16 @@ describe("path-stage semantics", () => {
     ]);
   });
 
+  it("keeps focus bindings on parenthesized path filters", () => {
+    expect(sortPaths(extractPaths("($.items)@$item[$item.active].name"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps bare lookup inputs root-relative in focus projections", () => {
     expect(sortPaths(extractPaths("ids@$id.($lookup(products, $id)).name"))).toEqual(
       sortPaths([

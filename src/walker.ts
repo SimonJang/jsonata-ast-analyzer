@@ -2032,6 +2032,50 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           ...walkContextExpression(expr, contextPrefix, stageScope, stageVariables, true),
         );
       }
+      if (blockStep.predicate && blockStep.predicate.length > 0) {
+        const blockBasePaths = bindingAliasPaths(blockStep, stageScope);
+        const predicatePrefixes =
+          blockBasePaths.length > 0
+            ? blockBasePaths
+            : contextPrefix
+              ? [contextPrefix]
+              : [];
+        let predicateScope = stageScope;
+        const predicateStageVariables = new Set(stageVariables);
+        const predicateNonPathVariables = new Set(nonPathVariables);
+
+        if (blockStep.focusBinding || blockStep.indexBinding) {
+          predicateScope = childScope(stageScope);
+        }
+        if (blockStep.focusBinding) {
+          predicateScope = bindVariable(
+            predicateScope,
+            blockStep.focusBinding.name,
+            blockBasePaths,
+          );
+          predicateStageVariables.add(blockStep.focusBinding.name);
+        }
+        if (blockStep.indexBinding) {
+          predicateScope = bindVariable(
+            predicateScope,
+            blockStep.indexBinding.name,
+            [],
+          );
+          predicateNonPathVariables.add(blockStep.indexBinding.name);
+        }
+
+        for (const prefix of predicatePrefixes) {
+          paths.push(
+            ...walkFilterStages(
+              blockStep.predicate,
+              prefix,
+              predicateScope,
+              predicateNonPathVariables,
+              predicateStageVariables,
+            ),
+          );
+        }
+      }
     } else if (step.type === "function") {
       // Function call step (e.g., $lookup(obj, key) in $lookup(obj, key).field)
       // Walk the function call to extract argument paths
