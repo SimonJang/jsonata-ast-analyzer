@@ -1205,6 +1205,17 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses direct object alias suffixes as function context", () => {
+    expect(
+      sortPaths(extractPaths('orders.items.({"x": price}).x.$sum(amount)')),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.amount", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves nested parent paths in mixed object alias suffix filters", () => {
     expect(
       sortPaths(

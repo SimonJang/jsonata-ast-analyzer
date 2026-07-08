@@ -1081,6 +1081,53 @@ function walkAliasSuffixProjectionSteps(
   return paths;
 }
 
+function walkAliasSuffixFunctionSteps(
+  suffixSteps: AstNode[],
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+  suffixBasePaths: readonly string[] = [],
+): string[] {
+  const paths: string[] = [];
+
+  for (const [index, step] of suffixSteps.entries()) {
+    if (step.type !== "function") continue;
+
+    const contextPrefixSteps = suffixSteps.slice(0, index);
+    const contextPaths =
+      contextPrefixSteps.length > 0
+        ? selectAliasSuffixContextPaths(
+            contextPrefixSteps,
+            objectAlias,
+            dynamicObjectAlias,
+            scope,
+            suffixBasePaths,
+          )
+        : [];
+    const parentContextPaths =
+      contextPrefixSteps.length > 1
+        ? selectAliasSuffixContextPaths(
+            contextPrefixSteps.slice(0, -1),
+            objectAlias,
+            dynamicObjectAlias,
+            scope,
+            suffixBasePaths,
+          )
+        : [];
+
+    paths.push(
+      ...walkAliasSuffixContextExpression(
+        step,
+        contextPaths,
+        parentContextPaths,
+        scope,
+      ),
+    );
+  }
+
+  return paths;
+}
+
 function walkAliasSuffixContextExpression(
   expr: AstNode,
   contextPaths: readonly string[],
@@ -1483,6 +1530,13 @@ function walkResultAliasSuffixStages(
       suffixBasePaths,
     ),
     ...walkAliasSuffixProjectionSteps(
+      suffixSteps,
+      objectAlias,
+      dynamicObjectAlias,
+      suffixScope,
+      suffixBasePaths,
+    ),
+    ...walkAliasSuffixFunctionSteps(
       suffixSteps,
       objectAlias,
       dynamicObjectAlias,
@@ -2555,6 +2609,9 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         }
       }
     } else if (step.type === "function") {
+      if (resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart) {
+        continue;
+      }
       // Function call step (e.g., $lookup(obj, key) in $lookup(obj, key).field)
       // Function arguments in a path step are evaluated against the prior path context.
       const functionContextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
