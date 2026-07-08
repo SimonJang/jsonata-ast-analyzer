@@ -1461,6 +1461,15 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps block focus bindings for predicate-only blocks", () => {
+    expect(sortPaths(extractPaths('({"x": $.items})@$v[$v.x.active]'))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps block focus bindings for suffix projections", () => {
     expect(sortPaths(extractPaths('({"x": $.items})@$v.($v.x.detail).name'))).toEqual(
       sortPaths([

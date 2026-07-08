@@ -2535,8 +2535,19 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
   }
 
   if (node.predicate && node.predicate.length > 0) {
+    const predicateScope = bindStepFocusScope(node, currentScope);
+    const predicateStageVariables = new Set<string>();
+    if (node.focusBinding) predicateStageVariables.add(node.focusBinding.name);
     for (const resultBasePath of bindingAliasPathsFromBlock(node, scope)) {
-      paths.push(...walkFilterStages(node.predicate, resultBasePath, currentScope));
+      paths.push(
+        ...walkFilterStages(
+          node.predicate,
+          resultBasePath,
+          predicateScope,
+          new Set(),
+          predicateStageVariables,
+        ),
+      );
     }
   }
 
