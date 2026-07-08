@@ -4068,11 +4068,16 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
       paths.push(...walkNode(node.rhs, scope));
     }
   } else if (node.rhs.type === "lambda") {
-    // Inline lambda application: bind first parameter to lhs paths
+    // Inline lambda application: bind first parameter to lhs base paths
     const lambda = node.rhs as LambdaNode;
     let lambdaScope = childScope(scope);
     if (lambda.arguments.length > 0) {
-      lambdaScope = bindVariable(lambdaScope, lambda.arguments[0].value, lhsPaths);
+      const lhsBasePaths = extractBasePaths(node.lhs, scope);
+      lambdaScope = bindVariable(
+        lambdaScope,
+        lambda.arguments[0].value,
+        lhsBasePaths.length > 0 ? lhsBasePaths : lhsPaths,
+      );
     }
     paths.push(...walkNode(lambda.body, lambdaScope));
   } else if (node.rhs.type === "transform") {

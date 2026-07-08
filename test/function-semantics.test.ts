@@ -733,6 +733,12 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds root arguments in inline apply lambdas", () => {
+    expect(sortPaths(extractPaths("$ ~> function($v) { $v.customer.name }"))).toEqual(
+      sortPaths([{ path: "customer.name", confidence: "static" }]),
+    );
+  });
+
   it("preserves projected custom function result aliases in chained fields", () => {
     expect(
       sortPaths(
