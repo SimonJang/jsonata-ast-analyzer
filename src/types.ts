@@ -99,6 +99,7 @@ export interface ArrayNode extends AnalyzerNode {
   type: "array";
   position: number;
   expressions: AstNode[];
+  group?: GroupByNode;
   predicate?: AstNode[];
   focusBinding?: ContextBindingNode;
   indexBinding?: PositionBindingNode;

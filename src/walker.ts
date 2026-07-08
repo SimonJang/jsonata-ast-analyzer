@@ -2665,6 +2665,24 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
       );
     }
   }
+  if (node.group) {
+    const groupScope = bindStepFocusScope(node, currentScope);
+    const objectAlias = objectAliasForNode(node, scope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    const resultBasePaths = bindingAliasPaths(node, scope);
+    paths.push(
+      ...(objectAlias || dynamicObjectAlias
+        ? walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, groupScope)
+        : resultBasePaths.flatMap((basePath) =>
+            walkContextGroupEntries(
+              node.group!,
+              basePath,
+              groupScope,
+              new Set(node.focusBinding ? [node.focusBinding.name] : []),
+            ),
+          )),
+    );
+  }
   return paths;
 }
 
