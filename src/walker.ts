@@ -1228,23 +1228,25 @@ function bindFocusObjectAliasScope(
 }
 
 function bindStepFocusScope(step: AstNode, scope: ScopeTracker): ScopeTracker {
-  if (step.type !== "block") return scope;
+  if (step.type !== "block" && step.type !== "array" && step.type !== "object") {
+    return scope;
+  }
 
-  const block = step as BlockNode;
+  const focusStep = step as BlockNode | ArrayNode | ObjectNode;
   let nextScope = scope;
-  if (block.focusBinding) {
+  if (focusStep.focusBinding) {
     nextScope = bindFocusObjectAliasScope(
       scope,
-      block.focusBinding.name,
-      objectAliasForNode(block, scope),
-      dynamicObjectAliasForNode(block, scope),
-      bindingAliasPaths(block, scope),
-      getResultSuffixBasePaths(block, scope),
+      focusStep.focusBinding.name,
+      objectAliasForNode(focusStep, scope),
+      dynamicObjectAliasForNode(focusStep, scope),
+      bindingAliasPaths(focusStep, scope),
+      getResultSuffixBasePaths(focusStep, scope),
     );
   }
-  if (block.indexBinding) {
+  if (focusStep.indexBinding) {
     if (nextScope === scope) nextScope = childScope(scope);
-    nextScope = bindVariable(nextScope, block.indexBinding.name, []);
+    nextScope = bindVariable(nextScope, focusStep.indexBinding.name, []);
   }
   return nextScope;
 }
