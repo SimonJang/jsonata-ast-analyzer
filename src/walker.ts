@@ -2675,6 +2675,26 @@ function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
   if (node.predicate && node.predicate.length > 0) {
     const objectAlias = objectAliasFromObject(node, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    const resultBasePaths = node.entries.flatMap(([, value]) =>
+      bindingAliasPaths(value, scope),
+    );
+    let predicateScope = scope;
+
+    if (node.focusBinding) {
+      predicateScope = bindFocusObjectAliasScope(
+        predicateScope,
+        node.focusBinding.name,
+        objectAlias,
+        dynamicObjectAlias,
+        resultBasePaths,
+        [],
+      );
+    }
+    if (node.indexBinding) {
+      if (predicateScope === scope) predicateScope = childScope(predicateScope);
+      predicateScope = bindVariable(predicateScope, node.indexBinding.name, []);
+    }
+
     for (const stage of node.predicate) {
       if (stage.type !== "filter") continue;
       paths.push(
@@ -2682,7 +2702,7 @@ function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
           objectAlias,
           dynamicObjectAlias,
           (stage as unknown as FilterStage).expr,
-          scope,
+          predicateScope,
         ),
       );
     }
