@@ -1632,6 +1632,28 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps indexed nested block predicate reads contextual", () => {
+    expect(sortPaths(extractPaths("orders.items.(price)#$i[active]"))).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps indexed nested block group reads contextual", () => {
+    expect(
+      sortPaths(extractPaths("orders.items.(price)#$i^(<rank){category: total}")),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.rank", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps focus bindings across variable predicate sort and group stages", () => {
     expect(
       sortPaths(

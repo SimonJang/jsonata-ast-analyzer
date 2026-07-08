@@ -1504,6 +1504,14 @@ function objectConstructorContextAlias(
   } as PathNode, scope);
 }
 
+function blockContextBasePaths(
+  node: BlockNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+): string[] {
+  return prefixProjectionPaths(contextPrefix, bindingAliasPaths(node, scope));
+}
+
 function selectResultAliasProjectionStepPaths(
   step: AstNode,
   projectionStep: AstNode,
@@ -2275,7 +2283,11 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Walk all expressions and prefix with path up to this step
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const blockStep = step as BlockNode;
-      const blockBasePaths = bindingAliasPaths(blockStep, stageScope);
+      const blockBasePaths = blockContextBasePaths(
+        blockStep,
+        contextPrefix,
+        stageScope,
+      );
       const blockObjectAlias = objectAliasForNode(blockStep, stageScope);
       const blockDynamicObjectAlias = dynamicObjectAliasForNode(blockStep, stageScope);
       const blockSuffixBasePaths = getResultSuffixBasePaths(blockStep, stageScope);
@@ -2564,7 +2576,13 @@ function walkGroupBy(
               contextPrefix,
               scope,
             )
-          : bindingAliasPaths(resultAliasStep, scope);
+          : resultAliasStep.type === "block"
+            ? blockContextBasePaths(
+                resultAliasStep as BlockNode,
+                contextPrefix,
+                scope,
+              )
+            : bindingAliasPaths(resultAliasStep, scope);
     if (resultBasePaths.length > 0) {
       return resultBasePaths.flatMap((basePath) =>
         walkContextGroupEntries(groupNode, basePath, groupScope, groupStageVariables),
