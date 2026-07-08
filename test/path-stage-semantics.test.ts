@@ -1589,6 +1589,34 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps focus-bound nested array group reads contextual", () => {
+    expect(
+      sortPaths(extractPaths("orders.items.[price]@$v{$v.category: $v.total}")),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps focus-bound nested object group aliases contextual", () => {
+    expect(
+      sortPaths(
+        extractPaths('orders.items.{"x": price}@$v{$v.x.category: $v.x.total}'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+        { path: "orders.items.price.category", confidence: "static" },
+        { path: "orders.items.price.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps bare focus projection paths root-relative", () => {
     expect(sortPaths(extractPaths("items@$v.(price & $v.type)"))).toEqual(
       sortPaths([

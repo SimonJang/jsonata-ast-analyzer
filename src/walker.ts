@@ -2628,7 +2628,6 @@ function walkGroupBy(
     const resultAliasStep = node.steps[resultAliasStepIndex];
     const prefixSteps = node.steps.slice(0, resultAliasStepIndex);
     const contextPrefix = buildPathString(prefixSteps) ?? "";
-    const groupScope = bindStepFocusScope(resultAliasStep, scope);
     const objectAlias =
       resultAliasStep.type === "object"
         ? objectConstructorContextAlias(
@@ -2640,28 +2639,6 @@ function walkGroupBy(
           ? prefixObjectAlias(objectAliasForNode(resultAliasStep, scope), contextPrefix)
         : objectAliasForNode(resultAliasStep, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
-    if (objectAlias || dynamicObjectAlias) {
-      return walkAliasGroupEntries(
-        groupNode,
-        objectAlias,
-        dynamicObjectAlias,
-        groupScope,
-      );
-    }
-
-    const focusBinding =
-      resultAliasStep.type === "block" ||
-      resultAliasStep.type === "array" ||
-      resultAliasStep.type === "object" ||
-      resultAliasStep.type === "function"
-        ? (resultAliasStep as BlockNode | ArrayNode | ObjectNode | FunctionNode)
-            .focusBinding
-        : resultAliasStep.type === "apply"
-          ? appliedFunctionFromApply(resultAliasStep as ApplyNode)?.focusBinding
-        : undefined;
-    const groupStageVariables = new Set(
-      focusBinding ? [focusBinding.name] : [],
-    );
     const resultBasePaths =
       resultAliasStep.type === "array"
         ? arrayConstructorContextBasePaths(
@@ -2682,6 +2659,44 @@ function walkGroupBy(
                 scope,
               )
             : bindingAliasPaths(resultAliasStep, scope);
+    const focusStep =
+      resultAliasStep.type === "apply"
+        ? appliedFunctionFromApply(resultAliasStep as ApplyNode)
+        : resultAliasStep.type === "block" ||
+            resultAliasStep.type === "array" ||
+            resultAliasStep.type === "object" ||
+            resultAliasStep.type === "function"
+          ? (resultAliasStep as BlockNode | ArrayNode | ObjectNode | FunctionNode)
+          : null;
+    const focusBinding = focusStep?.focusBinding;
+    const indexBinding = focusStep?.indexBinding;
+    let groupScope = scope;
+    if (focusBinding) {
+      groupScope = bindFocusObjectAliasScope(
+        scope,
+        focusBinding.name,
+        objectAlias,
+        dynamicObjectAlias,
+        resultBasePaths,
+        resultBasePaths,
+      );
+    }
+    if (indexBinding) {
+      if (groupScope === scope) groupScope = childScope(scope);
+      groupScope = bindVariable(groupScope, indexBinding.name, []);
+    }
+    if (objectAlias || dynamicObjectAlias) {
+      return walkAliasGroupEntries(
+        groupNode,
+        objectAlias,
+        dynamicObjectAlias,
+        groupScope,
+      );
+    }
+
+    const groupStageVariables = new Set(
+      focusBinding ? [focusBinding.name] : [],
+    );
     if (resultBasePaths.length > 0) {
       return resultBasePaths.flatMap((basePath) =>
         walkContextGroupEntries(groupNode, basePath, groupScope, groupStageVariables),
