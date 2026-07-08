@@ -179,9 +179,33 @@ function transformPatternPrefixes(
   patternPaths: readonly string[],
   scope: ScopeTracker,
 ): string[] {
+  const arrayConstructorBasePaths = transformArrayConstructorPatternPrefixes(
+    pattern,
+    scope,
+  );
+  if (arrayConstructorBasePaths.length > 0) return arrayConstructorBasePaths;
+
   const basePaths = extractBasePaths(pattern, scope).map(resolveParentPathSegments);
   if (basePaths.length > 0) return basePaths;
   return patternPaths.length > 0 ? [...patternPaths] : [""];
+}
+
+function transformArrayConstructorPatternPrefixes(
+  pattern: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  if (pattern.type !== "path") return [];
+
+  const pathNode = pattern as PathNode;
+  const arrayStepIndex = pathNode.steps.findIndex((step) => step.type === "array");
+  if (arrayStepIndex < 0) return [];
+
+  const contextPrefix = buildPathString(pathNode.steps.slice(0, arrayStepIndex)) ?? "";
+  return arrayConstructorContextBasePaths(
+    pathNode.steps[arrayStepIndex] as ArrayNode,
+    contextPrefix,
+    scope,
+  ).map(resolveParentPathSegments);
 }
 
 function resolveParentPathSegments(path: string): string {

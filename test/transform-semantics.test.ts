@@ -70,6 +70,33 @@ describe("transform semantics", () => {
     );
   });
 
+  it("does not use array transform predicate reads as update prefixes", () => {
+    expect(
+      sortPaths(extractPaths('| [Account]#$i[active] | {"name": name} |')),
+    ).toEqual(
+      sortPaths([
+        { path: "Account", confidence: "static" },
+        { path: "Account.active", confidence: "static" },
+        { path: "Account.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not use piped array transform predicate reads as update prefixes", () => {
+    expect(
+      sortPaths(
+        extractPaths('payload ~> |[Account]#$i[active]|{"name": name}|'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "payload", confidence: "static" },
+        { path: "payload.Account", confidence: "static" },
+        { path: "payload.Account.active", confidence: "static" },
+        { path: "payload.Account.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("prefixes root update reads with the transform pattern", () => {
     expect(
       sortPaths(extractPaths('payload ~> |Account|{"id": $.rootId}|')),
