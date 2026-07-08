@@ -216,6 +216,18 @@ describe("function semantics", () => {
     );
   });
 
+  it("keeps focus bindings on function result predicates", () => {
+    expect(
+      sortPaths(extractPaths("$filter(items, function($v){$v.active})@$r[$r.name]")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves variable-bound callbacks in apply chains", () => {
     expect(
       sortPaths(

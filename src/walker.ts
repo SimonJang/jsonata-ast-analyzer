@@ -1228,11 +1228,16 @@ function bindFocusObjectAliasScope(
 }
 
 function bindStepFocusScope(step: AstNode, scope: ScopeTracker): ScopeTracker {
-  if (step.type !== "block" && step.type !== "array" && step.type !== "object") {
+  if (
+    step.type !== "block" &&
+    step.type !== "array" &&
+    step.type !== "object" &&
+    step.type !== "function"
+  ) {
     return scope;
   }
 
-  const focusStep = step as BlockNode | ArrayNode | ObjectNode;
+  const focusStep = step as BlockNode | ArrayNode | ObjectNode | FunctionNode;
   let nextScope = scope;
   if (focusStep.focusBinding) {
     nextScope = bindFocusObjectAliasScope(
@@ -2963,6 +2968,13 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
 function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
   if (!node.predicate || node.predicate.length === 0) return [];
 
+  const predicateScope = bindStepFocusScope(node, scope);
+  const predicateStageVariables = new Set(
+    node.focusBinding ? [node.focusBinding.name] : [],
+  );
+  const predicateNonPathVariables = new Set(
+    node.indexBinding ? [node.indexBinding.name] : [],
+  );
   const objectAlias = getFunctionResultObjectAlias(node, scope);
   const dynamicObjectAlias = getFunctionResultDynamicObjectAlias(node, scope);
 
@@ -2974,7 +2986,7 @@ function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string
             objectAlias,
             dynamicObjectAlias,
             (stage as unknown as FilterStage).expr,
-            scope,
+            predicateScope,
             suffixBasePaths,
           )
         : [],
@@ -2982,7 +2994,13 @@ function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string
   }
 
   return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
-    walkFilterStages(node.predicate!, basePath, scope),
+    walkFilterStages(
+      node.predicate!,
+      basePath,
+      predicateScope,
+      predicateNonPathVariables,
+      predicateStageVariables,
+    ),
   );
 }
 

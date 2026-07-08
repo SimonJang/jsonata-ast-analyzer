@@ -164,6 +164,8 @@ export interface FunctionNode extends AnalyzerNode {
   arguments: AstNode[]; // call arguments
   group?: GroupByNode;
   predicate?: AstNode[];
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface LambdaNode extends AnalyzerNode {

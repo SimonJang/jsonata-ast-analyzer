@@ -243,7 +243,12 @@ export function normalizeAst(node: RawAstNode): AstNode {
         procedure: normalizeFunctionProcedure(node.procedure as RawAstNode),
         arguments: rawList(node.arguments).map(normalizeAst),
         group: normalizeGroup(node.group),
-        predicate: rawList(node.predicate).map(normalizeAst),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "lambda":
