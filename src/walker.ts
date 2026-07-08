@@ -2727,6 +2727,44 @@ function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
       );
     }
   }
+  if (node.group) {
+    const objectAlias = objectAliasFromObject(node, scope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    const resultBasePaths = node.entries.flatMap(([, value]) =>
+      bindingAliasPaths(value, scope),
+    );
+    let groupScope = scope;
+    const groupStageVariables = new Set<string>();
+
+    if (node.focusBinding) {
+      groupScope = bindFocusObjectAliasScope(
+        groupScope,
+        node.focusBinding.name,
+        objectAlias,
+        dynamicObjectAlias,
+        resultBasePaths,
+        [],
+      );
+      groupStageVariables.add(node.focusBinding.name);
+    }
+    if (node.indexBinding) {
+      if (groupScope === scope) groupScope = childScope(groupScope);
+      groupScope = bindVariable(groupScope, node.indexBinding.name, []);
+    }
+
+    paths.push(
+      ...(objectAlias || dynamicObjectAlias
+        ? walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, groupScope)
+        : resultBasePaths.flatMap((basePath) =>
+            walkContextGroupEntries(
+              node.group!,
+              basePath,
+              groupScope,
+              groupStageVariables,
+            ),
+          )),
+    );
+  }
   return paths;
 }
 

@@ -180,6 +180,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
           type: "object",
           position: positionOf(node),
           entries: normalizePairs(node.lhs),
+          group: normalizeGroup(node.group),
           predicate: [
             ...rawList(node.predicate),
             ...rawList(node.stages),

@@ -109,6 +109,7 @@ export interface ObjectNode extends AnalyzerNode {
   type: "object";
   position: number;
   entries: [AstNode, AstNode][];
+  group?: GroupByNode;
   predicate?: AstNode[];
   focusBinding?: ContextBindingNode;
   indexBinding?: PositionBindingNode;
