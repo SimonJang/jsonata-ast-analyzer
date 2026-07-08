@@ -1473,6 +1473,19 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("keeps focus bindings on sorted array constructor group entries", () => {
+    expect(
+      sortPaths(extractPaths("[items]@$v^(<$v.rank){$v.category: $v.total}")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+        { path: "items.rank", confidence: "static" },
+        { path: "items.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("keeps bare focus projection paths root-relative", () => {
     expect(sortPaths(extractPaths("items@$v.(price & $v.type)"))).toEqual(
       sortPaths([

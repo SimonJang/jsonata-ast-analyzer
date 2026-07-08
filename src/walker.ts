@@ -2311,12 +2311,34 @@ function walkGroupBy(
   if (!groupNode) return [];
 
   const resultAliasStep = node.steps.find(isResultAliasStep);
-  const objectAlias = resultAliasStep ? objectAliasForNode(resultAliasStep, scope) : null;
-  const dynamicObjectAlias = resultAliasStep
-    ? dynamicObjectAliasForNode(resultAliasStep, scope)
-    : null;
-  if (objectAlias || dynamicObjectAlias) {
-    return walkAliasGroupEntries(groupNode, objectAlias, dynamicObjectAlias, scope);
+  if (resultAliasStep) {
+    const groupScope = bindStepFocusScope(resultAliasStep, scope);
+    const objectAlias = objectAliasForNode(resultAliasStep, scope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
+    if (objectAlias || dynamicObjectAlias) {
+      return walkAliasGroupEntries(
+        groupNode,
+        objectAlias,
+        dynamicObjectAlias,
+        groupScope,
+      );
+    }
+
+    const focusBinding =
+      resultAliasStep.type === "block" ||
+      resultAliasStep.type === "array" ||
+      resultAliasStep.type === "object"
+        ? (resultAliasStep as BlockNode | ArrayNode | ObjectNode).focusBinding
+        : undefined;
+    const groupStageVariables = new Set(
+      focusBinding ? [focusBinding.name] : [],
+    );
+    const resultBasePaths = bindingAliasPaths(resultAliasStep, scope);
+    if (resultBasePaths.length > 0) {
+      return resultBasePaths.flatMap((basePath) =>
+        walkContextGroupEntries(groupNode, basePath, groupScope, groupStageVariables),
+      );
+    }
   }
 
   const groupBasePath = buildPathString(node.steps) ?? "";
