@@ -1567,6 +1567,27 @@ function walkResultBaseSuffixStages(
     ...walkResolvedVariableSuffixSortTerms(suffixSteps, basePath, scope, new Set()),
   ]);
 
+  paths.push(...walkResultBaseSuffixProjectionSteps(basePaths, suffixSteps, scope));
+
+  if (groupNode) {
+    const suffix = buildPathString(suffixSteps) ?? "";
+    paths.push(
+      ...basePaths.flatMap((basePath) =>
+        walkContextGroupEntries(groupNode, appendPath(basePath, suffix), scope),
+      ),
+    );
+  }
+
+  return paths;
+}
+
+function walkResultBaseSuffixProjectionSteps(
+  basePaths: readonly string[],
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+
   for (const [index, step] of suffixSteps.entries()) {
     const expressions = projectionStepExpressions(step);
     if (!expressions) continue;
@@ -1596,15 +1617,6 @@ function walkResultBaseSuffixStages(
         ),
       );
     }
-  }
-
-  if (groupNode) {
-    const suffix = buildPathString(suffixSteps) ?? "";
-    paths.push(
-      ...basePaths.flatMap((basePath) =>
-        walkContextGroupEntries(groupNode, appendPath(basePath, suffix), scope),
-      ),
-    );
   }
 
   return paths;
@@ -2238,6 +2250,17 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
             resolvedPath,
             suffixScope,
             suffixStageVariables,
+          ),
+        );
+      }
+
+      for (const resolvedPath of suffixContextPaths) {
+        const { suffixScope } = suffixScopeFor(resolvedPath);
+        paths.push(
+          ...walkResultBaseSuffixProjectionSteps(
+            [resolvedPath],
+            suffixSteps,
+            suffixScope,
           ),
         );
       }
