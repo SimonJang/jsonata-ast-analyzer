@@ -2318,6 +2318,28 @@ describe("function semantics", () => {
     );
   });
 
+  it("uses variable-bound mixed projection results as higher-order input bases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := flag ? {"x": primary} : fallback; $map(($r.x.{"node": name}.node), function($v){$v.name}))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "fallback.x.node", confidence: "static" },
+        { path: "fallback.x.node.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+        { path: "primary.node", confidence: "static" },
+        { path: "primary.node.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves unmatched mixed $map callback suffix bases", () => {
     expect(
       sortPaths(

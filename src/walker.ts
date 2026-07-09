@@ -1822,6 +1822,7 @@ function hasResultAliasObjectSuffixSelection(
   if (resultAliasStepIndex < 0 || resultAliasStepIndex >= node.steps.length - 1) {
     return false;
   }
+  if (hasVariableBeforeResultAlias(node, resultAliasStepIndex)) return false;
 
   const resultAliasStep = node.steps[resultAliasStepIndex];
   const objectAlias = objectAliasForNode(resultAliasStep, scope);
@@ -1835,6 +1836,18 @@ function hasResultAliasObjectSuffixSelection(
       bindStepFocusScope(resultAliasStep, scope),
       getResultSuffixBasePaths(resultAliasStep, scope),
     ).length > 0
+  );
+}
+
+function hasVariableBeforeResultAlias(
+  node: PathNode,
+  resultAliasStepIndex = node.steps.findIndex(isResultAliasStep),
+): boolean {
+  return (
+    resultAliasStepIndex > 0 &&
+    node.steps
+      .slice(0, resultAliasStepIndex)
+      .some((step) => step.type === "variable")
   );
 }
 
@@ -4825,7 +4838,15 @@ function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] 
   }
 
   if (node.type === "path") {
-    return pathResultAliasContextBasePaths(node as PathNode, scope);
+    const pathNode = node as PathNode;
+    const resultAliasStepIndex = pathNode.steps.findIndex(isResultAliasStep);
+    if (
+      resultAliasStepIndex < pathNode.steps.length - 1 &&
+      hasVariableBeforeResultAlias(pathNode, resultAliasStepIndex)
+    ) {
+      return getResultBasePathsFromArg(pathNode, scope);
+    }
+    return pathResultAliasContextBasePaths(pathNode, scope);
   }
 
   if (node.type === "array") {
