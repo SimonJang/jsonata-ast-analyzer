@@ -272,6 +272,54 @@ function transformBlockPatternPrefixes(
   ).map(resolveParentPathSegments);
 }
 
+function transformPatternSteps(pattern: AstNode): AstNode[] | null {
+  if (pattern.type === "name" || pattern.type === "wildcard") return [pattern];
+  if (pattern.type === "path") return (pattern as PathNode).steps;
+  return null;
+}
+
+function transformApplyAliasContextPaths(
+  transformNode: TransformNode,
+  transformPaths: string[],
+  lhs: AstNode,
+  lhsPaths: readonly string[],
+  scope: ScopeTracker,
+): string[] | null {
+  const objectAlias = objectAliasForNode(lhs, scope);
+  const dynamicObjectAlias = dynamicObjectAliasForNode(lhs, scope);
+  if (!objectAlias && !dynamicObjectAlias) return null;
+
+  const patternSteps = transformPatternSteps(transformNode.pattern);
+  const patternPrefix = patternSteps ? buildPathString(patternSteps) : null;
+  if (!patternSteps || !patternPrefix) return null;
+
+  const suffixBasePaths =
+    lhs.type === "variable"
+      ? (resolveSuffixBasePaths(scope, (lhs as VariableNode).value) ?? [])
+      : getResultSuffixBasePaths(lhs, scope);
+  const selectedPatternPrefixes = selectAliasSuffixContextPaths(
+    patternSteps,
+    objectAlias,
+    dynamicObjectAlias,
+    scope,
+    suffixBasePaths,
+  );
+  if (selectedPatternPrefixes.length === 0) return null;
+
+  const transformBasePaths = extractBasePaths(lhs, scope);
+  const fallbackPrefixes =
+    transformBasePaths.length > 0 ? transformBasePaths : [lhsPaths[0] ?? ""];
+
+  return transformPaths.flatMap((path) => {
+    if (path === patternPrefix) return selectedPatternPrefixes;
+    if (path.startsWith(`${patternPrefix}.`)) {
+      const suffix = path.slice(patternPrefix.length + 1);
+      return selectedPatternPrefixes.map((prefix) => appendPath(prefix, suffix));
+    }
+    return fallbackPrefixes.flatMap((prefix) => prefixPaths(prefix, [path]));
+  });
+}
+
 function resolveParentPathSegments(path: string): string {
   if (!path || path.startsWith(ROOT_PATH)) return path;
 
@@ -5326,7 +5374,19 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
       ...resolveCallbackParentPaths(walkNode(lambda.body, lambdaScope), callbackBasePaths),
     );
   } else if (node.rhs.type === "transform") {
-    const transformPaths = walkTransform(node.rhs as TransformNode, scope);
+    const transformNode = node.rhs as TransformNode;
+    const transformPaths = walkTransform(transformNode, scope);
+    const aliasContextPaths = transformApplyAliasContextPaths(
+      transformNode,
+      transformPaths,
+      node.lhs,
+      lhsPaths,
+      scope,
+    );
+    if (aliasContextPaths) {
+      paths.push(...aliasContextPaths);
+      return paths;
+    }
     const transformBasePaths = extractBasePaths(node.lhs, scope);
     const transformPrefixes =
       transformBasePaths.length > 0 ? transformBasePaths : [lhsPaths[0] ?? ""];

@@ -145,6 +145,25 @@ describe("transform semantics", () => {
     );
   });
 
+  it("uses variable-bound mixed object aliases as transform pattern context", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := flag ? {"x": primary} : fallback; $r ~> |x|{"name": name}|)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("prefixes root update reads with the transform pattern", () => {
     expect(
       sortPaths(extractPaths('payload ~> |Account|{"id": $.rootId}|')),
