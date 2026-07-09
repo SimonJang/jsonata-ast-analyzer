@@ -3993,10 +3993,11 @@ function walkCustomFunctionCall(
   }
 
   // Walk the lambda body with parameter bindings
+  const parentBasePaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
   paths.push(
     ...resolveCallbackParentPaths(
       walkNode(lambda.body, lambdaScope),
-      argPathSets[0] ?? [],
+      parentBasePaths.length > 0 ? parentBasePaths : (argPathSets[0] ?? []),
     ),
   );
 

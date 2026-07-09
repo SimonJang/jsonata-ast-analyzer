@@ -2297,6 +2297,28 @@ describe("function semantics", () => {
     );
   });
 
+  it("uses direct mixed result alias suffixes as custom function parent bases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fn := function($v){%.rank & $v.name}; $fn((flag ? {"x": detail} : fallback).x.children))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "detail.rank", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
   it("binds mixed $map callback object aliases with path results", () => {
     expect(
       sortPaths(
