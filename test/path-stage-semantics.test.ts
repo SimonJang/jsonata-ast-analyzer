@@ -1034,6 +1034,20 @@ describe("path-stage semantics", () => {
     ).toEqual(expected);
   });
 
+  it("suppresses raw filters after unmatched mixed direct result aliases", () => {
+    expect(
+      sortPaths(extractPaths('(flag ? {"x": primary} : fallback)[enabled].name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.enabled", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+      ]),
+    );
+  });
+
   it("suppresses raw suffix filters on custom function result aliases", () => {
     const expected = sortPaths([
       { path: "customer", confidence: "static" },

@@ -3261,16 +3261,34 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
     const predicateScope = bindStepFocusScope(node, currentScope);
     const predicateStageVariables = new Set<string>();
     if (node.focusBinding) predicateStageVariables.add(node.focusBinding.name);
-    for (const resultBasePath of bindingAliasPathsFromBlock(node, scope)) {
+    const objectAlias = objectAliasFromBlock(node, scope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    if (objectAlias || dynamicObjectAlias) {
       paths.push(
-        ...walkFilterStages(
-          node.predicate,
-          resultBasePath,
-          predicateScope,
-          new Set(),
-          predicateStageVariables,
+        ...node.predicate.flatMap((stage) =>
+          stage.type === "filter"
+            ? selectAliasExpressionPaths(
+                objectAlias,
+                dynamicObjectAlias,
+                (stage as unknown as FilterStage).expr,
+                predicateScope,
+                getBlockResultSuffixBasePaths(node, scope),
+              )
+            : [],
         ),
       );
+    } else {
+      for (const resultBasePath of bindingAliasPathsFromBlock(node, scope)) {
+        paths.push(
+          ...walkFilterStages(
+            node.predicate,
+            resultBasePath,
+            predicateScope,
+            new Set(),
+            predicateStageVariables,
+          ),
+        );
+      }
     }
   }
 
@@ -3352,16 +3370,34 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
       predicateNonPathVariables.add(node.indexBinding.name);
     }
 
-    for (const resultBasePath of resultBasePaths) {
+    const objectAlias = objectAliasForNode(node, scope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    if (objectAlias || dynamicObjectAlias) {
       paths.push(
-        ...walkFilterStages(
-          node.predicate,
-          resultBasePath,
-          predicateScope,
-          predicateNonPathVariables,
-          predicateStageVariables,
+        ...node.predicate.flatMap((stage) =>
+          stage.type === "filter"
+            ? selectAliasExpressionPaths(
+                objectAlias,
+                dynamicObjectAlias,
+                (stage as unknown as FilterStage).expr,
+                predicateScope,
+                getResultSuffixBasePaths(node, scope),
+              )
+            : [],
         ),
       );
+    } else {
+      for (const resultBasePath of resultBasePaths) {
+        paths.push(
+          ...walkFilterStages(
+            node.predicate,
+            resultBasePath,
+            predicateScope,
+            predicateNonPathVariables,
+            predicateStageVariables,
+          ),
+        );
+      }
     }
   }
   if (node.group) {
