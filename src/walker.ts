@@ -2300,7 +2300,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     if (
       i < node.steps.length - 1 &&
       isResultAliasStep(step) &&
-      !(i > 0 && isResultAliasStep(node.steps[i - 1]))
+      !(i > 0 && isResultAliasStep(node.steps[i - 1])) &&
+      !(resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart)
     ) {
       const projectionPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const resultPaths = selectResultAliasStepPaths(

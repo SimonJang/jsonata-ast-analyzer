@@ -1299,6 +1299,24 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("does not leak local suffix paths from direct mixed result alias projections", () => {
+    expect(
+      sortPaths(
+        extractPaths('(flag ? {"x": detail} : fallback).x.{"out": name}.out'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.name", confidence: "static" },
+        { path: "detail.out", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "fallback.x.out", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves parent paths inside mixed object alias suffix block projections", () => {
     expect(
       sortPaths(
