@@ -407,7 +407,7 @@ function resolveParentPathSegments(path: string): string {
 }
 
 function isRootReference(node: AstNode): boolean {
-  return node.type === "variable" && (node as VariableNode).value === "";
+  return node.type === "variable" && ["", "$"].includes((node as VariableNode).value);
 }
 
 function markAbsolute(paths: string[]): string[] {
