@@ -2157,6 +2157,13 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         suffixBaseBinding,
         Boolean(varStep.focusBinding),
       );
+      const suffixFunctionPaths = walkAliasSuffixFunctionSteps(
+        suffixSteps,
+        objectAlias,
+        dynamicObjectAlias,
+        aliasScope,
+        suffixBaseBinding,
+      );
       const suffix = buildPathString(suffixSteps);
       const suffixBasePaths =
         suffix && unmatchedSuffixBaseBinding.length > 0
@@ -2192,6 +2199,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         ...suffixStagePaths,
         ...suffixSortPaths,
         ...suffixProjectionPaths,
+        ...suffixFunctionPaths,
         ...suffixGroupPaths,
         ...selectedObjectPaths,
         ...suffixBasePaths,

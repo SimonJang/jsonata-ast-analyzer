@@ -197,6 +197,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("contextualizes variable-bound mixed alias function path steps", () => {
+    expect(
+      sortPaths(extractPaths('($r := flag ? {"x": primary} : fallback; $r.x.$sum(amount))')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.amount", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.amount", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not emit synthetic bases for terminal higher-order function path steps", () => {
     expect(
       sortPaths(extractPaths("orders.items.$map(tags, function($v){$v.name})")),
