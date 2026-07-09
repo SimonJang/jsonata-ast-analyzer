@@ -1650,21 +1650,43 @@ function pathResultAliasContextBasePaths(
 
   const resultAliasStep = node.steps[resultAliasStepIndex];
   const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
-  if (resultAliasStep.type === "array") {
-    return arrayConstructorContextBasePaths(
-      resultAliasStep as ArrayNode,
+  const suffixSteps = node.steps.slice(resultAliasStepIndex + 1);
+  const suffix = buildPathString(suffixSteps);
+  const withContext = (paths: string[]) =>
+    prefixProjectionPaths(
       contextPrefix,
-      scope,
+      suffix ? paths.map((path) => appendPath(path, suffix)) : paths,
+    );
+
+  const objectAlias = objectAliasForNode(resultAliasStep, scope);
+  const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
+  if (suffixSteps.length > 0 && (objectAlias || dynamicObjectAlias)) {
+    const aliasPaths = selectAliasSuffixContextPaths(
+      suffixSteps,
+      objectAlias,
+      dynamicObjectAlias,
+      bindStepFocusScope(resultAliasStep, scope),
+      getResultSuffixBasePaths(resultAliasStep, scope),
+    );
+    if (aliasPaths.length > 0) return prefixProjectionPaths(contextPrefix, aliasPaths);
+  }
+
+  if (resultAliasStep.type === "array") {
+    return withContext(
+      arrayConstructorContextBasePaths(resultAliasStep as ArrayNode, "", scope),
     );
   }
   if (resultAliasStep.type === "object") {
     return [];
   }
   if (resultAliasStep.type === "block") {
-    return blockContextBasePaths(resultAliasStep as BlockNode, contextPrefix, scope);
+    return withContext(blockContextBasePaths(resultAliasStep as BlockNode, "", scope));
   }
 
-  return getResultBasePathsFromArg(node, scope);
+  const resultBasePaths = suffix
+    ? getResultSuffixBasePaths(resultAliasStep, scope)
+    : bindingAliasPaths(resultAliasStep, scope);
+  return resultBasePaths.length > 0 ? withContext(resultBasePaths) : [];
 }
 
 function prefixObjectAlias(
