@@ -3989,6 +3989,7 @@ function bindArgumentParameter(
   argScope: ScopeTracker,
 ): ScopeTracker {
   let nextScope = bindVariable(scope, param.value, argPaths);
+  nextScope = bindSuffixBasePathsIfPresent(nextScope, param.value, arg, argScope);
   nextScope = bindObjectAliasIfPresent(nextScope, param.value, arg, argScope);
   nextScope = bindDynamicObjectAliasIfPresent(nextScope, param.value, arg, argScope);
   return nextScope;

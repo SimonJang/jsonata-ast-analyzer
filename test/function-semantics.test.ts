@@ -906,6 +906,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed object alias suffix bases through custom function parameters", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($project := function($v) { $v.x.children.name }; $project(flag ? {"x": detail} : fallback))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves block-local suffix bases in direct chained fields", () => {
     expect(
       sortPaths(extractPaths('(($f := fallback; flag ? {"x": primary} : $f)).x.name')),
