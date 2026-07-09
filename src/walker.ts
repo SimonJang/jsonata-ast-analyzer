@@ -1814,6 +1814,30 @@ function pathResultAliasContextBasePaths(
   return resultBasePaths.length > 0 ? withContext(resultBasePaths) : [];
 }
 
+function hasResultAliasObjectSuffixSelection(
+  node: PathNode,
+  scope: ScopeTracker,
+): boolean {
+  const resultAliasStepIndex = node.steps.findIndex(isResultAliasStep);
+  if (resultAliasStepIndex < 0 || resultAliasStepIndex >= node.steps.length - 1) {
+    return false;
+  }
+
+  const resultAliasStep = node.steps[resultAliasStepIndex];
+  const objectAlias = objectAliasForNode(resultAliasStep, scope);
+  if (!objectAlias) return false;
+
+  return (
+    selectAliasSuffixContextPaths(
+      node.steps.slice(resultAliasStepIndex + 1),
+      objectAlias,
+      dynamicObjectAliasForNode(resultAliasStep, scope),
+      bindStepFocusScope(resultAliasStep, scope),
+      getResultSuffixBasePaths(resultAliasStep, scope),
+    ).length > 0
+  );
+}
+
 function prefixObjectAlias(
   alias: ObjectAlias | null,
   contextPrefix: string,
@@ -5109,6 +5133,9 @@ function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[]
 
   if (node.type === "path") {
     const pathNode = node as PathNode;
+    if (hasResultAliasObjectSuffixSelection(pathNode, scope)) {
+      return pathResultAliasContextBasePaths(pathNode, scope).map(resolveParentPathSegments);
+    }
     const funcStepIndex = pathNode.steps.findIndex((s) => s.type === "function");
     if (funcStepIndex >= 0) {
       const bases = getFunctionResultBasePaths(

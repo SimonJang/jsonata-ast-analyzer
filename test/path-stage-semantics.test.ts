@@ -1294,6 +1294,24 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses direct mixed object alias suffixes as apply-chain context", () => {
+    expect(
+      sortPaths(
+        extractPaths('$append({"x": primary}, fallback).x ~> $filter(function($v){$v.active}).name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.active", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves nested parent paths in mixed object alias suffix filters", () => {
     expect(
       sortPaths(
