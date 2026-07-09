@@ -520,6 +520,27 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves bare reads in direct focus-bound mixed alias projections", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '(flag ? {"x": primary} : fallback)@$row.($row.x.enabled ? $row.x.name : missing)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "missing", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.enabled", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves variable-bound mixed object alias suffix-stage predicates", () => {
     expect(
       sortPaths(

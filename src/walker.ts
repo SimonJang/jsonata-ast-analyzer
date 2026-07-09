@@ -1597,8 +1597,12 @@ function selectResultAliasStepPaths(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
   includeStepReadPaths = true,
+  preserveUnmappedLocalPaths = false,
 ): string[] | null {
   const suffixScope = bindStepFocusScope(step, scope);
+  const preserveAliasLocalPaths =
+    preserveUnmappedLocalPaths ||
+    Boolean((step as AstNode & { focusBinding?: unknown }).focusBinding);
   const conditionPaths =
     step.type === "condition"
       ? walkNode((step as ConditionNode).condition, scope)
@@ -1618,6 +1622,8 @@ function selectResultAliasStepPaths(
     dynamicObject,
     suffixSteps,
     suffixScope,
+    [],
+    preserveAliasLocalPaths,
   );
   if (aliasPaths) {
     const suffix = buildPathString(suffixSteps);
@@ -2025,6 +2031,7 @@ function selectResultAliasProjectionStepPaths(
   step: AstNode,
   projectionStep: AstNode,
   scope: ScopeTracker,
+  preserveUnmappedLocalPaths = false,
 ): string[] | null {
   const objectAlias = objectAliasForNode(step, scope);
   const dynamicObject = dynamicObjectAliasForNode(step, scope);
@@ -2035,6 +2042,7 @@ function selectResultAliasProjectionStepPaths(
     dynamicObject,
     projectionStep,
     scope,
+    preserveUnmappedLocalPaths,
   );
   return projectionPaths
     ? [...bindingAliasPaths(step, scope), ...projectionPaths]
@@ -2911,7 +2919,12 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
       const aliasPaths =
         i > 0 && isResultAliasStep(node.steps[i - 1])
-          ? selectResultAliasProjectionStepPaths(node.steps[i - 1], step, stageScope)
+          ? selectResultAliasProjectionStepPaths(
+              node.steps[i - 1],
+              step,
+              stageScope,
+              stageVariables.size > 0,
+            )
           : null;
       if (aliasPaths) {
         paths.push(...aliasPaths);
