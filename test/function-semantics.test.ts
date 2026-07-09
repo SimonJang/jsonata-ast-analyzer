@@ -2049,6 +2049,17 @@ describe("function semantics", () => {
     );
   });
 
+  it("does not suffix static $lookup object branches with the lookup key", () => {
+    expect(
+      sortPaths(extractPaths('$lookup({"x": {"fixed": customer}}, "x").fixed.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves mixed lookup path branches through result suffixes", () => {
     expect(
       sortPaths(

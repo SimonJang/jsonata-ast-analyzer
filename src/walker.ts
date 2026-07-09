@@ -5225,10 +5225,16 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   const selectorSteps = lookupSelectorSteps(args[1]);
   const staticSelector =
     args[1]?.type === "string" ? buildPathString(selectorSteps) : null;
+  const pathValueAliasBases = lookupPathValueAliasBasePaths(args, scope);
   const paths: string[] = [];
 
+  paths.push(...pathValueAliasBases);
+
   const objectAlias = objectAliasForNode(objectArg, scope);
-  const objectPaths = objectAlias ? selectObjectAliasPaths(objectAlias, selectorSteps) : null;
+  const objectPaths =
+    objectArg.type === "variable" && pathValueAliasBases.length === 0 && objectAlias
+      ? selectObjectAliasPaths(objectAlias, selectorSteps)
+      : null;
   if (objectPaths) paths.push(...objectPaths);
 
   const suffix = buildPathString(selectorSteps);
@@ -5239,7 +5245,7 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
     objectArg.type === "variable"
       ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
       : getResultSuffixBasePaths(objectArg, scope);
-  if (suffixBasePaths.length > 0 && suffix) {
+  if (objectArg.type !== "object" && suffixBasePaths.length > 0 && suffix) {
     paths.push(
       ...suffixBasePaths
         .filter((path) => !objectAliasBases.has(path))
@@ -5262,6 +5268,7 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   }
 
   if (paths.length > 0) return paths;
+  if (objectArg.type === "object" && (objectAlias || dynamicObjectAlias)) return [];
 
   const basePaths = isRootReference(objectArg)
     ? [ROOT_PATH]
@@ -5291,7 +5298,10 @@ function getLookupResultSuffixBasePaths(
     objectArg.type === "variable"
       ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
       : getResultSuffixBasePaths(objectArg, scope);
-  const pathLikeBases = suffixBasePaths.filter((path) => !objectAliasBases.has(path));
+  const pathLikeBases =
+    objectArg.type === "object"
+      ? []
+      : suffixBasePaths.filter((path) => !objectAliasBases.has(path));
 
   if (pathValueAliasBases.length > 0 || pathLikeBases.length > 0) {
     const pathLikeLookupBases = staticSelector
