@@ -1932,6 +1932,27 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves direct mixed object alias filter result bases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$filter(((flag ? {"x": primary} : fallback).x), function($v){$v.active}).name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.active", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $single dynamic object-key result aliases", () => {
     expect(
       sortPaths(extractPaths("$single([{key: primary}], function($v){true}).x.name")),

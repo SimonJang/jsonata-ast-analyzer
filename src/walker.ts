@@ -3934,6 +3934,9 @@ function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
     // Chained apply base identity comes from the leftmost operand
     return extractBasePaths((node as ApplyNode).lhs, scope);
   }
+  if (node.type === "block") {
+    return getBlockResultSuffixBasePaths(node as BlockNode, scope);
+  }
   if (node.type === "variable") {
     const varNode = node as VariableNode;
     const resolved = resolveVariable(scope, varNode.value);
@@ -5008,6 +5011,7 @@ function getSuffixableResultBasePaths(node: AstNode, scope: ScopeTracker): strin
     case "variable":
     case "function":
     case "apply":
+    case "block":
     case "wildcard":
     case "descendant":
     case "parent":
@@ -5129,6 +5133,10 @@ function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[]
   if (node.type === "function") {
     const paths = getFunctionResultBasePaths(node as FunctionNode, scope);
     return paths.length > 0 ? paths : walkNode(node, scope).slice(0, 1);
+  }
+
+  if (node.type === "block") {
+    return getBlockResultSuffixBasePaths(node as BlockNode, scope);
   }
 
   if (node.type === "path") {
