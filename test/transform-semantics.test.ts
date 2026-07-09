@@ -184,6 +184,28 @@ describe("transform semantics", () => {
     );
   });
 
+  it("uses mixed alias projection transform patterns as update context", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := flag ? {"x": primary} : fallback; $r ~> |x.{"node": name}.node|{"copy": name}|)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "fallback.x.node", confidence: "static" },
+        { path: "fallback.x.node.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+        { path: "primary.node", confidence: "static" },
+        { path: "primary.node.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("prefixes root update reads with the transform pattern", () => {
     expect(
       sortPaths(extractPaths('payload ~> |Account|{"id": $.rootId}|')),

@@ -278,6 +278,56 @@ function transformPatternSteps(pattern: AstNode): AstNode[] | null {
   return null;
 }
 
+function transformApplyAliasProjectionContextPaths(
+  transformNode: TransformNode,
+  patternSteps: AstNode[],
+  objectAlias: ObjectAlias | null,
+  dynamicObjectAlias: DynamicObjectAlias | null,
+  scope: ScopeTracker,
+  suffixBasePaths: readonly string[],
+): string[] | null {
+  const projectionIndex = patternSteps.findIndex((step) =>
+    Boolean(projectionStepExpressions(step)),
+  );
+  if (projectionIndex <= 0) return null;
+
+  const projectionContextSteps = patternSteps.slice(0, projectionIndex);
+  const projectionContextPaths = selectAliasSuffixContextPaths(
+    projectionContextSteps,
+    objectAlias,
+    dynamicObjectAlias,
+    scope,
+    suffixBasePaths,
+  );
+  if (projectionContextPaths.length === 0) return null;
+
+  const selectedSuffix = buildPathString(patternSteps.slice(projectionIndex + 1));
+  const selectedPatternPrefixes = selectedSuffix
+    ? projectionContextPaths.map((path) => appendPath(path, selectedSuffix))
+    : projectionContextPaths;
+
+  return [
+    ...walkAliasSuffixProjectionSteps(
+      patternSteps,
+      objectAlias,
+      dynamicObjectAlias,
+      scope,
+      suffixBasePaths,
+    ),
+    ...selectedPatternPrefixes,
+    ...(transformNode.update
+      ? selectedPatternPrefixes.flatMap((prefix) =>
+          walkTransformContextExpression(prefix, transformNode.update!, scope),
+        )
+      : []),
+    ...(transformNode.delete
+      ? selectedPatternPrefixes.flatMap((prefix) =>
+          walkTransformContextExpression(prefix, transformNode.delete!, scope),
+        )
+      : []),
+  ];
+}
+
 function transformApplyAliasContextPaths(
   transformNode: TransformNode,
   transformPaths: string[],
@@ -297,6 +347,16 @@ function transformApplyAliasContextPaths(
     lhs.type === "variable"
       ? (resolveSuffixBasePaths(scope, (lhs as VariableNode).value) ?? [])
       : getResultSuffixBasePaths(lhs, scope);
+  const projectionContextPaths = transformApplyAliasProjectionContextPaths(
+    transformNode,
+    patternSteps,
+    objectAlias,
+    dynamicObjectAlias,
+    scope,
+    suffixBasePaths,
+  );
+  if (projectionContextPaths) return projectionContextPaths;
+
   const selectedPatternPrefixes = selectAliasSuffixContextPaths(
     patternSteps,
     objectAlias,
