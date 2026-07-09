@@ -1567,6 +1567,37 @@ function walkResultBaseSuffixStages(
     ...walkResolvedVariableSuffixSortTerms(suffixSteps, basePath, scope, new Set()),
   ]);
 
+  for (const [index, step] of suffixSteps.entries()) {
+    const expressions = projectionStepExpressions(step);
+    if (!expressions) continue;
+
+    const contextPrefixSteps = suffixSteps.slice(0, index);
+    const contextSuffix = buildPathString(contextPrefixSteps) ?? "";
+    const contextPaths = basePaths.map((basePath) =>
+      appendPath(basePath, contextSuffix),
+    );
+    const parentContextPaths =
+      contextPrefixSteps.length > 1
+        ? basePaths.map((basePath) =>
+            appendPath(
+              basePath,
+              buildPathString(contextPrefixSteps.slice(0, -1)) ?? "",
+            ),
+          )
+        : [];
+
+    for (const expr of expressions) {
+      paths.push(
+        ...walkAliasSuffixContextExpression(
+          expr,
+          contextPaths,
+          parentContextPaths,
+          scope,
+        ),
+      );
+    }
+  }
+
   if (groupNode) {
     const suffix = buildPathString(suffixSteps) ?? "";
     paths.push(

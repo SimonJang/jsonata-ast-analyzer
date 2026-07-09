@@ -1332,6 +1332,21 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses direct array result alias suffixes as projection context", () => {
+    expect(
+      sortPaths(extractPaths('([primary, fallback]).x.{"out": name}.out')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "fallback.x.out", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.x.name", confidence: "static" },
+        { path: "primary.x.out", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves parent paths inside mixed object alias suffix block projections", () => {
     expect(
       sortPaths(
