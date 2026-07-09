@@ -2227,6 +2227,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed array element suffix bases in $map callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([flag ? {"x": detail} : fallback], function($v){$v.x.children.name})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
   it("binds mixed $map callback object aliases with path results", () => {
     expect(
       sortPaths(
