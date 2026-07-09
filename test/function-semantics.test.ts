@@ -819,6 +819,16 @@ describe("function semantics", () => {
     );
   });
 
+  it("uses path-preserving function results as projection context", () => {
+    expect(sortPaths(extractPaths("$clone(record).{category: total}"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.category", confidence: "static" },
+        { path: "record.total", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves identity custom function result aliases in chained fields", () => {
     expect(
       sortPaths(extractPaths("($project := function($v) { $v }; $project(item).name)")),

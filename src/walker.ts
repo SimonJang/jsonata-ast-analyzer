@@ -2301,7 +2301,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   let skipFunctionResultSuffixStages = false;
   let resultAliasSuffixStageStart = -1;
   let skipResultAliasGroupBy = false;
-  if (basePath && resultAliasStepIndex >= 0) {
+  if (
+    (resultAliasStepIndex === 0 && node.steps[0]?.type === "function") ||
+    (basePath && resultAliasStepIndex >= 0)
+  ) {
     if (resultAliasStepIndex === 0) {
       const resultStep = node.steps[resultAliasStepIndex];
       const suffixSteps = node.steps.slice(resultAliasStepIndex + 1);
