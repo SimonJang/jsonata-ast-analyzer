@@ -4845,7 +4845,11 @@ function getFunctionResultSuffixBasePaths(
     ];
   }
 
-  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName) || funcName === "lookup") {
+  if (funcName === "lookup") {
+    return getLookupResultSuffixBasePaths(args, argScope);
+  }
+
+  if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) {
     return [];
   }
 
@@ -5149,6 +5153,37 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   return staticSelector
     ? basePaths.map((path) => appendPath(path, staticSelector))
     : basePaths;
+}
+
+function getLookupResultSuffixBasePaths(
+  args: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const objectArg = args[0];
+  if (!objectArg) return [];
+
+  const objectAlias = objectAliasForNode(objectArg, scope);
+  const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
+  const objectAliasBases = new Set(
+    objectAlias ? [...objectAlias.values()].flatMap((basePaths) => [...basePaths]) : [],
+  );
+  const suffixBasePaths =
+    objectArg.type === "variable"
+      ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
+      : getResultSuffixBasePaths(objectArg, scope);
+  const pathLikeBases = suffixBasePaths.filter((path) => !objectAliasBases.has(path));
+
+  if (pathLikeBases.length > 0) {
+    if (args[1]?.type === "string") {
+      const selector = buildPathString(lookupSelectorSteps(args[1]));
+      return selector
+        ? pathLikeBases.map((path) => appendPath(path, selector))
+        : pathLikeBases;
+    }
+    return pathLikeBases.map(appendDynamicLookupMarker);
+  }
+
+  return objectAlias || dynamicObjectAlias ? [] : getLookupResultBasePaths(args, scope);
 }
 
 function appendDynamicLookupMarker(basePath: string): string {

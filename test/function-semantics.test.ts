@@ -2049,6 +2049,25 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed lookup path branches through result suffixes", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := flag ? {"x": {"fixed": customer}} : fallback; $lookup($r, "x").fixed.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.fixed.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $lookup dynamic object aliases with dynamic lookup keys", () => {
     expect(sortPaths(extractPaths("$lookup({key: primary}, lookupKey).name"))).toEqual(
       sortPaths([
