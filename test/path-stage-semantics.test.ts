@@ -583,6 +583,23 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves direct mixed object alias suffix-stage sort terms", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map(items, function($v){flag ? {"x": $v.detail} : fallback})^(>rank).name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.name", confidence: "static" },
+        { path: "fallback.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+      ]),
+    );
+  });
+
   it("uses selected child context for mixed object alias suffix-stage sort terms", () => {
     expect(
       sortPaths(

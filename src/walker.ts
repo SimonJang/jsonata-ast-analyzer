@@ -993,6 +993,18 @@ function walkAliasSuffixSortTerms(
             suffixBasePaths,
           )
         : [];
+    if (contextPrefixSteps.length === 0) {
+      paths.push(
+        ...selectSortAliasPaths(
+          step as SortNode,
+          objectAlias,
+          dynamicObjectAlias,
+          scope,
+          suffixBasePaths,
+        ),
+      );
+      continue;
+    }
     for (const term of (step as SortNode).terms) {
       paths.push(
         ...walkAliasSuffixContextExpression(
