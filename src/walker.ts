@@ -5349,6 +5349,70 @@ function lookupPathValueAliasBasePathsFromNode(
     );
   }
 
+  if (node.type === "block") {
+    let currentScope = scope;
+    let result: string[] = [];
+    const expressions = (node as BlockNode).expressions;
+
+    for (const [index, expr] of expressions.entries()) {
+      const isLast = index === expressions.length - 1;
+      if (isLast) {
+        result = lookupPathValueAliasBasePathsFromNode(
+          expr,
+          selectorSteps,
+          currentScope,
+        );
+        break;
+      }
+
+      if (expr.type !== "bind") continue;
+
+      const bindNode = expr as BindNode;
+      const closureScope = currentScope;
+      currentScope = bindVariable(
+        currentScope,
+        bindNode.lhs.value,
+        bindingAliasPaths(bindNode.rhs, currentScope),
+      );
+      currentScope = bindSuffixBasePathsIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+      currentScope = bindObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+      currentScope = bindDynamicObjectAliasIfPresent(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
+
+      if (bindNode.rhs.type === "lambda") {
+        currentScope = bindLambda(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as LambdaNode,
+          closureScope,
+        );
+      } else if (bindNode.rhs.type === "partial") {
+        currentScope = bindPartial(
+          currentScope,
+          bindNode.lhs.value,
+          bindNode.rhs as PartialNode,
+          closureScope,
+        );
+      }
+    }
+
+    return result;
+  }
+
   if (node.type !== "object") return [];
 
   return (node as ObjectNode).entries.flatMap(([keyNode, valueNode]) => {

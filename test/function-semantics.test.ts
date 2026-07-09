@@ -2079,6 +2079,32 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves block-local mixed lookup path branches", () => {
+    const expected = sortPaths([
+      { path: "fallback", confidence: "static" },
+      { path: "fallback.x", confidence: "static" },
+      { path: "fallback.x.name", confidence: "static" },
+      { path: "flag", confidence: "static" },
+      { path: "primary", confidence: "static" },
+      { path: "primary.name", confidence: "static" },
+    ]);
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$lookup(($f := fallback; flag ? {"x": primary} : $f), "x").name',
+        ),
+      ),
+    ).toEqual(expected);
+    expect(
+      sortPaths(
+        extractPaths(
+          '($p := $lookup(($f := fallback; flag ? {"x": primary} : $f), "x"); $p.name)',
+        ),
+      ),
+    ).toEqual(expected);
+  });
+
   it("marks mixed lookup dynamic path branches with wildcard result paths", () => {
     expect(
       sortPaths(
