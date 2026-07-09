@@ -5278,6 +5278,10 @@ function getLookupResultSuffixBasePaths(
   const objectArg = args[0];
   if (!objectArg) return [];
 
+  const selectorSteps = lookupSelectorSteps(args[1]);
+  const staticSelector =
+    args[1]?.type === "string" ? buildPathString(selectorSteps) : null;
+  const pathValueAliasBases = lookupPathValueAliasBasePaths(args, scope);
   const objectAlias = objectAliasForNode(objectArg, scope);
   const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
   const objectAliasBases = new Set(
@@ -5289,17 +5293,71 @@ function getLookupResultSuffixBasePaths(
       : getResultSuffixBasePaths(objectArg, scope);
   const pathLikeBases = suffixBasePaths.filter((path) => !objectAliasBases.has(path));
 
-  if (pathLikeBases.length > 0) {
-    if (args[1]?.type === "string") {
-      const selector = buildPathString(lookupSelectorSteps(args[1]));
-      return selector
-        ? pathLikeBases.map((path) => appendPath(path, selector))
-        : pathLikeBases;
-    }
-    return pathLikeBases.map(appendDynamicLookupMarker);
+  if (pathValueAliasBases.length > 0 || pathLikeBases.length > 0) {
+    const pathLikeLookupBases = staticSelector
+      ? pathLikeBases.map((path) => appendPath(path, staticSelector))
+      : pathLikeBases.map(appendDynamicLookupMarker);
+    return [...new Set([...pathValueAliasBases, ...pathLikeLookupBases])];
   }
 
   return objectAlias || dynamicObjectAlias ? [] : getLookupResultBasePaths(args, scope);
+}
+
+function lookupPathValueAliasBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
+  const objectArg = args[0];
+  if (!objectArg) return [];
+
+  return [
+    ...new Set(
+      lookupPathValueAliasBasePathsFromNode(
+        objectArg,
+        lookupSelectorSteps(args[1]),
+        scope,
+      ),
+    ),
+  ];
+}
+
+function lookupPathValueAliasBasePathsFromNode(
+  node: AstNode,
+  selectorSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [
+      ...lookupPathValueAliasBasePathsFromNode(condition.then, selectorSteps, scope),
+      ...(condition.else
+        ? lookupPathValueAliasBasePathsFromNode(condition.else, selectorSteps, scope)
+        : []),
+    ];
+  }
+
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((expr) =>
+      lookupPathValueAliasBasePathsFromNode(expr, selectorSteps, scope),
+    );
+  }
+
+  if (node.type !== "object") return [];
+
+  return (node as ObjectNode).entries.flatMap(([keyNode, valueNode]) => {
+    const key = staticObjectKey(keyNode);
+    const selector = selectorSteps[0];
+    const selectorMatches =
+      !key || selector?.type !== "name" || key === (selector as NameNode).value;
+    if (!selectorMatches) return [];
+
+    if (
+      valueNode.type === "object" ||
+      objectAliasForNode(valueNode, scope) ||
+      dynamicObjectAliasForNode(valueNode, scope)
+    ) {
+      return [];
+    }
+
+    return bindingAliasPaths(valueNode, scope);
+  });
 }
 
 function appendDynamicLookupMarker(basePath: string): string {

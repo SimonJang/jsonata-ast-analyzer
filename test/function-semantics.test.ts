@@ -2162,6 +2162,25 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds mixed $lookup path branches as suffixable variables", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($p := $lookup(flag ? {"x": primary} : fallback, "x"); $p.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves thunked custom function $clone dynamic object aliases", () => {
     expect(
       sortPaths(extractPaths("($f := function(){$clone({key: primary})}; $f().x.name)")),
