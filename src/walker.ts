@@ -5115,22 +5115,22 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   const objectPaths = objectAlias ? selectObjectAliasPaths(objectAlias, selectorSteps) : null;
   if (objectPaths) paths.push(...objectPaths);
 
-  if (objectArg.type === "variable") {
-    const suffix = buildPathString(selectorSteps);
-    const objectAliasBases = new Set(
-      objectAlias ? [...objectAlias.values()].flatMap((basePaths) => [...basePaths]) : [],
+  const suffix = buildPathString(selectorSteps);
+  const objectAliasBases = new Set(
+    objectAlias ? [...objectAlias.values()].flatMap((basePaths) => [...basePaths]) : [],
+  );
+  const suffixBasePaths =
+    objectArg.type === "variable"
+      ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
+      : getResultSuffixBasePaths(objectArg, scope);
+  if (suffixBasePaths.length > 0 && suffix) {
+    paths.push(
+      ...suffixBasePaths
+        .filter((path) => !objectAliasBases.has(path))
+        .map((path) =>
+          staticSelector ? appendPath(path, staticSelector) : appendDynamicLookupMarker(path),
+        ),
     );
-    const suffixBasePaths = resolveSuffixBasePaths(
-      scope,
-      (objectArg as VariableNode).value,
-    );
-    if (suffixBasePaths && suffix) {
-      paths.push(
-        ...suffixBasePaths
-          .filter((path) => !objectAliasBases.has(path))
-          .map((path) => appendPath(path, suffix)),
-      );
-    }
   }
 
   const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);

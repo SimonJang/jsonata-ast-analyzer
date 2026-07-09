@@ -2068,6 +2068,63 @@ describe("function semantics", () => {
     );
   });
 
+  it("marks mixed lookup dynamic path branches with wildcard result paths", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := flag ? {"x": {"fixed": customer}} : fallback; $r ~> $lookup(key).fixed.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback[*]", confidence: "dynamic" },
+        { path: "fallback[*].fixed.name", confidence: "dynamic" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves direct mixed lookup path branch bases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '(flag ? {"x": {"fixed": customer}} : fallback) ~> $lookup("x").fixed.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.fixed.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '(flag ? {"x": {"fixed": customer}} : fallback) ~> $lookup(key).fixed.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback[*]", confidence: "dynamic" },
+        { path: "fallback[*].fixed.name", confidence: "dynamic" },
+        { path: "flag", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $lookup dynamic object aliases with dynamic lookup keys", () => {
     expect(sortPaths(extractPaths("$lookup({key: primary}, lookupKey).name"))).toEqual(
       sortPaths([
