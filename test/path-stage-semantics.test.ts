@@ -165,6 +165,26 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves direct focus-bound variable reads before chained fields", () => {
+    expect(sortPaths(extractPaths("items@$v.$v.name"))).toEqual(
+      sortPaths([{ path: "items.name", confidence: "static" }]),
+    );
+  });
+
+  it("preserves direct focus-bound mixed object aliases before chained fields", () => {
+    expect(
+      sortPaths(extractPaths('(flag ? {"x": primary} : fallback).x@$v.$v.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves variable focus-bound block projection reads", () => {
     expect(
       sortPaths(extractPaths("($items := orders.items; $items@$v.($v.category))")),

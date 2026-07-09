@@ -1592,6 +1592,26 @@ function isResultAliasStep(step: AstNode): boolean {
   );
 }
 
+function firstUnboundPathVariableIndex(steps: AstNode[]): number {
+  const localVariables = new Set<string>();
+
+  for (const [index, step] of steps.entries()) {
+    if (step.type === "variable") {
+      const name = (step as VariableNode).value;
+      if (!localVariables.has(name)) return index;
+    }
+
+    const bindingStep = step as AstNode & {
+      focusBinding?: { name: string };
+      indexBinding?: { name: string };
+    };
+    if (bindingStep.focusBinding) localVariables.add(bindingStep.focusBinding.name);
+    if (bindingStep.indexBinding) localVariables.add(bindingStep.indexBinding.name);
+  }
+
+  return -1;
+}
+
 function selectResultAliasStepPaths(
   step: AstNode,
   suffixSteps: AstNode[],
@@ -2269,8 +2289,10 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     return rootPaths.length > 0 ? markAbsolute(rootPaths) : [ROOT_PATH];
   }
 
-  // Check if any step is a variable (e.g., $x.name)
-  const varStepIndex = node.steps.findIndex((s) => s.type === "variable");
+  // Check if any step is an externally scoped variable (e.g., $x.name).
+  // Variables introduced by earlier path-stage @/# bindings are handled by the
+  // normal path walker below after those bindings are in scope.
+  const varStepIndex = firstUnboundPathVariableIndex(node.steps);
 
   if (varStepIndex >= 0) {
     const varStep = node.steps[varStepIndex] as VariableNode;
