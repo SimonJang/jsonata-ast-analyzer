@@ -307,6 +307,21 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses direct array result alias suffixes as predicate context", () => {
+    expect(
+      sortPaths(extractPaths("([primary, fallback]).x.children[active].name")),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.active", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.x.children.active", confidence: "static" },
+        { path: "primary.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves predicates on function result aliases", () => {
     expect(
       sortPaths(

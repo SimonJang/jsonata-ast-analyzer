@@ -1556,6 +1556,29 @@ function walkResultAliasSuffixStages(
   ];
 }
 
+function walkResultBaseSuffixStages(
+  basePaths: readonly string[],
+  suffixSteps: AstNode[],
+  groupNode: GroupByNode | undefined,
+  scope: ScopeTracker,
+): string[] {
+  const paths = basePaths.flatMap((basePath) => [
+    ...walkResolvedVariableSuffixFilterStages(suffixSteps, basePath, scope, new Set()),
+    ...walkResolvedVariableSuffixSortTerms(suffixSteps, basePath, scope, new Set()),
+  ]);
+
+  if (groupNode) {
+    const suffix = buildPathString(suffixSteps) ?? "";
+    paths.push(
+      ...basePaths.flatMap((basePath) =>
+        walkContextGroupEntries(groupNode, appendPath(basePath, suffix), scope),
+      ),
+    );
+  }
+
+  return paths;
+}
+
 function aliasSuffixStepsFromPath(path: string): AstNode[] | null {
   if (!path || path.startsWith(ROOT_PATH)) return null;
 
@@ -2249,6 +2272,23 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(...aliasSuffixStagePaths);
         resultAliasSuffixStageStart = resultAliasStepIndex;
         skipResultAliasGroupBy = Boolean(node.group);
+      }
+      if (!hasResultAlias) {
+        const resultBasePaths = pathResultAliasContextBasePaths(
+          { ...node, steps: [resultStep], group: undefined },
+          scope,
+        );
+        const resultBaseSuffixStagePaths = walkResultBaseSuffixStages(
+          resultBasePaths,
+          suffixSteps,
+          node.group,
+          scope,
+        );
+        if (resultBaseSuffixStagePaths.length > 0) {
+          paths.push(...resultBaseSuffixStagePaths);
+          resultAliasSuffixStageStart = resultAliasStepIndex;
+          skipResultAliasGroupBy = Boolean(node.group);
+        }
       }
       if (resultStep.type === "function" && !hasResultAlias) {
         const resultBasePaths = getFunctionResultBasePaths(
