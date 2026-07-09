@@ -1473,9 +1473,17 @@ function selectResultAliasStepPaths(
   if (resultBasePaths.length === 0) {
     return stepReadPaths.length > 0 ? stepReadPaths : null;
   }
-  if (dynamicObject) return [...stepReadPaths, ...resultBasePaths];
-
   const suffix = buildPathString(suffixSteps);
+  if (dynamicObject) {
+    const suffixBasePaths = suffix
+      ? unmatchedAliasSuffixBasePaths(
+          objectAlias,
+          getResultSuffixBasePaths(step, scope),
+        ).map((path) => appendPath(path, suffix))
+      : [];
+    return [...stepReadPaths, ...resultBasePaths, ...suffixBasePaths];
+  }
+
   return [
     ...stepReadPaths,
     ...resultBasePaths,

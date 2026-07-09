@@ -2267,6 +2267,22 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves unmatched mixed $map callback suffix bases", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map(items, function($v){flag ? {"x": $v.detail} : fallback}).y.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.y.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves mixed array element suffix bases in $map callbacks", () => {
     expect(
       sortPaths(
