@@ -307,8 +307,16 @@ function transformApplyAliasContextPaths(
   if (selectedPatternPrefixes.length === 0) return null;
 
   const transformBasePaths = extractBasePaths(lhs, scope);
+  const unmatchedSuffixBasePaths = unmatchedAliasSuffixBasePaths(
+    objectAlias,
+    suffixBasePaths,
+  );
   const fallbackPrefixes =
-    transformBasePaths.length > 0 ? transformBasePaths : [lhsPaths[0] ?? ""];
+    suffixBasePaths.length > 0
+      ? unmatchedSuffixBasePaths
+      : transformBasePaths.length > 0
+        ? transformBasePaths
+        : [lhsPaths[0] ?? ""];
 
   return transformPaths.flatMap((path) => {
     if (path === patternPrefix) return selectedPatternPrefixes;
