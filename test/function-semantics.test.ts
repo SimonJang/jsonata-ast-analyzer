@@ -865,6 +865,18 @@ describe("function semantics", () => {
     );
   });
 
+  it("resolves parent paths in inline apply lambdas", () => {
+    expect(
+      sortPaths(extractPaths("items.children ~> function($v){%.rank & $v.name}")),
+    ).toEqual(
+      sortPaths([
+        { path: "items.children", confidence: "static" },
+        { path: "items.children.name", confidence: "static" },
+        { path: "items.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves projected custom function result aliases in chained fields", () => {
     expect(
       sortPaths(

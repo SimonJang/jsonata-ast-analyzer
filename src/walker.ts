@@ -4934,17 +4934,21 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
     // Inline lambda application: bind first parameter to lhs base paths
     const lambda = node.rhs as LambdaNode;
     let lambdaScope = childScope(scope);
+    let callbackBasePaths: string[] = [];
     if (lambda.arguments.length > 0) {
       const lhsBasePaths = extractBasePaths(node.lhs, scope);
+      callbackBasePaths = lhsBasePaths.length > 0 ? lhsBasePaths : lhsPaths;
       lambdaScope = bindArgumentParameter(
         lambdaScope,
         lambda.arguments[0],
-        lhsBasePaths.length > 0 ? lhsBasePaths : lhsPaths,
+        callbackBasePaths,
         node.lhs,
         scope,
       );
     }
-    paths.push(...walkNode(lambda.body, lambdaScope));
+    paths.push(
+      ...resolveCallbackParentPaths(walkNode(lambda.body, lambdaScope), callbackBasePaths),
+    );
   } else if (node.rhs.type === "transform") {
     const transformPaths = walkTransform(node.rhs as TransformNode, scope);
     const transformBasePaths = extractBasePaths(node.lhs, scope);
