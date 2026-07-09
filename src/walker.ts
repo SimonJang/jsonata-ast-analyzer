@@ -3057,7 +3057,7 @@ function walkResolvedVariableSuffixFilterStages(
           suffixScope,
           nonPathVariables,
           suffixStageVariables,
-        ),
+        ).map(resolveParentPathSegments),
       );
     }
   }
