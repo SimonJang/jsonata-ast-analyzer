@@ -1249,6 +1249,72 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("resolves parent suffix stages after binding selected mixed object aliases", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $x := $r.x; $x.children^(%.rank).name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.rank", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $x := $r.x; $x.children{%.rank: name})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.rank", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $x := $r.x; $x.children.{"parentRank": %.rank, "name": name}.out)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.children.out", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children.name", confidence: "static" },
+        { path: "items.detail.children.out", confidence: "static" },
+        { path: "items.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves parent predicates in direct object alias suffix paths", () => {
     expect(
       sortPaths(extractPaths('orders.items.({"x": price}).x[%.active].name')),

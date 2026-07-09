@@ -2510,7 +2510,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
             [resolvedPath],
             suffixSteps,
             suffixScope,
-          ),
+          ).map(resolveParentPathSegments),
         );
       }
 
@@ -2531,7 +2531,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
               appendPath(resolvedPath, suffixBase),
               suffixScope,
               suffixStageVariables,
-            ),
+            ).map(resolveParentPathSegments),
           );
         }
       }
@@ -3103,7 +3103,7 @@ function walkResolvedVariableSuffixSortTerms(
           contextPrefix,
           suffixScope,
           suffixStageVariables,
-        ),
+        ).map(resolveParentPathSegments),
       );
     }
   }
