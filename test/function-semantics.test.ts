@@ -182,6 +182,21 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("contextualizes variable-bound terminal function path step arguments", () => {
+    expect(sortPaths(extractPaths("($items := orders.items; $items.$sum(price))"))).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+      ]),
+    );
+    expect(sortPaths(extractPaths("(orders.items).$sum(price)"))).toEqual(
+      sortPaths([
+        { path: "orders.items", confidence: "static" },
+        { path: "orders.items.price", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not emit synthetic bases for terminal higher-order function path steps", () => {
     expect(
       sortPaths(extractPaths("orders.items.$map(tags, function($v){$v.name})")),

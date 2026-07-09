@@ -1588,6 +1588,7 @@ function walkResultBaseSuffixStages(
   ]);
 
   paths.push(...walkResultBaseSuffixProjectionSteps(basePaths, suffixSteps, scope));
+  paths.push(...walkResultBaseSuffixFunctionSteps(basePaths, suffixSteps, scope));
 
   if (groupNode) {
     const suffix = buildPathString(suffixSteps) ?? "";
@@ -1637,6 +1638,44 @@ function walkResultBaseSuffixProjectionSteps(
         ),
       );
     }
+  }
+
+  return paths;
+}
+
+function walkResultBaseSuffixFunctionSteps(
+  basePaths: readonly string[],
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+
+  for (const [index, step] of suffixSteps.entries()) {
+    if (step.type !== "function") continue;
+
+    const contextPrefixSteps = suffixSteps.slice(0, index);
+    const contextSuffix = buildPathString(contextPrefixSteps) ?? "";
+    const contextPaths = basePaths.map((basePath) =>
+      appendPath(basePath, contextSuffix),
+    );
+    const parentContextPaths =
+      contextPrefixSteps.length > 1
+        ? basePaths.map((basePath) =>
+            appendPath(
+              basePath,
+              buildPathString(contextPrefixSteps.slice(0, -1)) ?? "",
+            ),
+          )
+        : [];
+
+    paths.push(
+      ...walkAliasSuffixContextExpression(
+        step,
+        contextPaths,
+        parentContextPaths,
+        scope,
+      ),
+    );
   }
 
   return paths;
@@ -2285,6 +2324,13 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         );
       }
 
+      for (const resolvedPath of suffixContextPaths) {
+        const { suffixScope } = suffixScopeFor(resolvedPath);
+        paths.push(
+          ...walkResultBaseSuffixFunctionSteps([resolvedPath], suffixSteps, suffixScope),
+        );
+      }
+
       if (node.group) {
         for (const resolvedPath of suffixContextPaths) {
           const suffixBase = buildPathString(suffixSteps) ?? "";
@@ -2322,7 +2368,11 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   let resultAliasSuffixStageStart = -1;
   let skipResultAliasGroupBy = false;
   if (
-    (resultAliasStepIndex === 0 && node.steps[0]?.type === "function") ||
+    (resultAliasStepIndex === 0 &&
+      (node.steps[0]?.type === "function" ||
+        (node.steps[0]?.type === "block" &&
+          !objectAliasForNode(node.steps[0], scope) &&
+          !dynamicObjectAliasForNode(node.steps[0], scope)))) ||
     (basePath && resultAliasStepIndex >= 0)
   ) {
     if (resultAliasStepIndex === 0) {
