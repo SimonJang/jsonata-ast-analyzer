@@ -3664,6 +3664,9 @@ function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
       }
       return [];
     }
+    if (pathNode.steps.some(isResultAliasStep)) {
+      return pathResultAliasContextBasePaths(pathNode, scope).map(resolveParentPathSegments);
+    }
     const basePath = buildPathString(pathNode.steps);
     return basePath ? [basePath] : [];
   }
