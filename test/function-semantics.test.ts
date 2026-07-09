@@ -2037,6 +2037,18 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves nested $lookup dynamic object-key result aliases", () => {
+    expect(
+      sortPaths(extractPaths('$lookup({key: {"fixed": customer}}, "x").fixed.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $lookup dynamic object aliases with dynamic lookup keys", () => {
     expect(sortPaths(extractPaths("$lookup({key: primary}, lookupKey).name"))).toEqual(
       sortPaths([

@@ -754,6 +754,35 @@ function selectLookupDynamicObjectResultAlias(
   return variants.length > 0 ? { variants } : null;
 }
 
+function selectLookupDynamicObjectResultObjectAlias(
+  alias: DynamicObjectAlias,
+  selectorSteps: AstNode[],
+): ObjectAlias | null {
+  const selector = selectorSteps[0];
+  return mergeObjectAliases(
+    alias.variants.flatMap((variant) =>
+      variant.node.entries.flatMap(([keyNode, valueNode]) => {
+        if ((variant.prefixSteps?.length ?? 0) > 0) return [];
+
+        const key = staticObjectKey(keyNode);
+        const selectorMatches =
+          !key ||
+          selector?.type !== "name" ||
+          key === (selector as NameNode).value;
+        if (!selectorMatches) return [];
+
+        const valueAlias = objectAliasForNode(valueNode, variant.scope);
+        return valueAlias && variant.parentDataArgPaths?.length
+          ? resolveCallbackObjectAliasParentPaths(
+              valueAlias,
+              variant.parentDataArgPaths,
+            )
+          : valueAlias;
+      }),
+    ),
+  );
+}
+
 function selectVariableObjectAliasPaths(
   objectAlias: ObjectAlias | null,
   dynamicObjectAlias: DynamicObjectAlias | null,
@@ -4351,8 +4380,11 @@ function getFunctionResultObjectAlias(
     return getReduceResultObjectAlias(args, argScope);
   }
 
+  if (funcName === "lookup") {
+    return getLookupResultObjectAlias(args, argScope);
+  }
+
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return null;
-  if (funcName === "lookup") return null;
   if (funcName === "append" || funcName === "zip") {
     return mergeObjectAliases(args.map((arg) => objectAliasForNode(arg, argScope)));
   }
@@ -5133,6 +5165,22 @@ function getLookupResultDynamicObjectAlias(
   const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
   return dynamicObjectAlias
     ? selectLookupDynamicObjectResultAlias(
+        dynamicObjectAlias,
+        lookupSelectorSteps(args[1]),
+      )
+    : null;
+}
+
+function getLookupResultObjectAlias(
+  args: AstNode[],
+  scope: ScopeTracker,
+): ObjectAlias | null {
+  const objectArg = args[0];
+  if (!objectArg) return null;
+
+  const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
+  return dynamicObjectAlias
+    ? selectLookupDynamicObjectResultObjectAlias(
         dynamicObjectAlias,
         lookupSelectorSteps(args[1]),
       )
