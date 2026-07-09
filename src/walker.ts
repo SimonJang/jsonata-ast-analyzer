@@ -4936,10 +4936,12 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
     let lambdaScope = childScope(scope);
     if (lambda.arguments.length > 0) {
       const lhsBasePaths = extractBasePaths(node.lhs, scope);
-      lambdaScope = bindVariable(
+      lambdaScope = bindArgumentParameter(
         lambdaScope,
-        lambda.arguments[0].value,
+        lambda.arguments[0],
         lhsBasePaths.length > 0 ? lhsBasePaths : lhsPaths,
+        node.lhs,
+        scope,
       );
     }
     paths.push(...walkNode(lambda.body, lambdaScope));

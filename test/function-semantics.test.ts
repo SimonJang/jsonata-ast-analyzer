@@ -847,6 +847,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed object alias suffix bases in inline apply lambdas", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '(flag ? {"x": detail} : fallback) ~> function($v){$v.x.children.name}',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves projected custom function result aliases in chained fields", () => {
     expect(
       sortPaths(
