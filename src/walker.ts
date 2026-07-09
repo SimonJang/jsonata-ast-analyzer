@@ -3236,6 +3236,7 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
     );
     const objectAlias = objectAliasFromBlock(node, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
+    const suffixBasePaths = getBlockResultSuffixBasePaths(node, scope);
     paths.push(
       ...(objectAlias || dynamicObjectAlias
         ? walkAliasGroupEntries(
@@ -3243,6 +3244,7 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
             objectAlias,
             dynamicObjectAlias,
             groupScope,
+            suffixBasePaths,
           )
         : bindingAliasPathsFromBlock(node, scope).flatMap((basePath) =>
             walkContextGroupEntries(

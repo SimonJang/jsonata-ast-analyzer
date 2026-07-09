@@ -1237,6 +1237,22 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("uses direct mixed object alias suffixes as group context", () => {
+    expect(
+      sortPaths(extractPaths('(flag ? {"x": primary} : fallback){x.rank: x.name}')),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.name", confidence: "static" },
+        { path: "fallback.x.rank", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "primary", confidence: "static" },
+        { path: "primary.name", confidence: "static" },
+        { path: "primary.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("uses direct object alias suffixes as function context", () => {
     expect(
       sortPaths(extractPaths('orders.items.({"x": price}).x.$sum(amount)')),
