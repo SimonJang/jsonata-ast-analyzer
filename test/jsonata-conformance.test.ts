@@ -102,6 +102,11 @@ const fixtures: ConformanceFixture[] = [
     expectedPaths: [{ path: "customer.name", confidence: "static" }],
   },
   {
+    name: "root context reference path",
+    expression: "$$.customer.name",
+    expectedPaths: [{ path: "customer.name", confidence: "static" }],
+  },
+  {
     name: "root reference alias",
     expression: "($root := $; $root.customer.name)",
     expectedPaths: [{ path: "customer.name", confidence: "static" }],
