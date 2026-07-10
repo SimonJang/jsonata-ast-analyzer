@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 - 2026-07-10
+
+### Fixed
+
+- Corrected path extraction for root and parent references, aliases, callbacks, transforms, dynamic lookups, and chained filter, sort, group, and projection stages.
+- Preserved accurate source paths through arrays, objects, conditionals, blocks, constructors, and function results while suppressing synthetic paths.
+- Expanded conformance, corpus, and regression coverage for the corrected analyzer behavior.
+
 ## 1.0.0 - 2026-07-01
 
 Initial npm release of `jsonata-ast-analyzer`.
