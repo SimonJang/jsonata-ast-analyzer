@@ -1871,6 +1871,23 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves builtin $each callback suffixes through merged object values", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$each($merge([{"a": detail}, {"b": fallback.x}]), $clone).children.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $sift result aliases in wildcard chained fields", () => {
     expect(
       sortPaths(extractPaths("$sift(record, function($v) { $v.active }).*.name")),

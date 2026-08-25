@@ -6592,6 +6592,21 @@ function higherOrderCallbackDataNodes(
     }
     if (
       functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "merge" &&
+      functionNode.arguments[0]?.type === "array"
+    ) {
+      return (functionNode.arguments[0] as ArrayNode).expressions.flatMap(
+        (expression) =>
+          higherOrderCallbackDataNodes(
+            funcName,
+            expression,
+            scope,
+            resolvingVariables,
+          ),
+      );
+    }
+    if (
+      functionNode.procedure.type === "variable" &&
       ["clone", "sift"].includes(functionNode.procedure.value) &&
       functionNode.arguments[0]
     ) {
