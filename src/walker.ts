@@ -6574,6 +6574,23 @@ function higherOrderCallbackDataNodes(
     }
     return result;
   }
+  if (funcName === "each" && dataArg.type === "function") {
+    const functionNode = dataArg as FunctionNode;
+    const lambdaBinding =
+      functionNode.procedure.type === "lambda"
+        ? { lambda: functionNode.procedure, scope }
+        : functionNode.procedure.type === "variable"
+          ? resolveLambda(scope, functionNode.procedure.value)
+          : null;
+    if (lambdaBinding) {
+      return higherOrderCallbackDataNodes(
+        funcName,
+        lambdaBinding.lambda.body,
+        lambdaCallScope(lambdaBinding, functionNode.arguments, scope),
+        resolvingVariables,
+      );
+    }
+  }
   if (funcName === "each" && dataArg.type === "object") {
     return (dataArg as ObjectNode).entries.map(([, value]) => value);
   }
