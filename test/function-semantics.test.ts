@@ -136,6 +136,35 @@ describe("function semantics", () => {
     );
   });
 
+  it("invokes built-ins returned by statically known $eval programs", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$eval("$reverse")([detail, fallback]).children.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.children.name", confidence: "static" },
+      ]),
+    );
+
+    for (const expression of [
+      '$eval("$map")([detail], function($x){$x.children.name})',
+      '($f := $eval("$map"); $f([detail], function($x){$x.children.name}))',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",

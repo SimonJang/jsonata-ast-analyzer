@@ -5539,15 +5539,10 @@ function resolveCallableValues(
   ) {
     const expression = getStaticEvalExpression(functionNode.arguments);
     if (!expression) return [];
-    const contextArg = functionNode.arguments[1];
-    const evalScope = contextArg
-      ? bindVariable(
-          childScope(scope),
-          "",
-          getResultBasePathsFromArg(contextArg, scope),
-        )
-      : scope;
-    return resolveCallableValues(expression, evalScope);
+    return resolveCallableValues(
+      expression,
+      getStaticEvalScope(functionNode.arguments, scope),
+    );
   }
   if (
     functionNode.procedure.type === "variable" &&
@@ -5709,6 +5704,18 @@ function resolveBuiltinCallableNames(
     const functionNode = node as FunctionNode;
     if (
       functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "eval"
+    ) {
+      const expression = getStaticEvalExpression(functionNode.arguments);
+      return expression
+        ? resolveBuiltinCallableNames(
+            expression,
+            getStaticEvalScope(functionNode.arguments, scope),
+          )
+        : [];
+    }
+    if (
+      functionNode.procedure.type === "variable" &&
       functionNode.procedure.value === "lookup"
     ) {
       const objectArg = functionNode.arguments[0];
@@ -5851,7 +5858,8 @@ function walkReturnedCallableCall(
   const producer = node.procedure;
   const paths = walkCallableSelection(producer, scope);
   const callables = resolveCallableValues(producer, scope);
-  if (callables.length === 0) {
+  const builtinNames = resolveBuiltinCallableNames(producer, scope);
+  if (callables.length === 0 && builtinNames.length === 0) {
     return [...paths, ...node.arguments.flatMap((arg) => walkNode(arg, scope))];
   }
   for (const callable of callables) {
@@ -5862,6 +5870,17 @@ function walkReturnedCallableCall(
     } else {
       paths.push(...walkPartialCall(callable.binding, node.arguments, scope));
     }
+  }
+  for (const name of builtinNames) {
+    paths.push(
+      ...walkFunction(
+        {
+          ...node,
+          procedure: { type: "variable", value: name, position: node.position },
+        },
+        scope,
+      ),
+    );
   }
   return paths;
 }
@@ -6148,6 +6167,20 @@ function getStaticEvalExpression(args: AstNode[]): AstNode | null {
   } catch {
     return null;
   }
+}
+
+function getStaticEvalScope(
+  args: AstNode[],
+  scope: ScopeTracker,
+): ScopeTracker {
+  const contextArg = args[1];
+  return contextArg
+    ? bindVariable(
+        childScope(scope),
+        "",
+        getResultBasePathsFromArg(contextArg, scope),
+      )
+    : scope;
 }
 
 function getStaticEvalResultObjectAlias(
