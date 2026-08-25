@@ -6592,7 +6592,7 @@ function higherOrderCallbackDataNodes(
     }
     if (
       functionNode.procedure.type === "variable" &&
-      functionNode.procedure.value === "clone" &&
+      ["clone", "sift"].includes(functionNode.procedure.value) &&
       functionNode.arguments[0]
     ) {
       return higherOrderCallbackDataNodes(
