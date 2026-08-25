@@ -6503,6 +6503,12 @@ function higherOrderCallbackDataPaths(
     : dataArg
       ? extractBasePaths(dataArg, scope)
       : [];
+  if (funcName === "map" && dataArg) {
+    const callbackDataNodes = higherOrderCallbackDataNodes("map", dataArg, scope);
+    if (callbackDataNodes.length !== 1 || callbackDataNodes[0] !== dataArg) {
+      return callbackDataNodes.flatMap((node) => bindingAliasPaths(node, scope));
+    }
+  }
   if (funcName !== "each" && funcName !== "sift") return basePaths;
 
   if (dataArg?.type === "object") {
@@ -6530,7 +6536,7 @@ function higherOrderCallbackDataNodes(
   resolvingVariables = new Set<string>(),
 ): AstNode[] {
   if (!dataArg) return [];
-  if (funcName === "each" && dataArg.type === "variable") {
+  if (dataArg.type === "variable") {
     const name = (dataArg as VariableNode).value;
     if (resolvingVariables.has(name)) return [dataArg];
     const binding = resolveValue(scope, name);
@@ -6543,7 +6549,7 @@ function higherOrderCallbackDataNodes(
       );
     }
   }
-  if (funcName === "each" && dataArg.type === "array") {
+  if (dataArg.type === "array") {
     const arrayNode = dataArg as ArrayNode;
     const numericFilter = (arrayNode.predicate ?? []).find(
       (stage) =>
@@ -6564,8 +6570,9 @@ function higherOrderCallbackDataNodes(
         );
       }
     }
+    if (funcName === "map") return arrayNode.expressions;
   }
-  if (funcName === "each" && dataArg.type === "condition") {
+  if (dataArg.type === "condition") {
     const condition = dataArg as ConditionNode;
     return [condition.then, condition.else].flatMap((branch) =>
       branch
@@ -6578,7 +6585,7 @@ function higherOrderCallbackDataNodes(
         : [],
     );
   }
-  if (funcName === "each" && dataArg.type === "block") {
+  if (dataArg.type === "block") {
     let blockScope = scope;
     let result: AstNode[] = [];
     for (const expression of (dataArg as BlockNode).expressions) {
