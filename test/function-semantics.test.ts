@@ -886,6 +886,15 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from builtin map callback results", () => {
+    expect(sortPaths(extractPaths("$map(records, $clone).first.name"))).toEqual(
+      sortPaths([
+        { path: "records", confidence: "static" },
+        { path: "records.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a path-context stored builtin", () => {
     expect(
       sortPaths(

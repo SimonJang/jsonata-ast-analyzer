@@ -7623,7 +7623,10 @@ function getCallbackResultBasePaths(
   scope: ScopeTracker,
 ): string[] {
   const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
-  if (!callback) return [];
+  const builtinCallbacks = args[1]
+    ? resolveBuiltinCallableNames(args[1], scope)
+    : [];
+  if (!callback && builtinCallbacks.length === 0) return [];
 
   const dataArg = args[0];
   const dataArgPaths = higherOrderCallbackDataPaths(
@@ -7632,7 +7635,7 @@ function getCallbackResultBasePaths(
     scope,
   );
   return [
-    ...callback.bindings.flatMap((binding) => {
+    ...(callback?.bindings ?? []).flatMap((binding) => {
       const lambdaScope = bindHigherOrderLambdaCallbackScope(
         funcName,
         binding,
@@ -7645,11 +7648,29 @@ function getCallbackResultBasePaths(
         dataArgPaths,
       );
     }),
-    ...(funcName === "map"
+    ...(funcName === "map" && callback
       ? higherOrderPartialLambdaCalls(callback, dataArg).flatMap((call) =>
           getCustomFunctionResultBasePaths(
             call.binding,
             call.arguments,
+            scope,
+          ),
+        )
+      : []),
+    ...(dataArg
+      ? builtinCallbacks.flatMap((name) =>
+          getFunctionResultBasePaths(
+            {
+              type: "function",
+              value: "(",
+              position: 0,
+              procedure: {
+                type: "variable",
+                value: name,
+                position: 0,
+              },
+              arguments: [dataArg],
+            },
             scope,
           ),
         )
