@@ -5376,10 +5376,14 @@ function lambdaCallScope(
 function unwrapCallableContainerNode(
   node: AstNode,
   scope: ScopeTracker,
+  depth = 0,
 ): { readonly node: AstNode; readonly scope: ScopeTracker } {
+  if (depth >= 16) return { node, scope };
   if (node.type === "variable") {
     const value = resolveValue(scope, (node as VariableNode).value);
-    if (value) return value;
+    if (value) {
+      return unwrapCallableContainerNode(value.node, value.scope, depth + 1);
+    }
   }
   if (
     node.type === "function" &&
@@ -5389,10 +5393,11 @@ function unwrapCallableContainerNode(
     const functionNode = node as FunctionNode;
     const expression = getStaticEvalExpression(functionNode.arguments);
     if (expression) {
-      return {
-        node: expression,
-        scope: getStaticEvalScope(functionNode.arguments, scope),
-      };
+      return unwrapCallableContainerNode(
+        expression,
+        getStaticEvalScope(functionNode.arguments, scope),
+        depth + 1,
+      );
     }
   }
   return { node, scope };

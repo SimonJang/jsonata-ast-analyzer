@@ -179,6 +179,21 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes fields from variable-bound static $eval objects", () => {
+    for (const expression of [
+      '($o := $eval("{\\"f\\": function($x){$x.children.name}}"); ($o.f)(detail))',
+      '($o := $eval("{\\"f\\": function($x){$x.children.name}}"); $lookup($o, "f")(detail))',
+      '($o := $eval("{\\"f\\": $reverse}"); ($o.f)([detail]).children.name)',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",
