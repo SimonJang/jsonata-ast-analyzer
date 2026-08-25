@@ -454,6 +454,18 @@ let evaluated = 0;
 for (const testCase of cases) {
   if (testCase.code || testCase.timelimit || testCase.depth) continue;
 
+  let analyzerPaths;
+  try {
+    analyzerPaths = extractPaths(testCase.expression).map(({ path }) => path);
+  } catch (error) {
+    analyzerFailures.push({
+      file: testCase.file,
+      expression: testCase.expression,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    continue;
+  }
+
   let input;
   try {
     input = Object.hasOwn(testCase, "data")
@@ -475,17 +487,6 @@ for (const testCase of cases) {
   }
   evaluated += 1;
 
-  let analyzerPaths;
-  try {
-    analyzerPaths = extractPaths(testCase.expression).map(({ path }) => path);
-  } catch (error) {
-    analyzerFailures.push({
-      file: testCase.file,
-      expression: testCase.expression,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    continue;
-  }
   const runtimePaths = deepestPaths(accesses);
   const uncovered = runtimePaths.filter(
     (runtimePath) =>
