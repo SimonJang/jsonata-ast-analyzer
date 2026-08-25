@@ -1009,6 +1009,36 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds $reduce callback index and array parameters by documented position", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "$reduce([detail, fallback.x], function($acc, $v, $i, $all){$append($acc, $all.children.name)}, [])",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "$reduce([detail, fallback.x], function($acc, $v, $i){($i.children.name; $acc)}, [])",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves object aliases from builtin reduce callback results", () => {
     expect(
       sortPaths(

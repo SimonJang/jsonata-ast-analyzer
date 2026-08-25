@@ -41,7 +41,7 @@ export const HIGHER_ORDER_SEMANTICS: Record<string, Record<number, string>> = {
   filter: { 0: "element", 1: "index", 2: "array" },
   single: { 0: "element", 1: "index", 2: "array" },
   each:   { 0: "value", 1: "key" },
-  reduce: { 0: "accumulator", 1: "element", 2: "array" },
+  reduce: { 0: "accumulator", 1: "element", 2: "index", 3: "array" },
   sift:   { 0: "value", 1: "key" },
   sort:   { 0: "left", 1: "right" },
 };
