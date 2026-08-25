@@ -85,6 +85,10 @@ function bindCallableValue(
   if (value.type === "transform") {
     return bindTransform(valueScope, name, value as TransformNode, closureScope);
   }
+  if (value.type === "apply") {
+    const composition = compositionLambda(value as ApplyNode, closureScope);
+    if (composition) return bindLambda(valueScope, name, composition, closureScope);
+  }
   return valueScope;
 }
 const IMPLICIT_ROOT_SHALLOW_FUNCTIONS = new Set([
@@ -5375,6 +5379,50 @@ function lambdaCallScope(
   return resultScope;
 }
 
+function compositionProcedure(
+  node: AstNode,
+  scope: ScopeTracker,
+): FunctionNode["procedure"] | null {
+  if (node.type === "apply") {
+    return compositionLambda(node as ApplyNode, scope);
+  }
+  return resolveCallableValues(node, scope).length > 0 ||
+    resolveBuiltinCallableNames(node, scope).length > 0
+    ? (node as FunctionNode["procedure"])
+    : null;
+}
+
+function compositionLambda(node: ApplyNode, scope: ScopeTracker): LambdaNode | null {
+  const left = compositionProcedure(node.lhs, scope);
+  const right = compositionProcedure(node.rhs, scope);
+  if (!left || !right) return null;
+
+  const parameter: VariableNode = {
+    type: "variable",
+    value: `__composition_input_${node.position}`,
+    position: node.position,
+  };
+  const leftCall: FunctionNode = {
+    type: "function",
+    value: "(",
+    position: node.position,
+    procedure: left,
+    arguments: [parameter],
+  };
+  return {
+    type: "lambda",
+    position: node.position,
+    arguments: [parameter],
+    body: {
+      type: "function",
+      value: "(",
+      position: node.position,
+      procedure: right,
+      arguments: [leftCall],
+    },
+  };
+}
+
 function resolveCallableValues(
   node: AstNode,
   scope: ScopeTracker,
@@ -5484,6 +5532,10 @@ function resolveCallableValues(
       ? resolveCallableValues(sourceNode, sourceScope)
       : [];
   }
+  if (node.type === "apply") {
+    const lambda = compositionLambda(node as ApplyNode, scope);
+    return lambda ? [{ kind: "lambda", binding: { lambda, scope } }] : [];
+  }
   if (node.type !== "function") return [];
 
   const functionNode = node as FunctionNode;
@@ -5538,6 +5590,12 @@ function resolveBuiltinCallableNames(
       return BUILTIN_FUNCTIONS.has(variable.value) ? [variable.value] : [];
     }
     if (value.node.type === "partial") return [];
+    if (
+      value.node.type === "apply" &&
+      compositionLambda(value.node as ApplyNode, value.scope)
+    ) {
+      return [];
+    }
     const numericFilter = (variable.predicate ?? []).find(
       (stage) =>
         stage.type === "filter" &&

@@ -463,6 +463,40 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("preserves result aliases through function composition", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($copy := $append(?, []) ~> $reverse(?); $copy([detail, fallback.x]).children.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($project := $map(?, function($v){$v.children}) ~> $reverse(?); $project([detail, fallback.x]).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("does not suffix scalar function result properties onto input paths", () => {
     expect(extractPaths("$substring(customer.name, 0, 3).length")).toEqual([
       { path: "customer.name", confidence: "static" },
