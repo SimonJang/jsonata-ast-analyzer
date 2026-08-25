@@ -6592,6 +6592,36 @@ function higherOrderCallbackDataNodes(
     }
     if (
       functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "lookup" &&
+      functionNode.arguments[0]
+    ) {
+      const objectArg = functionNode.arguments[0];
+      const objectBinding =
+        objectArg.type === "variable"
+          ? resolveValue(scope, (objectArg as VariableNode).value)
+          : null;
+      const objectNode = objectBinding?.node ?? objectArg;
+      const objectScope = objectBinding?.scope ?? scope;
+      if (objectNode.type === "object") {
+        const keyArg = functionNode.arguments[1];
+        const staticKey =
+          keyArg?.type === "string"
+            ? (keyArg as { value: string }).value
+            : null;
+        return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
+          staticKey === null || staticObjectKey(key) === staticKey
+            ? higherOrderCallbackDataNodes(
+                funcName,
+                value,
+                objectScope,
+                resolvingVariables,
+              )
+            : [],
+        );
+      }
+    }
+    if (
+      functionNode.procedure.type === "variable" &&
       functionNode.procedure.value === "merge" &&
       functionNode.arguments[0]?.type === "array"
     ) {
