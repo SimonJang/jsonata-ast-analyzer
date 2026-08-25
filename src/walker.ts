@@ -5533,6 +5533,7 @@ function resolveBuiltinCallableNames(
     if (!value) {
       return BUILTIN_FUNCTIONS.has(variable.value) ? [variable.value] : [];
     }
+    if (value.node.type === "partial") return [];
     const numericFilter = (variable.predicate ?? []).find(
       (stage) =>
         stage.type === "filter" &&
@@ -5546,6 +5547,12 @@ function resolveBuiltinCallableNames(
       return selected ? resolveBuiltinCallableNames(selected, value.scope) : [];
     }
     return resolveBuiltinCallableNames(value.node, value.scope);
+  }
+  if (node.type === "partial") {
+    return resolveBuiltinCallableNames(
+      (node as PartialNode).procedure,
+      scope,
+    );
   }
   if (node.type === "array") {
     return (node as ArrayNode).expressions.flatMap((value) =>
