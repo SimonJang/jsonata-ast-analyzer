@@ -6510,6 +6510,12 @@ function higherOrderCallbackDataPaths(
       bindingAliasPaths(value, scope),
     );
   }
+  if (funcName === "each" && dataArg) {
+    const callbackDataNodes = higherOrderCallbackDataNodes("each", dataArg, scope);
+    if (callbackDataNodes.length !== 1 || callbackDataNodes[0] !== dataArg) {
+      return callbackDataNodes.flatMap((node) => bindingAliasPaths(node, scope));
+    }
+  }
   const objectAlias = dataArg ? objectAliasForNode(dataArg, scope) : null;
   if (objectAlias && objectAlias.size > 0) {
     return [...objectAlias.values()].flatMap((paths) => [...paths]);
@@ -6573,6 +6579,47 @@ function higherOrderCallbackDataNodes(
       }
     }
     return result;
+  }
+  if (funcName === "each" && dataArg.type === "path") {
+    const pathNode = dataArg as PathNode;
+    const [first, ...selectorSteps] = pathNode.steps;
+    if (first && selectorSteps.length > 0) {
+      const firstBinding =
+        first.type === "variable"
+          ? resolveValue(scope, (first as VariableNode).value)
+          : null;
+      let candidates: Array<{ node: AstNode; scope: ScopeTracker }> = [
+        {
+          node: firstBinding?.node ?? first,
+          scope: firstBinding?.scope ?? scope,
+        },
+      ];
+      for (const selector of selectorSteps) {
+        if (selector.type !== "name") {
+          candidates = [];
+          break;
+        }
+        candidates = candidates.flatMap((candidate) =>
+          candidate.node.type === "object"
+            ? (candidate.node as ObjectNode).entries.flatMap(([key, value]) =>
+                staticObjectKey(key) === (selector as NameNode).value
+                  ? [{ node: value, scope: candidate.scope }]
+                  : [],
+              )
+            : [],
+        );
+      }
+      if (candidates.length > 0) {
+        return candidates.flatMap((candidate) =>
+          higherOrderCallbackDataNodes(
+            funcName,
+            candidate.node,
+            candidate.scope,
+            resolvingVariables,
+          ),
+        );
+      }
+    }
   }
   if (funcName === "each" && dataArg.type === "apply") {
     const appliedFunction = appliedFunctionFromApply(dataArg as ApplyNode);
