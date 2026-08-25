@@ -172,6 +172,25 @@ function builtinUsesContextDefault(funcName: string, args: AstNode[]): boolean {
   }
 }
 
+function functionUsesContextDefault(node: FunctionNode): boolean {
+  if (node.procedure.type === "variable") {
+    return builtinUsesContextDefault(node.procedure.value, node.arguments);
+  }
+  if (node.procedure.type !== "condition") return false;
+
+  const branches = [node.procedure.then, node.procedure.else].filter(
+    (branch): branch is AstNode => Boolean(branch),
+  );
+  return (
+    branches.length > 0 &&
+    branches.every(
+      (branch) =>
+        branch.type === "variable" &&
+        builtinUsesContextDefault((branch as VariableNode).value, node.arguments),
+    )
+  );
+}
+
 function withImplicitRootFunctionArgument(
   funcName: string,
   args: AstNode[],
@@ -3511,11 +3530,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       const projectionPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const usesContextDefault =
         step.type === "function" &&
-        (step as FunctionNode).procedure.type === "variable" &&
-        builtinUsesContextDefault(
-          ((step as FunctionNode).procedure as VariableNode).value,
-          (step as FunctionNode).arguments,
-        );
+        functionUsesContextDefault(step as FunctionNode);
       const resultAliasScope =
         projectionPrefix &&
         (collectVariableNames(step).has("") || usesContextDefault)
