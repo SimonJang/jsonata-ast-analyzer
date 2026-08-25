@@ -497,6 +497,33 @@ describe("function semantics", () => {
     );
   });
 
+  it("recognizes all unary builtins used in function composition", () => {
+    const cases = [
+      {
+        expression:
+          "($choose := $abs ~> function($x){$x > 0 ? detail : fallback.x}; $choose(amount).children.name)",
+        inputPath: "amount",
+      },
+      {
+        expression:
+          "($choose := $formatBase ~> function($x){$x ? detail : fallback.x}; $choose(radix).children.name)",
+        inputPath: "radix",
+      },
+    ];
+
+    for (const { expression, inputPath } of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+          { path: "fallback.x", confidence: "static" },
+          { path: "fallback.x.children.name", confidence: "static" },
+          { path: inputPath, confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("does not suffix scalar function result properties onto input paths", () => {
     expect(extractPaths("$substring(customer.name, 0, 3).length")).toEqual([
       { path: "customer.name", confidence: "static" },

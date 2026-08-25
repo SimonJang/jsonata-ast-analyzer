@@ -6,14 +6,16 @@ export const BUILTIN_FUNCTIONS = new Set([
   "string", "length", "substring", "substringBefore", "substringAfter",
   "uppercase", "lowercase", "trim", "pad", "contains", "split", "join",
   "match", "replace",
+  "formatNumber", "formatBase", "formatInteger", "parseInteger",
   // Numeric
   "number", "floor", "ceil", "round", "power", "sqrt", "random",
+  "abs",
   // Boolean
   "boolean", "not", "exists",
   // Array
   "append", "sort", "reverse", "shuffle", "distinct", "zip",
   // Object
-  "keys", "values", "spread", "merge", "each", "error",
+  "keys", "spread", "merge", "each", "error",
   // Type
   "type", "clone",
   // Higher-order
@@ -25,6 +27,7 @@ export const BUILTIN_FUNCTIONS = new Set([
   "encodeUrlComponent", "encodeUrl", "decodeUrlComponent", "decodeUrl",
   // Other
   "assert",
+  "eval",
 ]);
 
 /**
