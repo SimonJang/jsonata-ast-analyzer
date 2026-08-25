@@ -901,6 +901,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from a forwarded builtin argument", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($identity := function($fn){$fn}; $identity($clone)(record).first.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from builtin map callback results", () => {
     expect(sortPaths(extractPaths("$map(records, $clone).first.name"))).toEqual(
       sortPaths([

@@ -5358,6 +5358,14 @@ function lambdaCallScope(
     resultScope = arg
       ? bindArgumentParameter(resultScope, parameter, argPaths, arg, callScope)
       : bindVariable(resultScope, parameter.value, argPaths);
+    if (arg) {
+      resultScope = bindCallableValue(
+        resultScope,
+        parameter.value,
+        arg,
+        callScope,
+      );
+    }
   }
   return resultScope;
 }
