@@ -211,6 +211,25 @@ describe("function semantics", () => {
     );
   });
 
+  it("marks data-dependent mutually recursive function descent", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($even := function($x){$x.children ? $odd($x.children) : $x.name}; " +
+            "$odd := function($x){$x.children ? $even($x.children) : $x.name}; " +
+            "$even(tree))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "tree", confidence: "static" },
+        { path: "tree.children", confidence: "static" },
+        { path: "tree.children.**", confidence: "static" },
+        { path: "tree.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",

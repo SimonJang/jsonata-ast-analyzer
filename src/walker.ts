@@ -7439,7 +7439,12 @@ function walkCustomFunctionCall(
       ? walkCallableSelection(lambda.body, lambdaScope)
       : walkNode(lambda.body, lambdaScope);
   const recursiveDescentPaths = binding.name
-    ? recursiveLambdaDescentPaths(lambda.body, binding.name, lambdaScope)
+    ? recursiveLambdaDescentPaths(
+        lambda.body,
+        binding.name,
+        lambdaScope,
+        callScope,
+      )
     : [];
   paths.push(
     ...resolveCallbackParentPaths(
@@ -7455,14 +7460,21 @@ function recursiveLambdaDescentPaths(
   node: AstNode,
   functionName: string,
   scope: ScopeTracker,
+  callableScope: ScopeTracker,
 ): string[] {
   const paths: string[] = [];
-  if (
-    node.type === "function" &&
-    (node as FunctionNode).procedure.type === "variable" &&
-    ((node as FunctionNode).procedure as VariableNode).value === functionName
-  ) {
-    for (const arg of (node as FunctionNode).arguments) {
+  if (node.type === "function" && (node as FunctionNode).procedure.type === "variable") {
+    const functionNode = node as FunctionNode;
+    const calledName = (functionNode.procedure as VariableNode).value;
+    const entersCycle =
+      calledName === functionName ||
+      lambdaCallGraphReaches(
+        calledName,
+        functionName,
+        callableScope,
+        new Set([functionName]),
+      );
+    for (const arg of entersCycle ? functionNode.arguments : []) {
       paths.push(
         ...getResultBasePathsFromArg(arg, scope).map((path) =>
           appendPath(path, "**"),
@@ -7481,6 +7493,7 @@ function recursiveLambdaDescentPaths(
               item as AstNode,
               functionName,
               scope,
+              callableScope,
             ),
           );
         }
@@ -7491,11 +7504,53 @@ function recursiveLambdaDescentPaths(
           value as AstNode,
           functionName,
           scope,
+          callableScope,
         ),
       );
     }
   }
   return paths;
+}
+
+function lambdaCallGraphReaches(
+  functionName: string,
+  targetName: string,
+  scope: ScopeTracker,
+  visited: Set<string>,
+): boolean {
+  if (functionName === targetName) return true;
+  if (visited.has(functionName)) return false;
+  const binding = resolveLambda(scope, functionName);
+  if (!binding) return false;
+
+  const nextVisited = new Set(visited).add(functionName);
+  return calledFunctionNames(binding.lambda.body).some((calledName) =>
+    lambdaCallGraphReaches(calledName, targetName, scope, nextVisited),
+  );
+}
+
+function calledFunctionNames(node: AstNode): string[] {
+  const names: string[] = [];
+  if (
+    node.type === "function" &&
+    (node as FunctionNode).procedure.type === "variable"
+  ) {
+    names.push(((node as FunctionNode).procedure as VariableNode).value);
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "source") continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === "object") {
+          names.push(...calledFunctionNames(item as AstNode));
+        }
+      }
+    } else if (value && typeof value === "object") {
+      names.push(...calledFunctionNames(value as AstNode));
+    }
+  }
+  return names;
 }
 
 function bindArgumentParameter(
