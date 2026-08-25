@@ -4408,13 +4408,10 @@ function walkGroupBy(
     const contextPrefix = hasPendingProjectionFocusReset(prefixSteps)
       ? parentPath(structuralContextPrefix)
       : structuralContextPrefix;
-    const usesContextDefault =
-      resultAliasStep.type === "function" &&
-      (resultAliasStep as FunctionNode).procedure.type === "variable" &&
-      builtinUsesContextDefault(
-        ((resultAliasStep as FunctionNode).procedure as VariableNode).value,
-        (resultAliasStep as FunctionNode).arguments,
-      );
+    const usesContextDefault = resultUsesContextDefault(
+      resultAliasStep,
+      scope,
+    );
     const resultScope =
       contextPrefix && usesContextDefault
         ? bindVariable(childScope(scope), "", [contextPrefix])

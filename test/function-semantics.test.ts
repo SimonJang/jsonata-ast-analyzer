@@ -804,6 +804,25 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves group reads from a path-context conditional builtin", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "record.(flag ? $spread : $clone)(){first.name:first.detail.rank}",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.flag", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+        { path: "record.**", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a stored conditional builtin", () => {
     expect(
       sortPaths(
