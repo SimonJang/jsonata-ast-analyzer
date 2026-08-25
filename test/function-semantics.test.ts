@@ -757,6 +757,35 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves sort reads from path-context preserving results", () => {
+    const cases = [
+      {
+        expression: "record.$spread()^(first.detail.rank).first.name",
+        broadPath: "record.*",
+      },
+      {
+        expression: "record.$clone()^(first.detail.rank).first.name",
+        broadPath: "record.**",
+      },
+      {
+        expression:
+          "record.$sift(function($value){true})^(first.detail.rank).first.name",
+        broadPath: "record.*",
+      },
+    ];
+
+    for (const { expression, broadPath } of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "record", confidence: "static" },
+          { path: broadPath, confidence: "static" },
+          { path: "record.first.name", confidence: "static" },
+          { path: "record.first.detail.rank", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves explicit root object reads", () => {
     for (const expression of [
       "$keys($)",

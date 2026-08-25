@@ -3764,6 +3764,17 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const aliasStep = node.steps[i - 1];
+      const aliasUsesContextDefault =
+        aliasStep?.type === "function" &&
+        (aliasStep as FunctionNode).procedure.type === "variable" &&
+        builtinUsesContextDefault(
+          ((aliasStep as FunctionNode).procedure as VariableNode).value,
+          (aliasStep as FunctionNode).arguments,
+        );
+      const sortAliasScope =
+        contextPrefix && aliasUsesContextDefault
+          ? bindVariable(childScope(stageScope), "", [contextPrefix])
+          : stageScope;
       const sortStep = step as SortNode;
       if (sortStep.indexBinding) {
         stageScope = bindVariable(stageScope, sortStep.indexBinding.name, []);
@@ -3773,7 +3784,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         ...walkSortTerms(
           sortStep,
           contextPrefix,
-          stageScope,
+          sortAliasScope,
           stageVariables,
           aliasStep && isResultAliasStep(aliasStep) ? aliasStep : undefined,
         ),
