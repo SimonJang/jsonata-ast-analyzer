@@ -96,6 +96,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves contextual dynamic object aliases from static $eval programs", () => {
+    expect(
+      sortPaths(
+        extractPaths('$eval("{(key): children}", detail).x.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "detail.key", confidence: "static" },
+      ]),
+    );
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",

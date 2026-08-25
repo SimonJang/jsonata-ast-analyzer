@@ -1242,6 +1242,7 @@ function selectDynamicObjectValuePaths(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
   parentDataArgPaths: readonly string[] = [],
+  contextBasePaths: readonly string[] = [],
 ): string[] {
   const [selector, ...rest] = suffixSteps;
   if (!selector || (selector.type !== "name" && selector.type !== "wildcard")) return [];
@@ -1253,10 +1254,14 @@ function selectDynamicObjectValuePaths(
     if (staticObjectKey(keyNode)) continue;
 
     const nestedAlias = objectAliasForNode(valueNode, scope);
-    const resolvedNestedAlias =
-      nestedAlias && parentDataArgPaths.length > 0
-        ? resolveCallbackObjectAliasParentPaths(nestedAlias, parentDataArgPaths)
-        : nestedAlias;
+    const resolvedNestedAlias = nestedAlias
+      ? resolveDynamicVariantObjectAlias(nestedAlias, {
+          node,
+          scope,
+          parentDataArgPaths,
+          contextBasePaths,
+        })
+      : null;
     const nestedPaths = resolvedNestedAlias
       ? selectObjectAliasPaths(resolvedNestedAlias, rest)
       : null;
@@ -1266,13 +1271,14 @@ function selectDynamicObjectValuePaths(
     }
 
     const nestedDynamicAlias = dynamicObjectAliasForNode(valueNode, scope);
-    const resolvedNestedDynamicAlias =
-      nestedDynamicAlias && parentDataArgPaths.length > 0
-        ? resolveCallbackDynamicObjectAliasParentPaths(
-            nestedDynamicAlias,
-            parentDataArgPaths,
-          )
-        : nestedDynamicAlias;
+    const resolvedNestedDynamicAlias = nestedDynamicAlias
+      ? resolveDynamicVariantDynamicObjectAlias(nestedDynamicAlias, {
+          node,
+          scope,
+          parentDataArgPaths,
+          contextBasePaths,
+        })
+      : null;
     const nestedDynamicPaths = resolvedNestedDynamicAlias
       ? selectDynamicObjectAliasPaths(resolvedNestedDynamicAlias, rest)
       : [];
@@ -1284,10 +1290,12 @@ function selectDynamicObjectValuePaths(
     if (valueNode.type === "object") continue;
 
     paths.push(
-      ...resolveCallbackParentPaths(
-        bindingAliasPaths(valueNode, scope),
+      ...resolveDynamicVariantPaths(bindingAliasPaths(valueNode, scope), {
+        node,
+        scope,
         parentDataArgPaths,
-      ).map((path) => appendPath(path, suffix)),
+        contextBasePaths,
+      }).map((path) => appendPath(path, suffix)),
     );
   }
 
@@ -1306,6 +1314,7 @@ function selectDynamicObjectAliasPaths(
           prefixedSuffixSteps,
           variant.scope,
           variant.parentDataArgPaths,
+          variant.contextBasePaths,
         )
       : [];
   });
@@ -1351,13 +1360,9 @@ function selectLookupDynamicObjectAliasPaths(
       if (staticObjectKey(keyNode)) continue;
 
       const nestedAlias = objectAliasForNode(valueNode, variant.scope);
-      const resolvedNestedAlias =
-        nestedAlias && variant.parentDataArgPaths?.length
-          ? resolveCallbackObjectAliasParentPaths(
-              nestedAlias,
-              variant.parentDataArgPaths,
-            )
-          : nestedAlias;
+      const resolvedNestedAlias = nestedAlias
+        ? resolveDynamicVariantObjectAlias(nestedAlias, variant)
+        : null;
       const nestedPaths = resolvedNestedAlias
         ? selectObjectAliasPaths(resolvedNestedAlias, suffixSteps)
         : null;
@@ -1367,13 +1372,9 @@ function selectLookupDynamicObjectAliasPaths(
       }
 
       const nestedDynamicAlias = dynamicObjectAliasForNode(valueNode, variant.scope);
-      const resolvedNestedDynamicAlias =
-        nestedDynamicAlias && variant.parentDataArgPaths?.length
-          ? resolveCallbackDynamicObjectAliasParentPaths(
-              nestedDynamicAlias,
-              variant.parentDataArgPaths,
-            )
-          : nestedDynamicAlias;
+      const resolvedNestedDynamicAlias = nestedDynamicAlias
+        ? resolveDynamicVariantDynamicObjectAlias(nestedDynamicAlias, variant)
+        : null;
       const nestedDynamicPaths = resolvedNestedDynamicAlias
         ? selectDynamicObjectAliasPaths(resolvedNestedDynamicAlias, suffixSteps)
         : [];
@@ -1385,9 +1386,9 @@ function selectLookupDynamicObjectAliasPaths(
       if (valueNode.type === "object") continue;
 
       paths.push(
-        ...resolveCallbackParentPaths(
+        ...resolveDynamicVariantPaths(
           bindingAliasPaths(valueNode, variant.scope),
-          variant.parentDataArgPaths ?? [],
+          variant,
         ).map((path) => appendPath(path, suffix)),
       );
     }
@@ -1413,13 +1414,9 @@ function selectLookupDynamicObjectResultAlias(
       if (!selectorMatches) return [];
 
       const valueAlias = dynamicObjectAliasForNode(valueNode, variant.scope);
-      const resolvedValueAlias =
-        valueAlias && variant.parentDataArgPaths?.length
-          ? resolveCallbackDynamicObjectAliasParentPaths(
-              valueAlias,
-              variant.parentDataArgPaths,
-            )
-          : valueAlias;
+      const resolvedValueAlias = valueAlias
+        ? resolveDynamicVariantDynamicObjectAlias(valueAlias, variant)
+        : null;
       return resolvedValueAlias?.variants ?? [];
     }),
   );
@@ -1445,12 +1442,9 @@ function selectLookupDynamicObjectResultObjectAlias(
         if (!selectorMatches) return [];
 
         const valueAlias = objectAliasForNode(valueNode, variant.scope);
-        return valueAlias && variant.parentDataArgPaths?.length
-          ? resolveCallbackObjectAliasParentPaths(
-              valueAlias,
-              variant.parentDataArgPaths,
-            )
-          : valueAlias;
+        return valueAlias
+          ? resolveDynamicVariantObjectAlias(valueAlias, variant)
+          : null;
       }),
     ),
   );
@@ -6163,9 +6157,13 @@ function getStaticEvalResultDynamicObjectAlias(
   args: AstNode[],
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
-  if (args[1]) return null;
   const expression = getStaticEvalExpression(args);
-  return expression ? dynamicObjectAliasForNode(expression, scope) : null;
+  const alias = expression ? dynamicObjectAliasForNode(expression, scope) : null;
+  if (!alias || !args[1]) return alias;
+  return prefixDynamicObjectAlias(
+    alias,
+    getResultBasePathsFromArg(args[1], scope),
+  );
 }
 
 function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
@@ -7171,6 +7169,69 @@ function resolveCallbackDynamicObjectAliasParentPaths(
       parentDataArgPaths: dataArgPaths,
     })),
   };
+}
+
+function prefixDynamicObjectAlias(
+  alias: DynamicObjectAlias,
+  contextBasePaths: readonly string[],
+): DynamicObjectAlias {
+  if (contextBasePaths.length === 0) return alias;
+  return {
+    variants: alias.variants.map((variant) => ({
+      ...variant,
+      contextBasePaths: contextBasePaths.flatMap((basePath) =>
+        prefixProjectionPaths(basePath, [
+          ...(variant.contextBasePaths ?? [""]),
+        ]),
+      ),
+    })),
+  };
+}
+
+function resolveDynamicVariantPaths(
+  paths: string[],
+  variant: DynamicObjectAlias["variants"][number],
+): string[] {
+  const parentResolved = resolveCallbackParentPaths(
+    paths,
+    variant.parentDataArgPaths ?? [],
+  );
+  return variant.contextBasePaths?.length
+    ? variant.contextBasePaths.flatMap((basePath) =>
+        prefixProjectionPaths(basePath, parentResolved),
+      )
+    : parentResolved;
+}
+
+function resolveDynamicVariantObjectAlias(
+  alias: ObjectAlias,
+  variant: DynamicObjectAlias["variants"][number],
+): ObjectAlias {
+  const parentResolved = variant.parentDataArgPaths?.length
+    ? resolveCallbackObjectAliasParentPaths(alias, variant.parentDataArgPaths)
+    : alias;
+  return variant.contextBasePaths?.length
+    ? mergeObjectAliases(
+        variant.contextBasePaths.map((basePath) =>
+          prefixObjectAlias(parentResolved, basePath),
+        ),
+      )!
+    : parentResolved;
+}
+
+function resolveDynamicVariantDynamicObjectAlias(
+  alias: DynamicObjectAlias,
+  variant: DynamicObjectAlias["variants"][number],
+): DynamicObjectAlias {
+  const parentResolved = variant.parentDataArgPaths?.length
+    ? resolveCallbackDynamicObjectAliasParentPaths(
+        alias,
+        variant.parentDataArgPaths,
+      )
+    : alias;
+  return variant.contextBasePaths?.length
+    ? prefixDynamicObjectAlias(parentResolved, variant.contextBasePaths)
+    : parentResolved;
 }
 
 function bindHigherOrderParameter(
