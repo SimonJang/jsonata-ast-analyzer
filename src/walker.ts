@@ -7036,6 +7036,7 @@ function bindHigherOrderParameter(
     role === "left" ||
     role === "right" ||
     role === "array" ||
+    role === "object" ||
     role === "accumulator"
   ) {
     return arg && shouldBindDataArgumentAlias(funcName, role)
@@ -7047,12 +7048,13 @@ function bindHigherOrderParameter(
 }
 
 function shouldBindDataArgumentAlias(funcName: string, role: string): boolean {
-  if (funcName === "each" || funcName === "sift") return false;
+  if ((funcName === "each" || funcName === "sift") && role !== "object") return false;
   return (
     role === "element" ||
     role === "left" ||
     role === "right" ||
     role === "array" ||
+    role === "object" ||
     role === "accumulator"
   );
 }

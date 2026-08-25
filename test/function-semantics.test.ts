@@ -396,6 +396,40 @@ describe("function semantics", () => {
     );
   });
 
+  it("binds whole-object callback parameters for $each and $sift", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$each({"a": detail, "b": fallback.x}, function($v, $k, $o){$o.*.children.name})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$sift({"a": detail, "b": fallback.x}, function($v, $k, $o){$o.*.active}).*.children.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.active", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("threads apply-chain callbacks", () => {
     expect(extractPaths("items ~> $map(function($v) { $v.price }) ~> $sum()")).toEqual([
       { path: "items", confidence: "static" },
