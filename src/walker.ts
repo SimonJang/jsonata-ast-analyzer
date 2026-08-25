@@ -6574,6 +6574,7 @@ function higherOrderCallbackDataPaths(
       ? extractBasePaths(dataArg, scope)
       : [];
   if (funcName === "map" && dataArg) {
+    if (dataArg.type === "block") return basePaths;
     const callbackDataNodes = higherOrderCallbackDataNodes("map", dataArg, scope);
     if (callbackDataNodes.length !== 1 || callbackDataNodes[0] !== dataArg) {
       return callbackDataNodes.flatMap((node) => bindingAliasPaths(node, scope));
@@ -8612,18 +8613,23 @@ function getCallbackResultSuffixBasePaths(
         )
       : []),
     ...builtinCallbacks.flatMap((name) =>
-      higherOrderCallbackDataNodes(funcName, dataArg, scope).flatMap((callbackDataArg) =>
-          getFunctionResultSuffixBasePaths(
-            {
-              type: "function",
-              value: "(",
-              position: 0,
-              procedure: { type: "variable", value: name, position: 0 },
-              arguments: [callbackDataArg],
-            },
-            scope,
+      PATH_PRESERVING_RESULT_FUNCTIONS.has(name) &&
+      !(dataArg && objectAliasForNode(dataArg, scope)) &&
+      !(dataArg && dynamicObjectAliasForNode(dataArg, scope))
+        ? dataArgPaths
+        : higherOrderCallbackDataNodes(funcName, dataArg, scope).flatMap(
+            (callbackDataArg) =>
+              getFunctionResultSuffixBasePaths(
+                {
+                  type: "function",
+                  value: "(",
+                  position: 0,
+                  procedure: { type: "variable", value: name, position: 0 },
+                  arguments: [callbackDataArg],
+                },
+                scope,
+              ),
           ),
-        ),
     ),
   ];
 }

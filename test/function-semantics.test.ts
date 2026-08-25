@@ -2305,6 +2305,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves builtin $map callback suffixes through block-local producers", () => {
+    const expressions = [
+      "$map((($make := function(){[detail, fallback.x]}; $make())), $clone).children.name",
+      "$map((($copy := $append(?,[]) ~> $reverse(?); $copy([detail, fallback.x]))), $clone).children.name",
+    ];
+
+    for (const expression of expressions) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+          { path: "fallback.x", confidence: "static" },
+          { path: "fallback.x.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves block collection result suffixes and callback reads", () => {
     const block = "($x := [detail, fallback.x]; $x)";
     const cases = [
