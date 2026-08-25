@@ -916,6 +916,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from a closure-forwarded builtin", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($forward := function($fn){function(){$fn}}; $forward($clone)()(record).first.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from builtin map callback results", () => {
     expect(sortPaths(extractPaths("$map(records, $clone).first.name"))).toEqual(
       sortPaths([

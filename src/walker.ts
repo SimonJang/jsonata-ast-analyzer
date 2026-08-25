@@ -5645,12 +5645,21 @@ function resolveBuiltinCallableNames(
         : functionNode.procedure.type === "variable"
           ? resolveLambda(scope, functionNode.procedure.value)
           : null;
-    return lambdaBinding
-      ? resolveBuiltinCallableNames(
-          lambdaBinding.lambda.body,
-          lambdaCallScope(lambdaBinding, functionNode.arguments, scope),
-        )
-      : [];
+    if (lambdaBinding) {
+      return resolveBuiltinCallableNames(
+        lambdaBinding.lambda.body,
+        lambdaCallScope(lambdaBinding, functionNode.arguments, scope),
+      );
+    }
+    return resolveCallableValues(functionNode.procedure, scope).flatMap(
+      (callable) =>
+        callable.kind === "lambda"
+          ? resolveBuiltinCallableNames(
+              callable.binding.lambda.body,
+              lambdaCallScope(callable.binding, functionNode.arguments, scope),
+            )
+          : [],
+    );
   }
   return [];
 }
