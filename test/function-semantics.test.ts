@@ -931,6 +931,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from an apply-forwarded builtin", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($clone ~> function($fn){$fn})(record).first.name",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from an immediately invoked builtin partial", () => {
     expect(sortPaths(extractPaths("$clone(?)(record).first.name"))).toEqual(
       sortPaths([

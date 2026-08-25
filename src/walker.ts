@@ -5604,6 +5604,23 @@ function resolveBuiltinCallableNames(
       ? resolveBuiltinCallableNames(sourceNode, sourceScope)
       : [];
   }
+  if (node.type === "apply") {
+    const apply = node as ApplyNode;
+    const appliedFunction =
+      appliedFunctionFromApply(apply) ??
+      (isFunctionProcedureNode(apply.rhs)
+        ? ({
+            type: "function",
+            value: "(",
+            position: apply.position,
+            procedure: apply.rhs,
+            arguments: [apply.lhs],
+          } as FunctionNode)
+        : null);
+    return appliedFunction
+      ? resolveBuiltinCallableNames(appliedFunction, scope)
+      : [];
+  }
   if (node.type === "block") {
     const block = node as BlockNode;
     let blockScope = scope;
