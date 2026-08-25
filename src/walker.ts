@@ -7436,7 +7436,10 @@ function getReduceResultObjectAlias(
   scope: ScopeTracker,
 ): ObjectAlias | null {
   const callback = findHigherOrderCallback(args, scope);
-  if (!callback) return null;
+  const builtinCallbacks = args[1]
+    ? resolveBuiltinCallableNames(args[1], scope)
+    : [];
+  if (!callback && builtinCallbacks.length === 0) return null;
 
   const dataArg = args[0];
   const accumulatorArg = args[2] ?? dataArg;
@@ -7444,39 +7447,56 @@ function getReduceResultObjectAlias(
   const accumulatorPaths = accumulatorArg
     ? extractBasePaths(accumulatorArg, scope)
     : dataArgPaths;
-  let lambdaScope = childScope(callback.scope);
+  let bodyAlias: ObjectAlias | null = null;
+  if (callback) {
+    let lambdaScope = childScope(callback.scope);
 
-  for (let i = 0; i < callback.lambda.arguments.length; i++) {
-    const param = callback.lambda.arguments[i];
-    const role = HIGHER_ORDER_SEMANTICS.reduce[i];
+    for (let i = 0; i < callback.lambda.arguments.length; i++) {
+      const param = callback.lambda.arguments[i];
+      const role = HIGHER_ORDER_SEMANTICS.reduce[i];
 
-    if (!role) continue;
-    lambdaScope =
-      role === "accumulator"
-        ? bindHigherOrderParameter(
-            lambdaScope,
-            "reduce",
-            param,
-            role,
-            accumulatorPaths,
-            accumulatorArg,
-            scope,
-          )
-        : bindHigherOrderParameter(
-            lambdaScope,
-            "reduce",
-            param,
-            role,
-            dataArgPaths,
-            dataArg,
-            scope,
-          );
+      if (!role) continue;
+      lambdaScope =
+        role === "accumulator"
+          ? bindHigherOrderParameter(
+              lambdaScope,
+              "reduce",
+              param,
+              role,
+              accumulatorPaths,
+              accumulatorArg,
+              scope,
+            )
+          : bindHigherOrderParameter(
+              lambdaScope,
+              "reduce",
+              param,
+              role,
+              dataArgPaths,
+              dataArg,
+              scope,
+            );
+    }
+
+    bodyAlias = objectAliasForNode(callback.lambda.body, lambdaScope);
   }
-
-  const bodyAlias = objectAliasForNode(callback.lambda.body, lambdaScope);
   return mergeObjectAliases([
     bodyAlias ? resolveCallbackObjectAliasParentPaths(bodyAlias, dataArgPaths) : null,
     args[2] ? objectAliasForNode(args[2], scope) : null,
+    ...(dataArg && accumulatorArg
+      ? builtinCallbacks.map((name) =>
+          getFunctionResultObjectAlias(
+            {
+              type: "function",
+              value: "(",
+              position: 0,
+              procedure: { type: "variable", value: name, position: 0 },
+              arguments: [accumulatorArg, dataArg],
+            },
+            scope,
+          ),
+        )
+      : []),
   ]);
 }
 
