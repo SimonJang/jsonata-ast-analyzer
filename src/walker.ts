@@ -176,6 +176,7 @@ function withImplicitRootFunctionArgument(
   funcName: string,
   args: AstNode[],
   position: number,
+  scope?: ScopeTracker,
 ): AstNode[] {
   if (!["lookup", "each", "sift"].includes(funcName) || args.length !== 1) {
     return args;
@@ -184,7 +185,7 @@ function withImplicitRootFunctionArgument(
   return [
     {
       type: "variable",
-      value: "$",
+      value: scope && resolveVariable(scope, "") !== null ? "" : "$",
       position,
     } as VariableNode,
     ...args,
@@ -6807,7 +6808,7 @@ function getFunctionResultObjectAlias(
     args = applyPartialArguments(partialBinding.partial, node.arguments);
     argScope = partialBinding.scope;
   }
-  args = withImplicitRootFunctionArgument(funcName, args, node.position);
+  args = withImplicitRootFunctionArgument(funcName, args, node.position, argScope);
 
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {
@@ -6913,7 +6914,7 @@ function getFunctionResultDynamicObjectAlias(
     args = applyPartialArguments(partialBinding.partial, node.arguments);
     argScope = partialBinding.scope;
   }
-  args = withImplicitRootFunctionArgument(funcName, args, node.position);
+  args = withImplicitRootFunctionArgument(funcName, args, node.position, argScope);
 
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {
@@ -7271,7 +7272,7 @@ function getFunctionResultBasePaths(
     args = applyPartialArguments(partialBinding.partial, node.arguments);
     argScope = partialBinding.scope;
   }
-  args = withImplicitRootFunctionArgument(funcName, args, node.position);
+  args = withImplicitRootFunctionArgument(funcName, args, node.position, argScope);
 
   if (
     args.length === 0 &&
@@ -7506,7 +7507,7 @@ function getFunctionResultSuffixBasePaths(
     args = applyPartialArguments(partialBinding.partial, func.arguments);
     argScope = partialBinding.scope;
   }
-  args = withImplicitRootFunctionArgument(funcName, args, func.position);
+  args = withImplicitRootFunctionArgument(funcName, args, func.position, argScope);
 
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {

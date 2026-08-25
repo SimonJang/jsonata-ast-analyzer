@@ -713,6 +713,20 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from a path-context sift result", () => {
+    expect(
+      sortPaths(
+        extractPaths("record.$sift(function($value){true}).first.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves explicit root object reads", () => {
     for (const expression of [
       "$keys($)",
