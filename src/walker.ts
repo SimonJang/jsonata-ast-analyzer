@@ -6574,6 +6574,17 @@ function higherOrderCallbackDataNodes(
     }
     return result;
   }
+  if (funcName === "each" && dataArg.type === "apply") {
+    const appliedFunction = appliedFunctionFromApply(dataArg as ApplyNode);
+    if (appliedFunction) {
+      return higherOrderCallbackDataNodes(
+        funcName,
+        appliedFunction,
+        scope,
+        resolvingVariables,
+      );
+    }
+  }
   if (funcName === "each" && dataArg.type === "function") {
     const functionNode = dataArg as FunctionNode;
     const lambdaBinding =
