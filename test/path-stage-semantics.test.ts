@@ -2571,6 +2571,19 @@ describe("path-stage semantics", () => {
     );
   });
 
+  it("preserves aliases produced by variable-bound group results", () => {
+    expect(
+      sortPaths(extractPaths("($o := items{key:value}; $o.x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.key", confidence: "static" },
+        { path: "items.value", confidence: "static" },
+        { path: "items.value.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves callback object aliases inside function result group-by expressions", () => {
     expect(
       sortPaths(

@@ -1068,6 +1068,23 @@ function objectAliasFromPathProjection(
   node: PathNode,
   scope: ScopeTracker,
 ): ObjectAlias | null {
+  if (node.group) {
+    const contextPaths = getResultBasePathsFromArg(
+      { ...node, group: undefined },
+      scope,
+    );
+    const fields = new Map<string, string[]>();
+    for (const [keyNode, valueNode] of node.group.entries) {
+      const key = staticObjectKey(keyNode);
+      if (!key) continue;
+      const aliases = contextPaths.flatMap((contextPath) =>
+        walkContextExpression(valueNode, contextPath, scope),
+      );
+      if (aliases.length > 0) fields.set(key, aliases);
+    }
+    return fields.size > 0 ? fields : null;
+  }
+
   const projectionStep = node.steps[node.steps.length - 1];
   if (projectionStep?.type === "block") {
     const contextPrefix = buildPathString(node.steps.slice(0, -1)) ?? "";
@@ -1950,6 +1967,18 @@ function dynamicObjectAliasFromObject(
 
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
   if (node.type === "object") return dynamicObjectAliasFromObject(node as ObjectNode, scope);
+  if (node.type === "path" && (node as PathNode).group) {
+    const path = node as PathNode;
+    const groupObject: ObjectNode = {
+      type: "object",
+      position: path.group!.position ?? 0,
+      entries: path.group!.entries,
+    };
+    return prefixDynamicObjectAlias(
+      dynamicObjectAliasFromObject(groupObject, scope),
+      getResultBasePathsFromArg({ ...path, group: undefined }, scope),
+    );
+  }
   if (node.type !== "block") return null;
 
   const block = node as BlockNode;
@@ -8732,6 +8761,7 @@ function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] 
 
   if (node.type === "path") {
     const pathNode = node as PathNode;
+    if (pathNode.group) return [];
     const resultAliasStepIndex = pathNode.steps.findIndex(isResultAliasStep);
     if (
       resultAliasStepIndex < pathNode.steps.length - 1 &&
