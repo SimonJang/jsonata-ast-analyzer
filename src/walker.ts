@@ -7815,8 +7815,30 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
                 );
         }
 
+        const callbackBody =
+          callback.lambda.body.type === "lambda" &&
+          (callback.lambda.body as LambdaNode).thunk
+            ? (callback.lambda.body as LambdaNode).body
+            : callback.lambda.body;
         return resolveCallbackParentPaths(
-          bindingAliasPaths(callback.lambda.body, lambdaScope),
+          [
+            ...bindingAliasPaths(callbackBody, lambdaScope),
+            ...getResultSuffixBasePaths(callbackBody, lambdaScope),
+            ...(dataArg &&
+            callbackBody.type === "function" &&
+            (callbackBody as FunctionNode).procedure.type === "variable" &&
+            PATH_PRESERVING_RESULT_FUNCTIONS.has(
+              ((callbackBody as FunctionNode).procedure as VariableNode).value,
+            ) &&
+            (callbackBody as FunctionNode).arguments.some(
+              (argument) =>
+                argument.type === "variable" &&
+                (argument as VariableNode).value ===
+                  callback.lambda.arguments[1]?.value,
+            )
+              ? getResultSuffixBasePaths(dataArg, scope)
+              : []),
+          ],
           dataArgPaths,
         );
       })()
