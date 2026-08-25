@@ -858,6 +858,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from a lookup-selected builtin", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($ops := {"go": $spread}; $lookup($ops, "go")(record).first.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a path-context stored builtin", () => {
     expect(
       sortPaths(

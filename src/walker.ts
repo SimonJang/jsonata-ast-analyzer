@@ -5569,6 +5569,38 @@ function resolveBuiltinCallableNames(
       }
     }
   }
+  if (node.type === "function") {
+    const functionNode = node as FunctionNode;
+    if (
+      functionNode.procedure.type !== "variable" ||
+      functionNode.procedure.value !== "lookup"
+    ) {
+      return [];
+    }
+    const objectArg = functionNode.arguments[0];
+    if (!objectArg) return [];
+    let objectNode = objectArg;
+    let objectScope = scope;
+    if (objectArg.type === "variable") {
+      const value = resolveValue(scope, (objectArg as VariableNode).value);
+      if (value) {
+        objectNode = value.node;
+        objectScope = value.scope;
+      }
+    }
+    if (objectNode.type !== "object") return [];
+
+    const keyArg = functionNode.arguments[1];
+    const staticKey =
+      keyArg?.type === "string"
+        ? (keyArg as { value: string }).value
+        : null;
+    return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
+      staticKey === null || staticObjectKey(key) === staticKey
+        ? resolveBuiltinCallableNames(value, objectScope)
+        : [],
+    );
+  }
   return [];
 }
 
@@ -7404,28 +7436,42 @@ function getFunctionResultBasePaths(
     node.procedure.type === "block" ||
     node.procedure.type === "path"
   ) {
-    return resolveCallableValues(node.procedure, scope).flatMap((callable) => {
-      if (callable.kind === "lambda") {
-        return getCustomFunctionResultBasePaths(
-          callable.binding,
-          node.arguments,
-          scope,
+    return [
+      ...resolveCallableValues(node.procedure, scope).flatMap((callable) => {
+        if (callable.kind === "lambda") {
+          return getCustomFunctionResultBasePaths(
+            callable.binding,
+            node.arguments,
+            scope,
+          );
+        }
+        if (callable.kind === "transform") {
+          return node.arguments[0]
+            ? getResultBasePathsFromArg(node.arguments[0], scope)
+            : [];
+        }
+        return getFunctionResultBasePaths(
+          {
+            ...node,
+            procedure: callable.binding.partial.procedure,
+            arguments: applyPartialArguments(
+              callable.binding.partial,
+              node.arguments,
+            ),
+          },
+          callable.binding.scope,
         );
-      }
-      if (callable.kind === "transform") {
-        return node.arguments[0]
-          ? getResultBasePathsFromArg(node.arguments[0], scope)
-          : [];
-      }
-      return getFunctionResultBasePaths(
-        {
-          ...node,
-          procedure: callable.binding.partial.procedure,
-          arguments: applyPartialArguments(callable.binding.partial, node.arguments),
-        },
-        callable.binding.scope,
-      );
-    });
+      }),
+      ...resolveBuiltinCallableNames(node.procedure, scope).flatMap((name) =>
+        getFunctionResultBasePaths(
+          {
+            ...node,
+            procedure: { type: "variable", value: name, position: node.position },
+          },
+          scope,
+        ),
+      ),
+    ];
   }
 
   if (!BUILTIN_FUNCTIONS.has(node.procedure.value)) {
