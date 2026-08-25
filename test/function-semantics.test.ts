@@ -1484,6 +1484,25 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves all apply-chain $append array element result aliases", () => {
+    const expressions = [
+      "([detail, fallback.x] ~> $append([])).children.name",
+      "([] ~> $append([detail, fallback.x])).children.name",
+      "([detail, fallback.x] ~> $append([]) ~> $reverse()).children.name",
+    ];
+
+    for (const expression of expressions) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+          { path: "fallback.x", confidence: "static" },
+          { path: "fallback.x.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("binds $append results as suffixable aliases", () => {
     expect(
       sortPaths(

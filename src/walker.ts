@@ -8812,6 +8812,14 @@ function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[]
   const identityPaths = identityReferencePaths(node, scope);
   if (identityPaths) return identityPaths;
 
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((expr) =>
+      expr.type === "array"
+        ? getResultBasePathsFromArg(expr, scope)
+        : getSuffixableResultBasePaths(expr, scope),
+    );
+  }
+
   if (node.type === "variable") {
     const name = (node as VariableNode).value;
     const suffixBasePaths = resolveSuffixBasePaths(scope, name) ?? [];
