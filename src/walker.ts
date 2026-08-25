@@ -8499,6 +8499,14 @@ function getBlockResultSuffixBasePaths(
       );
     } else if (expr.type === "block") {
       result = getBlockResultSuffixBasePaths(expr as BlockNode, childScope(currentScope));
+    } else if (expr.type === "variable") {
+      const name = (expr as VariableNode).value;
+      const suffixBasePaths = resolveSuffixBasePaths(currentScope, name) ?? [];
+      const objectAlias = resolveObjectAlias(currentScope, name);
+      const objectAliasBases = new Set(
+        objectAlias ? [...objectAlias.values()].flatMap((paths) => [...paths]) : [],
+      );
+      result = suffixBasePaths.filter((path) => !objectAliasBases.has(path));
     } else {
       result = getResultSuffixBasePaths(expr, currentScope);
     }

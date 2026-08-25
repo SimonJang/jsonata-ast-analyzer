@@ -2091,6 +2091,46 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves block collection result suffixes and callback reads", () => {
+    const block = "($x := [detail, fallback.x]; $x)";
+    const cases = [
+      {
+        expression: `$filter(${block}, function($v){$v.active}).children.name`,
+        callbackField: "active",
+      },
+      {
+        expression: `$single(${block}, function($v){$v.rank = 2}).children.name`,
+        callbackField: "rank",
+      },
+      {
+        expression: `$sort(${block}, function($l, $r){$l.rank > $r.rank}).children.name`,
+        callbackField: "rank",
+      },
+      {
+        expression: `$reverse(${block}).children.name`,
+      },
+      {
+        expression: `$reduce(${block}, $append, []).children.name`,
+      },
+    ];
+
+    for (const { expression, callbackField } of cases) {
+      const expected = [
+        { path: "detail", confidence: "static" as const },
+        { path: "detail.children.name", confidence: "static" as const },
+        { path: "fallback.x", confidence: "static" as const },
+        { path: "fallback.x.children.name", confidence: "static" as const },
+      ];
+      if (callbackField) {
+        expected.push(
+          { path: `detail.${callbackField}`, confidence: "static" },
+          { path: `fallback.x.${callbackField}`, confidence: "static" },
+        );
+      }
+      expect(sortPaths(extractPaths(expression))).toEqual(sortPaths(expected));
+    }
+  });
+
   it("preserves $sift result aliases in wildcard chained fields", () => {
     expect(
       sortPaths(extractPaths("$sift(record, function($v) { $v.active }).*.name")),
