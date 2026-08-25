@@ -5298,6 +5298,7 @@ function isFunctionProcedureNode(
     "function",
     "block",
     "path",
+    "partial",
   ].includes(node.type);
 }
 
@@ -6991,7 +6992,8 @@ function getFunctionResultObjectAlias(
   if (
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
-    node.procedure.type === "path"
+    node.procedure.type === "path" ||
+    node.procedure.type === "partial"
   ) {
     return mergeObjectAliases(
       resolveCallableValues(node.procedure, scope).map((callable) => {
@@ -7114,7 +7116,8 @@ function getFunctionResultDynamicObjectAlias(
   if (
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
-    node.procedure.type === "path"
+    node.procedure.type === "path" ||
+    node.procedure.type === "partial"
   ) {
     return mergeDynamicObjectAliases(
       resolveCallableValues(node.procedure, scope).map((callable) => {
@@ -7528,7 +7531,8 @@ function getFunctionResultBasePaths(
   if (
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
-    node.procedure.type === "path"
+    node.procedure.type === "path" ||
+    node.procedure.type === "partial"
   ) {
     return [
       ...resolveCallableValues(node.procedure, scope).flatMap((callable) => {
@@ -7815,7 +7819,8 @@ function getFunctionResultSuffixBasePaths(
   if (
     func.procedure.type === "function" ||
     func.procedure.type === "block" ||
-    func.procedure.type === "path"
+    func.procedure.type === "path" ||
+    func.procedure.type === "partial"
   ) {
     return resolveCallableValues(func.procedure, scope).flatMap((callable) => {
       if (callable.kind === "lambda") {

@@ -277,9 +277,10 @@ export type FunctionProcedureNode =
   | ConditionNode
   | FunctionNode
   | BlockNode
-  | PathNode;
+  | PathNode
+  | PartialNode;
 
-// Catch-all for node types not yet handled (parent, partial, error).
+// Catch-all for node types not yet handled (parent, error).
 // The walker returns empty paths for these — skip silently per
 // over-approximation principle.
 export interface GenericNode extends AnalyzerNode {

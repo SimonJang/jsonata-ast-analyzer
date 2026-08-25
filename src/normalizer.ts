@@ -83,7 +83,7 @@ function normalizeVariable(node: RawAstNode): VariableNode {
 }
 
 function normalizeFunctionProcedure(node: RawAstNode): FunctionProcedureNode {
-  if (["lambda", "transform", "function"].includes(String(node.type))) {
+  if (["lambda", "transform", "function", "partial"].includes(String(node.type))) {
     return normalizeAst(node) as FunctionProcedureNode;
   }
 
