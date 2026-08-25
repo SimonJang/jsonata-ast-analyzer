@@ -823,6 +823,25 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves sort reads from a path-context conditional builtin", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "record.(flag ? $spread : $clone)()^(first.detail.rank).first.name",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.flag", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+        { path: "record.**", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a stored conditional builtin", () => {
     expect(
       sortPaths(
