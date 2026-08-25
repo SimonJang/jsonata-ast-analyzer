@@ -6543,6 +6543,28 @@ function higherOrderCallbackDataNodes(
       );
     }
   }
+  if (funcName === "each" && dataArg.type === "array") {
+    const arrayNode = dataArg as ArrayNode;
+    const numericFilter = (arrayNode.predicate ?? []).find(
+      (stage) =>
+        stage.type === "filter" &&
+        (stage as unknown as FilterStage).expr.type === "number",
+    ) as unknown as FilterStage | undefined;
+    if (numericFilter) {
+      const index = Number(
+        ((numericFilter as unknown as FilterStage).expr as { value: number }).value,
+      );
+      const selected = arrayNode.expressions[index];
+      if (selected) {
+        return higherOrderCallbackDataNodes(
+          funcName,
+          selected,
+          scope,
+          resolvingVariables,
+        );
+      }
+    }
+  }
   if (funcName === "each" && dataArg.type === "condition") {
     const condition = dataArg as ConditionNode;
     return [condition.then, condition.else].flatMap((branch) =>
