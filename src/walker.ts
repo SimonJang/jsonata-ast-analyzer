@@ -177,7 +177,9 @@ function withImplicitRootFunctionArgument(
   args: AstNode[],
   position: number,
 ): AstNode[] {
-  if (funcName !== "lookup" || args.length !== 1) return args;
+  if (!["lookup", "each", "sift"].includes(funcName) || args.length !== 1) {
+    return args;
+  }
 
   return [
     {

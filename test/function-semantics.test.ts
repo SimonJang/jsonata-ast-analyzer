@@ -700,6 +700,19 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from a context-default sift result", () => {
+    expect(
+      sortPaths(
+        extractPaths("$sift(function($value){true}).record.first.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "*", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves explicit root object reads", () => {
     for (const expression of [
       "$keys($)",
