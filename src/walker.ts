@@ -7537,17 +7537,29 @@ function recursiveLambdaDescentPaths(
   callableScope: ScopeTracker,
 ): string[] {
   const paths: string[] = [];
-  if (node.type === "function" && (node as FunctionNode).procedure.type === "variable") {
+  if (node.type === "function") {
     const functionNode = node as FunctionNode;
-    const calledName = (functionNode.procedure as VariableNode).value;
-    const entersCycle =
-      calledName === functionName ||
-      lambdaCallGraphReaches(
-        calledName,
-        functionName,
-        callableScope,
-        new Set([functionName]),
-      );
+    const calledNames = [
+      ...(functionNode.procedure.type === "variable"
+        ? [(functionNode.procedure as VariableNode).value]
+        : []),
+      ...resolveCallableValues(functionNode.procedure, callableScope).flatMap(
+        (callable) =>
+          callable.kind === "lambda" && callable.binding.name
+            ? [callable.binding.name]
+            : [],
+      ),
+    ];
+    const entersCycle = calledNames.some(
+      (calledName) =>
+        calledName === functionName ||
+        lambdaCallGraphReaches(
+          calledName,
+          functionName,
+          callableScope,
+          new Set([functionName]),
+        ),
+    );
     for (const arg of entersCycle ? functionNode.arguments : []) {
       paths.push(
         ...getResultBasePathsFromArg(arg, scope).map((path) =>
@@ -7598,18 +7610,26 @@ function lambdaCallGraphReaches(
   if (!binding) return false;
 
   const nextVisited = new Set(visited).add(functionName);
-  return calledFunctionNames(binding.lambda.body).some((calledName) =>
+  return calledFunctionNames(binding.lambda.body, scope).some((calledName) =>
     lambdaCallGraphReaches(calledName, targetName, scope, nextVisited),
   );
 }
 
-function calledFunctionNames(node: AstNode): string[] {
+function calledFunctionNames(node: AstNode, scope: ScopeTracker): string[] {
   const names: string[] = [];
-  if (
-    node.type === "function" &&
-    (node as FunctionNode).procedure.type === "variable"
-  ) {
-    names.push(((node as FunctionNode).procedure as VariableNode).value);
+  if (node.type === "function") {
+    const functionNode = node as FunctionNode;
+    if (functionNode.procedure.type === "variable") {
+      names.push((functionNode.procedure as VariableNode).value);
+    }
+    names.push(
+      ...resolveCallableValues(functionNode.procedure, scope).flatMap(
+        (callable) =>
+          callable.kind === "lambda" && callable.binding.name
+            ? [callable.binding.name]
+            : [],
+      ),
+    );
   }
 
   for (const [key, value] of Object.entries(node)) {
@@ -7617,11 +7637,11 @@ function calledFunctionNames(node: AstNode): string[] {
     if (Array.isArray(value)) {
       for (const item of value) {
         if (item && typeof item === "object") {
-          names.push(...calledFunctionNames(item as AstNode));
+          names.push(...calledFunctionNames(item as AstNode, scope));
         }
       }
     } else if (value && typeof value === "object") {
-      names.push(...calledFunctionNames(value as AstNode));
+      names.push(...calledFunctionNames(value as AstNode, scope));
     }
   }
   return names;

@@ -230,6 +230,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("marks recursive descent through selected callable values", () => {
+    for (const expression of [
+      "($walk := function($x){$x.children ? ($ops[0])($x.children) : $x.name}; " +
+        "$ops := [$walk]; $walk(tree))",
+      '($walk := function($x){$x.children ? ($ops.go)($x.children) : $x.name}; ' +
+        '$ops := {"go":$walk}; $walk(tree))',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "tree", confidence: "static" },
+          { path: "tree.children", confidence: "static" },
+          { path: "tree.children.**", confidence: "static" },
+          { path: "tree.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves grouped result aliases across function boundaries", () => {
     for (const expression of [
       "(function($x){$x{key:value}})(items).x.name",
