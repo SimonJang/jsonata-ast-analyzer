@@ -6550,6 +6550,30 @@ function higherOrderCallbackDataNodes(
         : [],
     );
   }
+  if (funcName === "each" && dataArg.type === "block") {
+    let blockScope = scope;
+    let result: AstNode[] = [];
+    for (const expression of (dataArg as BlockNode).expressions) {
+      if (expression.type === "bind") {
+        const bindNode = expression as BindNode;
+        result = higherOrderCallbackDataNodes(
+          funcName,
+          bindNode.rhs,
+          blockScope,
+          resolvingVariables,
+        );
+        blockScope = bindCallableBlockValue(blockScope, bindNode);
+      } else {
+        result = higherOrderCallbackDataNodes(
+          funcName,
+          expression,
+          blockScope,
+          resolvingVariables,
+        );
+      }
+    }
+    return result;
+  }
   if (funcName === "each" && dataArg.type === "object") {
     return (dataArg as ObjectNode).entries.map(([, value]) => value);
   }
