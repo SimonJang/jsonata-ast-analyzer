@@ -1118,6 +1118,10 @@ function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | n
       condition.else ? objectAliasForNode(condition.else, scope) : null,
     ]);
   }
+  if (node.type === "lambda") {
+    const lambda = node as LambdaNode;
+    return lambda.thunk ? objectAliasForNode(lambda.body, scope) : null;
+  }
   if (node.type === "function") {
     return getFunctionResultObjectAlias(node as FunctionNode, scope);
   }

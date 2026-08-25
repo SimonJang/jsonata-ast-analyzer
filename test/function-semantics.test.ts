@@ -1042,6 +1042,22 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves object aliases from lambda reduce callback results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$reduce([{"x": detail}, fallback], function($acc, $value){$append($acc, $value)}, []).x.children.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from builtin map callback results", () => {
     expect(sortPaths(extractPaths("$map(records, $clone).first.name"))).toEqual(
       sortPaths([
