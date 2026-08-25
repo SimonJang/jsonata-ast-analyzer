@@ -9,6 +9,7 @@ import type {
 export interface LambdaBinding {
   readonly lambda: LambdaNode;
   readonly scope: ScopeTracker;
+  readonly name?: string;
 }
 
 export interface PartialBinding {
@@ -207,7 +208,7 @@ export function bindLambda(
   closureScope: ScopeTracker = scope,
 ): ScopeTracker {
   const newLambdas = new Map(scope.lambdas);
-  newLambdas.set(name, { lambda, scope: closureScope });
+  newLambdas.set(name, { lambda, scope: closureScope, name });
   return {
     bindings: scope.bindings,
     lambdas: newLambdas,

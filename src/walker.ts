@@ -7438,13 +7438,63 @@ function walkCustomFunctionCall(
     : resolveCallableValues(lambda.body, lambdaScope).length > 0
       ? walkCallableSelection(lambda.body, lambdaScope)
       : walkNode(lambda.body, lambdaScope);
+  const recursiveDescentPaths = binding.name
+    ? recursiveLambdaDescentPaths(lambda.body, binding.name, lambdaScope)
+    : [];
   paths.push(
     ...resolveCallbackParentPaths(
-      bodyPaths,
+      [...bodyPaths, ...recursiveDescentPaths],
       parentBasePaths.length > 0 ? parentBasePaths : (argPathSets[0] ?? []),
     ),
   );
 
+  return paths;
+}
+
+function recursiveLambdaDescentPaths(
+  node: AstNode,
+  functionName: string,
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+  if (
+    node.type === "function" &&
+    (node as FunctionNode).procedure.type === "variable" &&
+    ((node as FunctionNode).procedure as VariableNode).value === functionName
+  ) {
+    for (const arg of (node as FunctionNode).arguments) {
+      paths.push(
+        ...getResultBasePathsFromArg(arg, scope).map((path) =>
+          appendPath(path, "**"),
+        ),
+      );
+    }
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "source") continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === "object") {
+          paths.push(
+            ...recursiveLambdaDescentPaths(
+              item as AstNode,
+              functionName,
+              scope,
+            ),
+          );
+        }
+      }
+    } else if (value && typeof value === "object") {
+      paths.push(
+        ...recursiveLambdaDescentPaths(
+          value as AstNode,
+          functionName,
+          scope,
+        ),
+      );
+    }
+  }
   return paths;
 }
 
