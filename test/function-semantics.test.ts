@@ -922,6 +922,21 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed suffix bases from builtin map callback results", () => {
+    expect(
+      sortPaths(
+        extractPaths("$map([detail, fallback.x], $clone).children.name"),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a path-context stored builtin", () => {
     expect(
       sortPaths(

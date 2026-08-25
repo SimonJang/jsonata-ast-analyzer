@@ -7693,20 +7693,22 @@ function getCallbackResultBasePaths(
       : []),
     ...(dataArg
       ? builtinCallbacks.flatMap((name) =>
-          getFunctionResultBasePaths(
-            {
-              type: "function",
-              value: "(",
-              position: 0,
-              procedure: {
-                type: "variable",
-                value: name,
-                position: 0,
-              },
-              arguments: [dataArg],
-            },
-            scope,
-          ),
+          PATH_PRESERVING_RESULT_FUNCTIONS.has(name)
+            ? dataArgPaths
+            : getFunctionResultBasePaths(
+                {
+                  type: "function",
+                  value: "(",
+                  position: 0,
+                  procedure: {
+                    type: "variable",
+                    value: name,
+                    position: 0,
+                  },
+                  arguments: [dataArg],
+                },
+                scope,
+              ),
         )
       : []),
   ];
@@ -8015,7 +8017,10 @@ function getCallbackResultSuffixBasePaths(
   scope: ScopeTracker,
 ): string[] {
   const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
-  if (!callback) return [];
+  const builtinCallbacks = args[1]
+    ? resolveBuiltinCallableNames(args[1], scope)
+    : [];
+  if (!callback && builtinCallbacks.length === 0) return [];
 
   const dataArg = args[0];
   const dataArgPaths = higherOrderCallbackDataPaths(
@@ -8024,7 +8029,7 @@ function getCallbackResultSuffixBasePaths(
     scope,
   );
   return [
-    ...callback.bindings.flatMap((binding) =>
+    ...(callback?.bindings ?? []).flatMap((binding) =>
       getResultSuffixBasePaths(
         binding.lambda.body,
         bindHigherOrderLambdaCallbackScope(
@@ -8036,11 +8041,25 @@ function getCallbackResultSuffixBasePaths(
         ),
       ),
     ),
-    ...(funcName === "map"
+    ...(funcName === "map" && callback
       ? higherOrderPartialLambdaCalls(callback, dataArg).flatMap((call) =>
           getCustomFunctionResultSuffixBasePaths(
             call.binding,
             call.arguments,
+            scope,
+          ),
+        )
+      : []),
+    ...(dataArg
+      ? builtinCallbacks.flatMap((name) =>
+          getFunctionResultSuffixBasePaths(
+            {
+              type: "function",
+              value: "(",
+              position: 0,
+              procedure: { type: "variable", value: name, position: 0 },
+              arguments: [dataArg],
+            },
             scope,
           ),
         )
