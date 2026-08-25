@@ -172,23 +172,48 @@ function builtinUsesContextDefault(funcName: string, args: AstNode[]): boolean {
   }
 }
 
-function functionUsesContextDefault(node: FunctionNode): boolean {
-  if (node.procedure.type === "variable") {
-    return builtinUsesContextDefault(node.procedure.value, node.arguments);
-  }
-  if (node.procedure.type !== "condition") return false;
-
-  const branches = [node.procedure.then, node.procedure.else].filter(
-    (branch): branch is AstNode => Boolean(branch),
-  );
+function functionUsesContextDefault(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): boolean {
+  const builtins = resolveBuiltinCallableNames(node.procedure, scope);
   return (
-    branches.length > 0 &&
-    branches.every(
-      (branch) =>
-        branch.type === "variable" &&
-        builtinUsesContextDefault((branch as VariableNode).value, node.arguments),
-    )
+    builtins.length > 0 &&
+    builtins.every((name) => builtinUsesContextDefault(name, node.arguments))
   );
+}
+
+function resultUsesContextDefault(node: AstNode, scope: ScopeTracker): boolean {
+  if (node.type === "function") {
+    return functionUsesContextDefault(node as FunctionNode, scope);
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    const branches = [condition.then, condition.else].filter(
+      (branch): branch is AstNode => Boolean(branch),
+    );
+    return (
+      branches.length > 0 &&
+      branches.every((branch) => resultUsesContextDefault(branch, scope))
+    );
+  }
+  if (node.type === "path") {
+    const firstStep = (node as PathNode).steps[0];
+    return firstStep ? resultUsesContextDefault(firstStep, scope) : false;
+  }
+  if (node.type === "block") {
+    const block = node as BlockNode;
+    let blockScope = scope;
+    for (const [index, expression] of block.expressions.entries()) {
+      if (index === block.expressions.length - 1) {
+        return resultUsesContextDefault(expression, blockScope);
+      }
+      if (expression.type === "bind") {
+        blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
+      }
+    }
+  }
+  return false;
 }
 
 function withImplicitRootFunctionArgument(
@@ -2748,7 +2773,8 @@ function walkContextExpression(
     variables.has("") ||
     containsContextDefaultLambda(expr) ||
     containsContextDefaultCall(expr, scope) ||
-    containsBuiltinContextDefaultCall(expr);
+    containsBuiltinContextDefaultCall(expr) ||
+    resultUsesContextDefault(expr, scope);
   if (usesCurrentContext && contextPrefix) {
     const contextScope = bindVariable(childScope(scope), "", [contextPrefix]);
     const contextPaths = walkNode(expr, contextScope);
@@ -3528,9 +3554,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       !(resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart)
     ) {
       const projectionPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
-      const usesContextDefault =
-        step.type === "function" &&
-        functionUsesContextDefault(step as FunctionNode);
+      const usesContextDefault = resultUsesContextDefault(step, stageScope);
       const resultAliasScope =
         projectionPrefix &&
         (collectVariableNames(step).has("") || usesContextDefault)
@@ -4010,10 +4034,13 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         stageScope = bindVariable(stageScope, blockStep.indexBinding.name, []);
         nonPathVariables.add(blockStep.indexBinding.name);
       }
+      const explicitlyCapturesCurrentContext =
+        collectVariableNames(blockStep).has("") ||
+        containsContextDefaultLambda(blockStep);
       const capturesCurrentContext =
         Boolean(contextPrefix) &&
-        (collectVariableNames(blockStep).has("") ||
-          containsContextDefaultLambda(blockStep));
+        (explicitlyCapturesCurrentContext ||
+          resultUsesContextDefault(blockStep, stageScope));
       let blockEvaluationScope = stageScope;
       const blockEvaluationStageVariables = new Set(
         blockExpressionStageVariables,
@@ -4024,7 +4051,9 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           "",
           [contextPrefix],
         );
-        blockEvaluationStageVariables.add("");
+        if (explicitlyCapturesCurrentContext) {
+          blockEvaluationStageVariables.add("");
+        }
       }
       const aliasPaths =
         i > 0 && isResultAliasStep(node.steps[i - 1])
