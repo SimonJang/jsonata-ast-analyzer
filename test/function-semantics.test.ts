@@ -964,6 +964,17 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from builtin reduce callback results", () => {
+    expect(
+      sortPaths(extractPaths("$reduce(records, $append, []).first.name")),
+    ).toEqual(
+      sortPaths([
+        { path: "records", confidence: "static" },
+        { path: "records.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from builtin map callback results", () => {
     expect(sortPaths(extractPaths("$map(records, $clone).first.name"))).toEqual(
       sortPaths([

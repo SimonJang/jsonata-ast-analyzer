@@ -7773,7 +7773,10 @@ function getCallbackResultBasePaths(
 
 function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
   const callback = findHigherOrderCallback(args, scope);
-  if (!callback) return [];
+  const builtinCallbacks = args[1]
+    ? resolveBuiltinCallableNames(args[1], scope)
+    : [];
+  if (!callback && builtinCallbacks.length === 0) return [];
 
   const dataArg = args[0];
   const accumulatorArg = args[2] ?? dataArg;
@@ -7781,39 +7784,59 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   const accumulatorPaths = accumulatorArg
     ? extractBasePaths(accumulatorArg, scope)
     : dataArgPaths;
-  let lambdaScope = childScope(callback.scope);
+  const lambdaPaths = callback
+    ? (() => {
+        let lambdaScope = childScope(callback.scope);
 
-  for (let i = 0; i < callback.lambda.arguments.length; i++) {
-    const param = callback.lambda.arguments[i];
-    const role = HIGHER_ORDER_SEMANTICS.reduce[i];
+        for (let i = 0; i < callback.lambda.arguments.length; i++) {
+          const param = callback.lambda.arguments[i];
+          const role = HIGHER_ORDER_SEMANTICS.reduce[i];
 
-    if (!role) continue;
-    lambdaScope =
-      role === "accumulator"
-        ? bindHigherOrderParameter(
-            lambdaScope,
-            "reduce",
-            param,
-            role,
-            accumulatorPaths,
-            accumulatorArg,
+          if (!role) continue;
+          lambdaScope =
+            role === "accumulator"
+              ? bindHigherOrderParameter(
+                  lambdaScope,
+                  "reduce",
+                  param,
+                  role,
+                  accumulatorPaths,
+                  accumulatorArg,
+                  scope,
+                )
+              : bindHigherOrderParameter(
+                  lambdaScope,
+                  "reduce",
+                  param,
+                  role,
+                  dataArgPaths,
+                  dataArg,
+                  scope,
+                );
+        }
+
+        return resolveCallbackParentPaths(
+          bindingAliasPaths(callback.lambda.body, lambdaScope),
+          dataArgPaths,
+        );
+      })()
+    : [];
+  const builtinPaths =
+    dataArg && accumulatorArg
+      ? builtinCallbacks.flatMap((name) =>
+          getFunctionResultBasePaths(
+            {
+              type: "function",
+              value: "(",
+              position: 0,
+              procedure: { type: "variable", value: name, position: 0 },
+              arguments: [accumulatorArg, dataArg],
+            },
             scope,
-          )
-        : bindHigherOrderParameter(
-            lambdaScope,
-            "reduce",
-            param,
-            role,
-            dataArgPaths,
-            dataArg,
-            scope,
-          );
-  }
-
-  return resolveCallbackParentPaths(
-    bindingAliasPaths(callback.lambda.body, lambdaScope),
-    dataArgPaths,
-  );
+          ),
+        )
+      : [];
+  return [...lambdaPaths, ...builtinPaths];
 }
 
 function getFunctionResultSuffixBasePaths(
