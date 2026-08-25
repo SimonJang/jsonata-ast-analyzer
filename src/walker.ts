@@ -7263,6 +7263,14 @@ function getFunctionResultBasePaths(
   }
   args = withImplicitRootFunctionArgument(funcName, args, node.position);
 
+  if (
+    args.length === 0 &&
+    PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName) &&
+    builtinUsesContextDefault(funcName, args)
+  ) {
+    return [ROOT_PATH];
+  }
+
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {
     return getCustomFunctionResultBasePaths(lambdaBinding, args, argScope);
