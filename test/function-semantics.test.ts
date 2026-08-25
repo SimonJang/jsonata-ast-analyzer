@@ -248,6 +248,22 @@ describe("function semantics", () => {
     }
   });
 
+  it("marks recursive descent through partial callables", () => {
+    for (const expression of [
+      "($walk := function($x){$x.children ? $walk(?)($x.children) : $x.name}; $walk(tree))",
+      "($walk := function($x){$x.children ? ($p := $walk(?); $p($x.children)) : $x.name}; $walk(tree))",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "tree", confidence: "static" },
+          { path: "tree.children", confidence: "static" },
+          { path: "tree.children.**", confidence: "static" },
+          { path: "tree.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves grouped result aliases across function boundaries", () => {
     for (const expression of [
       "(function($x){$x{key:value}})(items).x.name",

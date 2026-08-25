@@ -5384,6 +5384,24 @@ type ResolvedCallable =
       readonly binding: NonNullable<ReturnType<typeof resolvePartial>>;
     };
 
+function resolvedCallableNames(
+  callable: ResolvedCallable,
+  depth = 0,
+): string[] {
+  if (callable.kind === "lambda") {
+    return callable.binding.name ? [callable.binding.name] : [];
+  }
+  if (callable.kind !== "partial" || depth >= 8) return [];
+
+  const procedure = callable.binding.partial.procedure;
+  if (procedure.type === "variable") {
+    return [(procedure as VariableNode).value];
+  }
+  return resolveCallableValues(procedure, callable.binding.scope).flatMap(
+    (resolved) => resolvedCallableNames(resolved, depth + 1),
+  );
+}
+
 function bindCallableBlockValue(
   scope: ScopeTracker,
   bindNode: BindNode,
@@ -7536,6 +7554,30 @@ function recursiveLambdaDescentPaths(
   scope: ScopeTracker,
   callableScope: ScopeTracker,
 ): string[] {
+  if (node.type === "block") {
+    const paths: string[] = [];
+    let localScope = scope;
+    let localCallableScope = callableScope;
+    for (const expression of (node as BlockNode).expressions) {
+      paths.push(
+        ...recursiveLambdaDescentPaths(
+          expression,
+          functionName,
+          localScope,
+          localCallableScope,
+        ),
+      );
+      if (expression.type === "bind") {
+        localScope = bindCallableBlockValue(localScope, expression as BindNode);
+        localCallableScope = bindCallableBlockValue(
+          localCallableScope,
+          expression as BindNode,
+        );
+      }
+    }
+    return paths;
+  }
+
   const paths: string[] = [];
   if (node.type === "function") {
     const functionNode = node as FunctionNode;
@@ -7543,11 +7585,15 @@ function recursiveLambdaDescentPaths(
       ...(functionNode.procedure.type === "variable"
         ? [(functionNode.procedure as VariableNode).value]
         : []),
+      ...(functionNode.procedure.type === "partial" &&
+      (functionNode.procedure as PartialNode).procedure.type === "variable"
+        ? [
+            ((functionNode.procedure as PartialNode).procedure as VariableNode)
+              .value,
+          ]
+        : []),
       ...resolveCallableValues(functionNode.procedure, callableScope).flatMap(
-        (callable) =>
-          callable.kind === "lambda" && callable.binding.name
-            ? [callable.binding.name]
-            : [],
+        (callable) => resolvedCallableNames(callable),
       ),
     ];
     const entersCycle = calledNames.some(
@@ -7624,10 +7670,7 @@ function calledFunctionNames(node: AstNode, scope: ScopeTracker): string[] {
     }
     names.push(
       ...resolveCallableValues(functionNode.procedure, scope).flatMap(
-        (callable) =>
-          callable.kind === "lambda" && callable.binding.name
-            ? [callable.binding.name]
-            : [],
+        (callable) => resolvedCallableNames(callable),
       ),
     );
   }
