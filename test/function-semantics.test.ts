@@ -111,6 +111,31 @@ describe("function semantics", () => {
     );
   });
 
+  it("invokes lambdas returned by statically known $eval programs", () => {
+    for (const expression of [
+      '$eval("function($x){$x.children.name}")(detail)',
+      '($f := $eval("function($x){$x.children.name}"); $f(detail))',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths('$eval("function(){children.name}", detail)()'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",

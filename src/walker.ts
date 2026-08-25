@@ -5535,6 +5535,22 @@ function resolveCallableValues(
   const functionNode = node as FunctionNode;
   if (
     functionNode.procedure.type === "variable" &&
+    functionNode.procedure.value === "eval"
+  ) {
+    const expression = getStaticEvalExpression(functionNode.arguments);
+    if (!expression) return [];
+    const contextArg = functionNode.arguments[1];
+    const evalScope = contextArg
+      ? bindVariable(
+          childScope(scope),
+          "",
+          getResultBasePathsFromArg(contextArg, scope),
+        )
+      : scope;
+    return resolveCallableValues(expression, evalScope);
+  }
+  if (
+    functionNode.procedure.type === "variable" &&
     functionNode.procedure.value === "lookup"
   ) {
     const objectArg = functionNode.arguments[0];
@@ -7377,8 +7393,12 @@ function walkCustomFunctionCall(
 
   // Walk the lambda body with parameter bindings
   const parentBasePaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
-  const bodyPaths =
-    resolveCallableValues(lambda.body, lambdaScope).length > 0
+  const capturedContextPaths = resolveVariable(scope, "");
+  const bodyPaths = capturedContextPaths?.length
+    ? capturedContextPaths.flatMap((contextPath) =>
+        walkContextExpression(lambda.body, contextPath, lambdaScope),
+      )
+    : resolveCallableValues(lambda.body, lambdaScope).length > 0
       ? walkCallableSelection(lambda.body, lambdaScope)
       : walkNode(lambda.body, lambdaScope);
   paths.push(
