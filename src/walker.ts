@@ -7322,7 +7322,10 @@ function getCallbackResultDynamicObjectAlias(
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
   const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
-  if (!callback) return null;
+  const builtinCallbacks = args[1]
+    ? resolveBuiltinCallableNames(args[1], scope)
+    : [];
+  if (!callback && builtinCallbacks.length === 0) return null;
 
   const dataArg = args[0];
   const dataArgPaths = higherOrderCallbackDataPaths(
@@ -7332,7 +7335,7 @@ function getCallbackResultDynamicObjectAlias(
   );
   return mergeDynamicObjectAliases(
     [
-      ...callback.bindings.map((binding) => {
+      ...(callback?.bindings ?? []).map((binding) => {
         const lambdaScope = bindHigherOrderLambdaCallbackScope(
           funcName,
           binding,
@@ -7345,11 +7348,25 @@ function getCallbackResultDynamicObjectAlias(
           ? resolveCallbackDynamicObjectAliasParentPaths(alias, dataArgPaths)
           : null;
       }),
-      ...(funcName === "map"
+      ...(funcName === "map" && callback
         ? higherOrderPartialLambdaCalls(callback, dataArg).map((call) =>
             getCustomFunctionResultDynamicObjectAlias(
               call.binding,
               call.arguments,
+              scope,
+            ),
+          )
+        : []),
+      ...(dataArg
+        ? builtinCallbacks.map((name) =>
+            getFunctionResultDynamicObjectAlias(
+              {
+                type: "function",
+                value: "(",
+                position: 0,
+                procedure: { type: "variable", value: name, position: 0 },
+                arguments: [dataArg],
+              },
               scope,
             ),
           )

@@ -908,6 +908,20 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves dynamic object aliases from builtin map callback results", () => {
+    expect(
+      sortPaths(
+        extractPaths('$map([{(key): record}], $clone).x.first.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a path-context stored builtin", () => {
     expect(
       sortPaths(
