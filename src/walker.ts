@@ -6537,6 +6537,19 @@ function higherOrderCallbackDataNodes(
       );
     }
   }
+  if (funcName === "each" && dataArg.type === "condition") {
+    const condition = dataArg as ConditionNode;
+    return [condition.then, condition.else].flatMap((branch) =>
+      branch
+        ? higherOrderCallbackDataNodes(
+            funcName,
+            branch,
+            scope,
+            resolvingVariables,
+          )
+        : [],
+    );
+  }
   if (funcName === "each" && dataArg.type === "object") {
     return (dataArg as ObjectNode).entries.map(([, value]) => value);
   }
