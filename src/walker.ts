@@ -8788,6 +8788,13 @@ function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[]
   const identityPaths = identityReferencePaths(node, scope);
   if (identityPaths) return identityPaths;
 
+  if (node.type === "variable") {
+    const name = (node as VariableNode).value;
+    const suffixBasePaths = resolveSuffixBasePaths(scope, name) ?? [];
+    if (suffixBasePaths.length > 0) return [...suffixBasePaths];
+    return filterToBasePaths([...(resolveVariable(scope, name) ?? [])]);
+  }
+
   if (node.type === "function") {
     const paths = getFunctionResultBasePaths(node as FunctionNode, scope);
     return paths.length > 0 ? paths : walkNode(node, scope).slice(0, 1);
