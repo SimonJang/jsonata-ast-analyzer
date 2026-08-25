@@ -1069,6 +1069,42 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves result aliases from partially applied reduce callbacks", () => {
+    const partialPrefix =
+      "$base := function($p,$acc,$v,$i,$a){($p;$append($acc,$v))}; $f := $base(config.suffix,?,?,?,?)";
+    expect(
+      sortPaths(
+        extractPaths(
+          `(${partialPrefix}; $reduce([detail, fallback.x], $f, []).children.name)`,
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.suffix", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($base := function($p,$acc,$v){($p;{"x":$v})}; $f := $base(config.suffix,?,?,?); $reduce([detail, fallback.x], $f, {}).x.children.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.suffix", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("binds $reduce callback index and array parameters by documented position", () => {
     expect(
       sortPaths(

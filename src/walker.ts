@@ -6905,10 +6905,11 @@ function resolveLambdaFunctionCalls(
 }
 
 function higherOrderPartialLambdaCalls(
-  funcName: "map" | "each",
+  funcName: "map" | "each" | "reduce",
   callback: NonNullable<ReturnType<typeof findResolvedHigherOrderLambdaCallbacks>>,
   dataArg: AstNode | undefined,
   scope: ScopeTracker,
+  higherOrderArgs: AstNode[] = [],
 ): ResolvedLambdaCall[] {
   const callbackDataArgs =
     funcName === "each"
@@ -6926,7 +6927,7 @@ function higherOrderPartialLambdaCalls(
             funcName,
             callbackDataArg,
             dataArg ?? callbackDataArg,
-            [],
+            higherOrderArgs,
             (callbackDataArg as { position?: number }).position ?? 0,
           ),
         ),
@@ -7722,10 +7723,13 @@ function getReduceResultObjectAlias(
   scope: ScopeTracker,
 ): ObjectAlias | null {
   const callback = findHigherOrderCallback(args, scope);
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && builtinCallbacks.length === 0) return null;
+  if (!callback && !resolvedCallback?.partials.length && builtinCallbacks.length === 0) {
+    return null;
+  }
 
   const dataArg = args[0];
   const accumulatorArg = args[2] ?? dataArg;
@@ -7768,6 +7772,17 @@ function getReduceResultObjectAlias(
   }
   return mergeObjectAliases([
     bodyAlias ? resolveCallbackObjectAliasParentPaths(bodyAlias, dataArgPaths) : null,
+    ...(resolvedCallback && dataArg
+      ? higherOrderPartialLambdaCalls(
+          "reduce",
+          resolvedCallback,
+          dataArg,
+          scope,
+          args,
+        ).map((call) =>
+          getCustomFunctionResultObjectAlias(call.binding, call.arguments, scope),
+        )
+      : []),
     args[2] ? objectAliasForNode(args[2], scope) : null,
     ...(dataArg && accumulatorArg
       ? builtinCallbacks.map((name) =>
@@ -7791,10 +7806,13 @@ function getReduceResultDynamicObjectAlias(
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
   const callback = findHigherOrderCallback(args, scope);
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && builtinCallbacks.length === 0) return null;
+  if (!callback && !resolvedCallback?.partials.length && builtinCallbacks.length === 0) {
+    return null;
+  }
 
   const dataArg = args[0];
   const accumulatorArg = args[2] ?? dataArg;
@@ -7839,6 +7857,17 @@ function getReduceResultDynamicObjectAlias(
     callbackAlias
       ? resolveCallbackDynamicObjectAliasParentPaths(callbackAlias, dataArgPaths)
       : null,
+    ...(resolvedCallback && dataArg
+      ? higherOrderPartialLambdaCalls(
+          "reduce",
+          resolvedCallback,
+          dataArg,
+          scope,
+          args,
+        ).map((call) =>
+          getCustomFunctionResultDynamicObjectAlias(call.binding, call.arguments, scope),
+        )
+      : []),
     args[2] ? dynamicObjectAliasForNode(args[2], scope) : null,
     ...(dataArg && accumulatorArg
       ? builtinCallbacks.map((name) =>
@@ -8104,10 +8133,13 @@ function getCallbackResultBasePaths(
 
 function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
   const callback = findHigherOrderCallback(args, scope);
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && builtinCallbacks.length === 0) return [];
+  if (!callback && !resolvedCallback?.partials.length && builtinCallbacks.length === 0) {
+    return [];
+  }
 
   const dataArg = args[0];
   const accumulatorArg = args[2] ?? dataArg;
@@ -8191,7 +8223,19 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
               ),
         )
       : [];
-  return [...lambdaPaths, ...builtinPaths];
+  const partialPaths =
+    resolvedCallback && dataArg
+      ? higherOrderPartialLambdaCalls(
+          "reduce",
+          resolvedCallback,
+          dataArg,
+          scope,
+          args,
+        ).flatMap((call) =>
+          getCustomFunctionResultBasePaths(call.binding, call.arguments, scope),
+        )
+      : [];
+  return [...lambdaPaths, ...partialPaths, ...builtinPaths];
 }
 
 function getFunctionResultSuffixBasePaths(
@@ -8369,7 +8413,8 @@ function getReduceCallbackResultSuffixBasePaths(
   scope: ScopeTracker,
 ): string[] {
   const callback = findHigherOrderCallback(args, scope);
-  if (!callback) return [];
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  if (!callback && !resolvedCallback?.partials.length) return [];
 
   const dataArg = args[0];
   const accumulatorArg = args[2] ?? dataArg;
@@ -8377,6 +8422,20 @@ function getReduceCallbackResultSuffixBasePaths(
   const accumulatorPaths = accumulatorArg
     ? extractBasePaths(accumulatorArg, scope)
     : dataArgPaths;
+  const partialPaths =
+    resolvedCallback && dataArg
+      ? higherOrderPartialLambdaCalls(
+          "reduce",
+          resolvedCallback,
+          dataArg,
+          scope,
+          args,
+        ).flatMap((call) =>
+          getCustomFunctionResultSuffixBasePaths(call.binding, call.arguments, scope),
+        )
+      : [];
+  if (!callback) return partialPaths;
+
   let lambdaScope = childScope(callback.scope);
 
   for (let i = 0; i < callback.lambda.arguments.length; i++) {
@@ -8406,7 +8465,10 @@ function getReduceCallbackResultSuffixBasePaths(
           );
   }
 
-  return getResultSuffixBasePaths(callback.lambda.body, lambdaScope);
+  return [
+    ...getResultSuffixBasePaths(callback.lambda.body, lambdaScope),
+    ...partialPaths,
+  ];
 }
 
 function getCustomFunctionResultSuffixBasePaths(
