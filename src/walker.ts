@@ -6886,15 +6886,24 @@ function resolveLambdaFunctionCalls(
 }
 
 function higherOrderPartialLambdaCalls(
+  funcName: "map" | "each",
   callback: NonNullable<ReturnType<typeof findResolvedHigherOrderLambdaCallbacks>>,
   dataArg: AstNode | undefined,
+  scope: ScopeTracker,
 ): ResolvedLambdaCall[] {
-  if (!dataArg) return [];
+  const callbackDataArgs =
+    funcName === "each"
+      ? higherOrderCallbackDataNodes(funcName, dataArg, scope)
+      : dataArg
+        ? [dataArg]
+        : [];
   return callback.partials.flatMap((binding) =>
-    resolveLambdaFunctionCalls(
-      binding.partial.procedure,
-      applyPartialArguments(binding.partial, [dataArg]),
-      binding.scope,
+    callbackDataArgs.flatMap((callbackDataArg) =>
+      resolveLambdaFunctionCalls(
+        binding.partial.procedure,
+        applyPartialArguments(binding.partial, [callbackDataArg]),
+        binding.scope,
+      ),
     ),
   );
 }
@@ -7567,8 +7576,8 @@ function getCallbackResultObjectAlias(
           ? resolveCallbackObjectAliasParentPaths(alias, dataArgPaths)
           : null;
       }),
-      ...(funcName === "map" && callback
-        ? higherOrderPartialLambdaCalls(callback, dataArg).map((call) =>
+      ...(callback
+        ? higherOrderPartialLambdaCalls(funcName, callback, dataArg, scope).map((call) =>
             getCustomFunctionResultObjectAlias(
               call.binding,
               call.arguments,
@@ -7626,8 +7635,8 @@ function getCallbackResultDynamicObjectAlias(
           ? resolveCallbackDynamicObjectAliasParentPaths(alias, dataArgPaths)
           : null;
       }),
-      ...(funcName === "map" && callback
-        ? higherOrderPartialLambdaCalls(callback, dataArg).map((call) =>
+      ...(callback
+        ? higherOrderPartialLambdaCalls(funcName, callback, dataArg, scope).map((call) =>
             getCustomFunctionResultDynamicObjectAlias(
               call.binding,
               call.arguments,
@@ -8006,8 +8015,8 @@ function getCallbackResultBasePaths(
         dataArgPaths,
       );
     }),
-    ...(funcName === "map" && callback
-      ? higherOrderPartialLambdaCalls(callback, dataArg).flatMap((call) =>
+    ...(callback
+      ? higherOrderPartialLambdaCalls(funcName, callback, dataArg, scope).flatMap((call) =>
           getCustomFunctionResultBasePaths(
             call.binding,
             call.arguments,
@@ -8413,8 +8422,8 @@ function getCallbackResultSuffixBasePaths(
         ),
       ),
     ),
-    ...(funcName === "map" && callback
-      ? higherOrderPartialLambdaCalls(callback, dataArg).flatMap((call) =>
+    ...(callback
+      ? higherOrderPartialLambdaCalls(funcName, callback, dataArg, scope).flatMap((call) =>
           getCustomFunctionResultSuffixBasePaths(
             call.binding,
             call.arguments,

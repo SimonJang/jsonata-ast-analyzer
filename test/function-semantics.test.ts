@@ -2023,6 +2023,23 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed suffixes from partial lambda $each callback results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($f := function($v, $unused){$clone($v)}(?, 1); $each({"a": detail, "b": fallback.x}, $f).children.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $sift result aliases in wildcard chained fields", () => {
     expect(
       sortPaths(extractPaths("$sift(record, function($v) { $v.active }).*.name")),
