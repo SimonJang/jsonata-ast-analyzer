@@ -165,6 +165,20 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes object fields returned by statically known $eval programs", () => {
+    for (const expression of [
+      '($eval("{\\"f\\": function($x){$x.children.name}}").f)(detail)',
+      '$lookup($eval("{\\"f\\": function($x){$x.children.name}}"), "f")(detail)',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",

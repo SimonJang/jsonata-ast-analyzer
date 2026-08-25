@@ -5373,6 +5373,31 @@ function lambdaCallScope(
   return resultScope;
 }
 
+function unwrapCallableContainerNode(
+  node: AstNode,
+  scope: ScopeTracker,
+): { readonly node: AstNode; readonly scope: ScopeTracker } {
+  if (node.type === "variable") {
+    const value = resolveValue(scope, (node as VariableNode).value);
+    if (value) return value;
+  }
+  if (
+    node.type === "function" &&
+    (node as FunctionNode).procedure.type === "variable" &&
+    ((node as FunctionNode).procedure as VariableNode).value === "eval"
+  ) {
+    const functionNode = node as FunctionNode;
+    const expression = getStaticEvalExpression(functionNode.arguments);
+    if (expression) {
+      return {
+        node: expression,
+        scope: getStaticEvalScope(functionNode.arguments, scope),
+      };
+    }
+  }
+  return { node, scope };
+}
+
 function compositionProcedure(
   node: AstNode,
   scope: ScopeTracker,
@@ -5500,14 +5525,8 @@ function resolveCallableValues(
     const [first, ...suffixSteps] = path.steps;
     if (!first) return [];
 
-    let sourceNode = first;
-    let sourceScope = scope;
-    if (first.type === "variable") {
-      const value = resolveValue(scope, (first as VariableNode).value);
-      if (!value) return resolveCallableValues(first, scope);
-      sourceNode = value.node;
-      sourceScope = value.scope;
-    }
+    const { node: sourceNode, scope: sourceScope } =
+      unwrapCallableContainerNode(first, scope);
 
     const [selector, ...rest] = suffixSteps;
     if (sourceNode.type === "object" && selector?.type === "name") {
@@ -5550,15 +5569,8 @@ function resolveCallableValues(
   ) {
     const objectArg = functionNode.arguments[0];
     if (!objectArg) return [];
-    let objectNode = objectArg;
-    let objectScope = scope;
-    if (objectArg.type === "variable") {
-      const value = resolveValue(scope, (objectArg as VariableNode).value);
-      if (value) {
-        objectNode = value.node;
-        objectScope = value.scope;
-      }
-    }
+    const { node: objectNode, scope: objectScope } =
+      unwrapCallableContainerNode(objectArg, scope);
     if (objectNode.type !== "object") return [];
 
     const keyArg = functionNode.arguments[1];
@@ -5645,14 +5657,8 @@ function resolveBuiltinCallableNames(
     const [first, ...suffixSteps] = path.steps;
     if (!first) return [];
 
-    let sourceNode = first;
-    let sourceScope = scope;
-    if (first.type === "variable") {
-      const value = resolveValue(scope, (first as VariableNode).value);
-      if (!value) return resolveBuiltinCallableNames(first, scope);
-      sourceNode = value.node;
-      sourceScope = value.scope;
-    }
+    const { node: sourceNode, scope: sourceScope } =
+      unwrapCallableContainerNode(first, scope);
 
     const [selector, ...rest] = suffixSteps;
     if (sourceNode.type === "object" && selector?.type === "name") {
@@ -5720,15 +5726,8 @@ function resolveBuiltinCallableNames(
     ) {
       const objectArg = functionNode.arguments[0];
       if (!objectArg) return [];
-      let objectNode = objectArg;
-      let objectScope = scope;
-      if (objectArg.type === "variable") {
-        const value = resolveValue(scope, (objectArg as VariableNode).value);
-        if (value) {
-          objectNode = value.node;
-          objectScope = value.scope;
-        }
-      }
+      const { node: objectNode, scope: objectScope } =
+        unwrapCallableContainerNode(objectArg, scope);
       if (objectNode.type !== "object") return [];
 
       const keyArg = functionNode.arguments[1];
