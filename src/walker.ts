@@ -1068,23 +1068,6 @@ function objectAliasFromPathProjection(
   node: PathNode,
   scope: ScopeTracker,
 ): ObjectAlias | null {
-  if (node.group) {
-    const contextPaths = getResultBasePathsFromArg(
-      { ...node, group: undefined },
-      scope,
-    );
-    const fields = new Map<string, string[]>();
-    for (const [keyNode, valueNode] of node.group.entries) {
-      const key = staticObjectKey(keyNode);
-      if (!key) continue;
-      const aliases = contextPaths.flatMap((contextPath) =>
-        walkContextExpression(valueNode, contextPath, scope),
-      );
-      if (aliases.length > 0) fields.set(key, aliases);
-    }
-    return fields.size > 0 ? fields : null;
-  }
-
   const projectionStep = node.steps[node.steps.length - 1];
   if (projectionStep?.type === "block") {
     const contextPrefix = buildPathString(node.steps.slice(0, -1)) ?? "";
@@ -1967,18 +1950,6 @@ function dynamicObjectAliasFromObject(
 
 function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null {
   if (node.type === "object") return dynamicObjectAliasFromObject(node as ObjectNode, scope);
-  if (node.type === "path" && (node as PathNode).group) {
-    const path = node as PathNode;
-    const groupObject: ObjectNode = {
-      type: "object",
-      position: path.group!.position ?? 0,
-      entries: path.group!.entries,
-    };
-    return prefixDynamicObjectAlias(
-      dynamicObjectAliasFromObject(groupObject, scope),
-      getResultBasePathsFromArg({ ...path, group: undefined }, scope),
-    );
-  }
   if (node.type !== "block") return null;
 
   const block = node as BlockNode;
@@ -2068,13 +2039,66 @@ function dynamicObjectAliasForNode(
   return null;
 }
 
+function groupResultObjectAliasForNode(
+  node: AstNode,
+  scope: ScopeTracker,
+): ObjectAlias | null {
+  const group = (node as AstNode & { group?: GroupByNode }).group;
+  if (!group) return objectAliasForNode(node, scope);
+
+  const contextPaths = getResultBasePathsFromArg(
+    { ...node, group: undefined } as AstNode,
+    scope,
+  );
+  const fields = new Map<string, string[]>();
+  for (const [keyNode, valueNode] of group.entries) {
+    const key = staticObjectKey(keyNode);
+    if (!key) continue;
+    const aliases = contextPaths.flatMap((contextPath) =>
+      walkContextExpression(valueNode, contextPath, scope),
+    );
+    if (aliases.length > 0) fields.set(key, aliases);
+  }
+  return fields.size > 0 ? fields : null;
+}
+
+function groupResultDynamicObjectAliasForNode(
+  node: AstNode,
+  scope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const group = (node as AstNode & { group?: GroupByNode }).group;
+  if (!group) return dynamicObjectAliasForNode(node, scope);
+
+  const groupObject: ObjectNode = {
+    type: "object",
+    position: group.position ?? 0,
+    entries: group.entries,
+  };
+  return prefixDynamicObjectAlias(
+    dynamicObjectAliasFromObject(groupObject, scope),
+    getResultBasePathsFromArg(
+      { ...node, group: undefined } as AstNode,
+      scope,
+    ),
+  );
+}
+
+function groupResultSuffixBasePaths(
+  node: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  return (node as AstNode & { group?: GroupByNode }).group
+    ? []
+    : getResultSuffixBasePaths(node, scope);
+}
+
 function bindObjectAliasIfPresent(
   scope: ScopeTracker,
   name: string,
   node: AstNode,
   aliasScope: ScopeTracker,
 ): ScopeTracker {
-  const alias = objectAliasForNode(node, aliasScope);
+  const alias = groupResultObjectAliasForNode(node, aliasScope);
   return alias ? bindObjectAlias(scope, name, alias) : scope;
 }
 
@@ -2084,7 +2108,7 @@ function bindDynamicObjectAliasIfPresent(
   node: AstNode,
   aliasScope: ScopeTracker,
 ): ScopeTracker {
-  const alias = dynamicObjectAliasForNode(node, aliasScope);
+  const alias = groupResultDynamicObjectAliasForNode(node, aliasScope);
   return alias ? bindDynamicObjectAlias(scope, name, alias) : scope;
 }
 
@@ -2149,7 +2173,7 @@ function bindSuffixBasePathsIfPresent(
   node: AstNode,
   aliasScope: ScopeTracker,
 ): ScopeTracker {
-  return bindSuffixBasePaths(scope, name, getResultSuffixBasePaths(node, aliasScope));
+  return bindSuffixBasePaths(scope, name, groupResultSuffixBasePaths(node, aliasScope));
 }
 
 function isResultAliasStep(step: AstNode): boolean {
@@ -6223,7 +6247,7 @@ function getStaticEvalResultObjectAlias(
   const expression = getStaticEvalExpression(args);
   if (!expression) return null;
 
-  const alias = objectAliasForNode(expression, scope);
+  const alias = groupResultObjectAliasForNode(expression, scope);
   if (!alias) return null;
   const contextArg = args[1];
   if (!contextArg) return alias;
@@ -6240,7 +6264,9 @@ function getStaticEvalResultDynamicObjectAlias(
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
   const expression = getStaticEvalExpression(args);
-  const alias = expression ? dynamicObjectAliasForNode(expression, scope) : null;
+  const alias = expression
+    ? groupResultDynamicObjectAliasForNode(expression, scope)
+    : null;
   if (!alias || !args[1]) return alias;
   return prefixDynamicObjectAlias(
     alias,
@@ -7924,7 +7950,7 @@ function getCustomFunctionResultObjectAlias(
         : bindVariable(lambdaScope, param.value, argPaths);
   }
 
-  const alias = objectAliasForNode(lambda.body, lambdaScope);
+  const alias = groupResultObjectAliasForNode(lambda.body, lambdaScope);
   const firstArgPaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
   return alias ? resolveCallbackObjectAliasParentPaths(alias, firstArgPaths) : null;
 }
@@ -7962,7 +7988,7 @@ function getCustomFunctionResultDynamicObjectAlias(
         : bindVariable(lambdaScope, param.value, argPaths);
   }
 
-  const alias = dynamicObjectAliasForNode(lambda.body, lambdaScope);
+  const alias = groupResultDynamicObjectAliasForNode(lambda.body, lambdaScope);
   const firstArgPaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
   return alias
     ? resolveCallbackDynamicObjectAliasParentPaths(alias, firstArgPaths)
@@ -7996,7 +8022,10 @@ function getCallbackResultObjectAlias(
           dataArg,
           scope,
         );
-        const alias = objectAliasForNode(binding.lambda.body, lambdaScope);
+        const alias = groupResultObjectAliasForNode(
+          binding.lambda.body,
+          lambdaScope,
+        );
         return alias
           ? resolveCallbackObjectAliasParentPaths(alias, dataArgPaths)
           : null;
@@ -8055,7 +8084,10 @@ function getCallbackResultDynamicObjectAlias(
           dataArg,
           scope,
         );
-        const alias = dynamicObjectAliasForNode(binding.lambda.body, lambdaScope);
+        const alias = groupResultDynamicObjectAliasForNode(
+          binding.lambda.body,
+          lambdaScope,
+        );
         return alias
           ? resolveCallbackDynamicObjectAliasParentPaths(alias, dataArgPaths)
           : null;
@@ -8137,7 +8169,7 @@ function getReduceResultObjectAlias(
             );
     }
 
-    bodyAlias = objectAliasForNode(callback.lambda.body, lambdaScope);
+    bodyAlias = groupResultObjectAliasForNode(callback.lambda.body, lambdaScope);
   }
   return mergeObjectAliases([
     bodyAlias ? resolveCallbackObjectAliasParentPaths(bodyAlias, dataArgPaths) : null,
@@ -8152,7 +8184,7 @@ function getReduceResultObjectAlias(
           getCustomFunctionResultObjectAlias(call.binding, call.arguments, scope),
         )
       : []),
-    args[2] ? objectAliasForNode(args[2], scope) : null,
+    args[2] ? groupResultObjectAliasForNode(args[2], scope) : null,
     ...(dataArg && accumulatorArg
       ? builtinCallbacks.map((name) =>
           getFunctionResultObjectAlias(
@@ -8220,7 +8252,10 @@ function getReduceResultDynamicObjectAlias(
             );
     }
 
-    callbackAlias = dynamicObjectAliasForNode(callback.lambda.body, lambdaScope);
+    callbackAlias = groupResultDynamicObjectAliasForNode(
+      callback.lambda.body,
+      lambdaScope,
+    );
   }
   return mergeDynamicObjectAliases([
     callbackAlias
@@ -8237,7 +8272,7 @@ function getReduceResultDynamicObjectAlias(
           getCustomFunctionResultDynamicObjectAlias(call.binding, call.arguments, scope),
         )
       : []),
-    args[2] ? dynamicObjectAliasForNode(args[2], scope) : null,
+    args[2] ? groupResultDynamicObjectAliasForNode(args[2], scope) : null,
     ...(dataArg && accumulatorArg
       ? builtinCallbacks.map((name) =>
           getFunctionResultDynamicObjectAlias(
@@ -8559,7 +8594,7 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
         return resolveCallbackParentPaths(
           [
             ...bindingAliasPaths(callbackBody, lambdaScope),
-            ...getResultSuffixBasePaths(callbackBody, lambdaScope),
+            ...groupResultSuffixBasePaths(callbackBody, lambdaScope),
             ...(dataArg &&
             callbackBody.type === "function" &&
             (callbackBody as FunctionNode).procedure.type === "variable" &&
@@ -8849,7 +8884,7 @@ function getReduceCallbackResultSuffixBasePaths(
   }
 
   return [
-    ...getResultSuffixBasePaths(callback.lambda.body, lambdaScope),
+    ...groupResultSuffixBasePaths(callback.lambda.body, lambdaScope),
     ...partialPaths,
   ];
 }
@@ -8889,7 +8924,7 @@ function getCustomFunctionResultSuffixBasePaths(
         : bindVariable(lambdaScope, param.value, argPaths);
   }
 
-  return getResultSuffixBasePaths(lambda.body, lambdaScope);
+  return groupResultSuffixBasePaths(lambda.body, lambdaScope);
 }
 
 function getCallbackResultSuffixBasePaths(
@@ -8911,7 +8946,7 @@ function getCallbackResultSuffixBasePaths(
   );
   return [
     ...(callback?.bindings ?? []).flatMap((binding) =>
-      getResultSuffixBasePaths(
+      groupResultSuffixBasePaths(
         binding.lambda.body,
         bindHigherOrderLambdaCallbackScope(
           funcName,

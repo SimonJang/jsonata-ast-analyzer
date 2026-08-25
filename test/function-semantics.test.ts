@@ -230,6 +230,23 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves grouped result aliases across function boundaries", () => {
+    for (const expression of [
+      "(function($x){$x{key:value}})(items).x.name",
+      "($f := function($x){$x{key:value}}; $f(items).x.name)",
+      "$map([items], function($x){$x{key:value}}).x.name",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "items", confidence: "static" },
+          { path: "items.key", confidence: "static" },
+          { path: "items.value", confidence: "static" },
+          { path: "items.value.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",
