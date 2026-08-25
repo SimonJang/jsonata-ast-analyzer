@@ -3506,8 +3506,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       !(resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart)
     ) {
       const projectionPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const usesContextDefault =
+        step.type === "function" &&
+        (step as FunctionNode).procedure.type === "variable" &&
+        builtinUsesContextDefault(
+          ((step as FunctionNode).procedure as VariableNode).value,
+          (step as FunctionNode).arguments,
+        );
       const resultAliasScope =
-        projectionPrefix && collectVariableNames(step).has("")
+        projectionPrefix &&
+        (collectVariableNames(step).has("") || usesContextDefault)
           ? bindVariable(childScope(stageScope), "", [projectionPrefix])
           : stageScope;
       const resultPaths = selectResultAliasStepPaths(
@@ -7268,7 +7276,7 @@ function getFunctionResultBasePaths(
     PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName) &&
     builtinUsesContextDefault(funcName, args)
   ) {
-    return [ROOT_PATH];
+    return [...(resolveVariable(argScope, "") ?? [ROOT_PATH])];
   }
 
   const lambdaBinding = resolveLambda(argScope, funcName);
