@@ -873,6 +873,19 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from an object-selected builtin", () => {
+    expect(
+      sortPaths(
+        extractPaths('({"go": $spread}.go)(record).first.name'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a path-context stored builtin", () => {
     expect(
       sortPaths(

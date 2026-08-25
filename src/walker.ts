@@ -5557,6 +5557,37 @@ function resolveBuiltinCallableNames(
         : []),
     ];
   }
+  if (node.type === "path") {
+    const path = node as PathNode;
+    const [first, ...suffixSteps] = path.steps;
+    if (!first) return [];
+
+    let sourceNode = first;
+    let sourceScope = scope;
+    if (first.type === "variable") {
+      const value = resolveValue(scope, (first as VariableNode).value);
+      if (!value) return resolveBuiltinCallableNames(first, scope);
+      sourceNode = value.node;
+      sourceScope = value.scope;
+    }
+
+    const [selector, ...rest] = suffixSteps;
+    if (sourceNode.type === "object" && selector?.type === "name") {
+      return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
+        staticObjectKey(key) === (selector as NameNode).value
+          ? resolveBuiltinCallableNames(
+              rest.length > 0
+                ? ({ type: "path", steps: [value, ...rest] } as PathNode)
+                : value,
+              sourceScope,
+            )
+          : [],
+      );
+    }
+    return suffixSteps.length === 0
+      ? resolveBuiltinCallableNames(sourceNode, sourceScope)
+      : [];
+  }
   if (node.type === "block") {
     const block = node as BlockNode;
     let blockScope = scope;
