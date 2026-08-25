@@ -6455,7 +6455,19 @@ function walkHigherOrderCall(
         position: node.position,
       } as WildcardNode);
     for (const binding of callback.partials) {
-      paths.push(...walkPartialCall(binding, [callbackInput], scope));
+      paths.push(
+        ...walkPartialCall(
+          binding,
+          higherOrderCallbackCallArguments(
+            funcName,
+            callbackInput,
+            dataArg ?? callbackInput,
+            args,
+            node.position,
+          ),
+          scope,
+        ),
+      );
     }
   }
 
@@ -6908,11 +6920,45 @@ function higherOrderPartialLambdaCalls(
     callbackDataArgs.flatMap((callbackDataArg) =>
       resolveLambdaFunctionCalls(
         binding.partial.procedure,
-        applyPartialArguments(binding.partial, [callbackDataArg]),
+        applyPartialArguments(
+          binding.partial,
+          higherOrderCallbackCallArguments(
+            funcName,
+            callbackDataArg,
+            dataArg ?? callbackDataArg,
+            [],
+            (callbackDataArg as { position?: number }).position ?? 0,
+          ),
+        ),
         binding.scope,
       ),
     ),
   );
+}
+
+function higherOrderCallbackCallArguments(
+  funcName: string,
+  valueArg: AstNode,
+  collectionArg: AstNode,
+  higherOrderArgs: AstNode[],
+  position: number,
+): AstNode[] {
+  const semantics = HIGHER_ORDER_SEMANTICS[funcName] ?? {};
+  return Object.entries(semantics)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([, role]) => {
+      if (role === "accumulator") {
+        return higherOrderArgs[2] ?? collectionArg;
+      }
+      if (role === "index") {
+        return { type: "number", value: 0, position } as AstNode;
+      }
+      if (role === "key") {
+        return { type: "string", value: "", position } as AstNode;
+      }
+      if (role === "array" || role === "object") return collectionArg;
+      return valueArg;
+    });
 }
 
 function findHigherOrderTransformCallback(

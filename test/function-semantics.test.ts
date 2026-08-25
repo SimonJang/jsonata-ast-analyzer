@@ -430,6 +430,32 @@ describe("function semantics", () => {
     );
   });
 
+  it("aligns higher-order callback roles after partially bound parameters", () => {
+    const cases = [
+      {
+        expression:
+          "($base := function($p,$v,$i,$a){$a.children.name & $p}; $f := $base(config.suffix, ?, ?, ?); $map(items,$f))",
+        expected: ["config.suffix", "items", "items.children.name"],
+      },
+      {
+        expression:
+          "($base := function($p,$acc,$v,$i,$a){($p; $append($acc,$a.children.name))}; $f := $base(config.suffix, ?, ?, ?, ?); $reduce(items,$f,[]))",
+        expected: ["config.suffix", "items", "items.children.name"],
+      },
+      {
+        expression:
+          "($base := function($p,$v,$k,$o){($p; $o.*.detail.rank)}; $f := $base(config.suffix, ?, ?, ?); $each(record,$f))",
+        expected: ["config.suffix", "record", "record.*.detail.rank"],
+      },
+    ];
+
+    for (const { expression, expected } of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths(expected.map((path) => ({ path, confidence: "static" as const }))),
+      );
+    }
+  });
+
   it("threads apply-chain callbacks", () => {
     expect(extractPaths("items ~> $map(function($v) { $v.price }) ~> $sum()")).toEqual([
       { path: "items", confidence: "static" },
