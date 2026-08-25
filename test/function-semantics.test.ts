@@ -1663,6 +1663,41 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves parenthesized apply aliases through collection wrappers", () => {
+    const source = "([detail, fallback.x] ~> $append([]))";
+    const cases = [
+      { expression: `$reverse(${source}).children.name` },
+      {
+        expression: `$filter(${source}, function($v){$v.active}).children.name`,
+        callbackField: "active",
+      },
+      {
+        expression: `$sort(${source}, function($l,$r){$l.rank > $r.rank}).children.name`,
+        callbackField: "rank",
+      },
+      { expression: `$reduce(${source}, $append, []).children.name` },
+      {
+        expression: `($id := function($x){$x}; $id(${source}).children.name)`,
+      },
+    ];
+
+    for (const { expression, callbackField } of cases) {
+      const expected = [
+        { path: "detail", confidence: "static" as const },
+        { path: "detail.children.name", confidence: "static" as const },
+        { path: "fallback.x", confidence: "static" as const },
+        { path: "fallback.x.children.name", confidence: "static" as const },
+      ];
+      if (callbackField) {
+        expected.push(
+          { path: `detail.${callbackField}`, confidence: "static" },
+          { path: `fallback.x.${callbackField}`, confidence: "static" },
+        );
+      }
+      expect(sortPaths(extractPaths(expression))).toEqual(sortPaths(expected));
+    }
+  });
+
   it("binds $append results as suffixable aliases", () => {
     expect(
       sortPaths(

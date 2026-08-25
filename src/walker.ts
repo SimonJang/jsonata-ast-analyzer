@@ -8423,6 +8423,11 @@ function getFunctionResultSuffixBasePaths(
 }
 
 function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+  if (node.type === "apply") {
+    const func = appliedFunctionFromApply(node as ApplyNode);
+    return func ? getFunctionResultSuffixBasePaths(func, scope) : [];
+  }
+
   if (node.type === "block") {
     return getBlockResultSuffixBasePaths(node as BlockNode, scope);
   }
@@ -8685,6 +8690,10 @@ function getBlockResultSuffixBasePaths(
 
 function getSuffixableResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
   switch (node.type) {
+    case "array":
+      return (node as ArrayNode).expressions.flatMap((expr) =>
+        getSuffixableResultBasePaths(expr, scope),
+      );
     case "name":
     case "path":
     case "variable":
