@@ -1109,6 +1109,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves mixed suffix bases from unary collection results", () => {
+    for (const expression of [
+      "$reverse([detail, fallback.x]).children.name",
+      "$shuffle([detail, fallback.x]).children.name",
+      "$distinct([detail, fallback.x]).children.name",
+      "$filter([detail, fallback.x], function(){true}).children.name",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+          { path: "fallback.x", confidence: "static" },
+          { path: "fallback.x.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves suffix reads from a path-context stored builtin", () => {
     expect(
       sortPaths(

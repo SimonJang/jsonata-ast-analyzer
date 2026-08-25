@@ -7712,7 +7712,12 @@ function getFunctionResultBasePaths(
   if (funcName === "merge") {
     return args.length > 0 ? getMergeResultBasePaths(args[0], argScope) : [];
   }
-  return args.length > 0 ? getResultBasePathsFromArg(args[0], argScope) : [];
+  return args.length > 0
+    ? [
+        ...getResultBasePathsFromArg(args[0], argScope),
+        ...getResultSuffixBasePaths(args[0], argScope),
+      ]
+    : [];
 }
 
 function getCustomFunctionResultBasePaths(
