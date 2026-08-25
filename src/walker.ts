@@ -5603,34 +5603,46 @@ function resolveBuiltinCallableNames(
   if (node.type === "function") {
     const functionNode = node as FunctionNode;
     if (
-      functionNode.procedure.type !== "variable" ||
-      functionNode.procedure.value !== "lookup"
+      functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "lookup"
     ) {
-      return [];
-    }
-    const objectArg = functionNode.arguments[0];
-    if (!objectArg) return [];
-    let objectNode = objectArg;
-    let objectScope = scope;
-    if (objectArg.type === "variable") {
-      const value = resolveValue(scope, (objectArg as VariableNode).value);
-      if (value) {
-        objectNode = value.node;
-        objectScope = value.scope;
+      const objectArg = functionNode.arguments[0];
+      if (!objectArg) return [];
+      let objectNode = objectArg;
+      let objectScope = scope;
+      if (objectArg.type === "variable") {
+        const value = resolveValue(scope, (objectArg as VariableNode).value);
+        if (value) {
+          objectNode = value.node;
+          objectScope = value.scope;
+        }
       }
-    }
-    if (objectNode.type !== "object") return [];
+      if (objectNode.type !== "object") return [];
 
-    const keyArg = functionNode.arguments[1];
-    const staticKey =
-      keyArg?.type === "string"
-        ? (keyArg as { value: string }).value
-        : null;
-    return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
-      staticKey === null || staticObjectKey(key) === staticKey
-        ? resolveBuiltinCallableNames(value, objectScope)
-        : [],
-    );
+      const keyArg = functionNode.arguments[1];
+      const staticKey =
+        keyArg?.type === "string"
+          ? (keyArg as { value: string }).value
+          : null;
+      return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
+        staticKey === null || staticObjectKey(key) === staticKey
+          ? resolveBuiltinCallableNames(value, objectScope)
+          : [],
+      );
+    }
+
+    const lambdaBinding =
+      functionNode.procedure.type === "lambda"
+        ? { lambda: functionNode.procedure, scope }
+        : functionNode.procedure.type === "variable"
+          ? resolveLambda(scope, functionNode.procedure.value)
+          : null;
+    return lambdaBinding
+      ? resolveBuiltinCallableNames(
+          lambdaBinding.lambda.body,
+          lambdaCallScope(lambdaBinding, functionNode.arguments, scope),
+        )
+      : [];
   }
   return [];
 }
