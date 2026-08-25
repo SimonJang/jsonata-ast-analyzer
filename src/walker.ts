@@ -6517,6 +6517,17 @@ function higherOrderCallbackDataPaths(
   return basePaths.map((path) => appendPath(path, "*"));
 }
 
+function higherOrderCallbackDataNodes(
+  funcName: "map" | "each",
+  dataArg: AstNode | undefined,
+): AstNode[] {
+  if (!dataArg) return [];
+  if (funcName === "each" && dataArg.type === "object") {
+    return (dataArg as ObjectNode).entries.map(([, value]) => value);
+  }
+  return [dataArg];
+}
+
 function bindHigherOrderLambdaCallbackScope(
   funcName: "map" | "each",
   binding: LambdaBinding,
@@ -7358,20 +7369,20 @@ function getCallbackResultObjectAlias(
             ),
           )
         : []),
-      ...(dataArg
-        ? builtinCallbacks.map((name) =>
-            getFunctionResultObjectAlias(
-              {
-                type: "function",
-                value: "(",
-                position: 0,
-                procedure: { type: "variable", value: name, position: 0 },
-                arguments: [dataArg],
-              },
-              scope,
-            ),
-          )
-        : []),
+      ...builtinCallbacks.flatMap((name) =>
+        higherOrderCallbackDataNodes(funcName, dataArg).map((callbackDataArg) =>
+          getFunctionResultObjectAlias(
+            {
+              type: "function",
+              value: "(",
+              position: 0,
+              procedure: { type: "variable", value: name, position: 0 },
+              arguments: [callbackDataArg],
+            },
+            scope,
+          ),
+        ),
+      ),
     ],
   );
 }
@@ -7417,20 +7428,20 @@ function getCallbackResultDynamicObjectAlias(
             ),
           )
         : []),
-      ...(dataArg
-        ? builtinCallbacks.map((name) =>
-            getFunctionResultDynamicObjectAlias(
-              {
-                type: "function",
-                value: "(",
-                position: 0,
-                procedure: { type: "variable", value: name, position: 0 },
-                arguments: [dataArg],
-              },
-              scope,
-            ),
-          )
-        : []),
+      ...builtinCallbacks.flatMap((name) =>
+        higherOrderCallbackDataNodes(funcName, dataArg).map((callbackDataArg) =>
+          getFunctionResultDynamicObjectAlias(
+            {
+              type: "function",
+              value: "(",
+              position: 0,
+              procedure: { type: "variable", value: name, position: 0 },
+              arguments: [callbackDataArg],
+            },
+            scope,
+          ),
+        ),
+      ),
     ],
   );
 }
@@ -8204,20 +8215,20 @@ function getCallbackResultSuffixBasePaths(
           ),
         )
       : []),
-    ...(dataArg
-      ? builtinCallbacks.flatMap((name) =>
+    ...builtinCallbacks.flatMap((name) =>
+      higherOrderCallbackDataNodes(funcName, dataArg).flatMap((callbackDataArg) =>
           getFunctionResultSuffixBasePaths(
             {
               type: "function",
               value: "(",
               position: 0,
               procedure: { type: "variable", value: name, position: 0 },
-              arguments: [dataArg],
+              arguments: [callbackDataArg],
             },
             scope,
           ),
-        )
-      : []),
+        ),
+    ),
   ];
 }
 
