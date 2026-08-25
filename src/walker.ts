@@ -6118,6 +6118,29 @@ function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
   );
 }
 
+function getStaticEvalResultBasePaths(
+  args: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const source = args[0];
+  if (source?.type !== "string") return [];
+
+  let expression: AstNode;
+  try {
+    expression = parse((source as { value: string }).value);
+  } catch {
+    return [];
+  }
+
+  if (getSuffixableResultBasePaths(expression, scope).length === 0) return [];
+  const contextArg = args[1];
+  if (!contextArg) return getSuffixableResultBasePaths(expression, scope);
+
+  return getResultBasePathsFromArg(contextArg, scope).flatMap((basePath) =>
+    walkContextExpression(expression, basePath, scope),
+  );
+}
+
 function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
   if (!node.predicate || node.predicate.length === 0) return [];
 
@@ -8064,6 +8087,10 @@ function getFunctionResultBasePaths(
     return args[0] ? getResultBasePathsFromArg(args[0], argScope) : [];
   }
 
+  if (funcName === "eval") {
+    return getStaticEvalResultBasePaths(args, argScope);
+  }
+
   if (funcName === "map" || funcName === "each") {
     return getCallbackResultBasePaths(funcName, args, argScope);
   }
@@ -8395,6 +8422,10 @@ function getFunctionResultSuffixBasePaths(
 
   if (resolveTransform(argScope, funcName)) {
     return args[0] ? getResultSuffixBasePaths(args[0], argScope) : [];
+  }
+
+  if (funcName === "eval") {
+    return getStaticEvalResultBasePaths(args, argScope);
   }
 
   if (funcName === "map" || funcName === "each") {
