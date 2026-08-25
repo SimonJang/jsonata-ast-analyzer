@@ -2040,6 +2040,23 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffixes from transform $each callback results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$each({"a": record}, |first|{"seen": detail}|).first.seen.rank',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves $sift result aliases in wildcard chained fields", () => {
     expect(
       sortPaths(extractPaths("$sift(record, function($v) { $v.active }).*.name")),

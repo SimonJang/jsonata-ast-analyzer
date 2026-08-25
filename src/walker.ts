@@ -592,7 +592,7 @@ function resolveTransformFunctionCalls(
 
   if (
     functionNode.procedure.type === "variable" &&
-    functionNode.procedure.value === "map"
+    ["map", "each"].includes(functionNode.procedure.value)
   ) {
     const callback = findHigherOrderTransformCallback(
       functionNode.arguments,
