@@ -5492,6 +5492,64 @@ function resolveCallableValues(
   );
 }
 
+function resolveBuiltinCallableNames(
+  node: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  if (node.type === "variable") {
+    const variable = node as VariableNode;
+    const value = resolveValue(scope, variable.value);
+    if (!value) {
+      return BUILTIN_FUNCTIONS.has(variable.value) ? [variable.value] : [];
+    }
+    const numericFilter = (variable.predicate ?? []).find(
+      (stage) =>
+        stage.type === "filter" &&
+        (stage as unknown as FilterStage).expr.type === "number",
+    ) as unknown as FilterStage | undefined;
+    if (value.node.type === "array" && numericFilter) {
+      const index = Number(
+        ((numericFilter as unknown as FilterStage).expr as { value: number }).value,
+      );
+      const selected = (value.node as ArrayNode).expressions[index];
+      return selected ? resolveBuiltinCallableNames(selected, value.scope) : [];
+    }
+    return resolveBuiltinCallableNames(value.node, value.scope);
+  }
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((value) =>
+      resolveBuiltinCallableNames(value, scope),
+    );
+  }
+  if (node.type === "object") {
+    return (node as ObjectNode).entries.flatMap(([, value]) =>
+      resolveBuiltinCallableNames(value, scope),
+    );
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [
+      ...resolveBuiltinCallableNames(condition.then, scope),
+      ...(condition.else
+        ? resolveBuiltinCallableNames(condition.else, scope)
+        : []),
+    ];
+  }
+  if (node.type === "block") {
+    const block = node as BlockNode;
+    let blockScope = scope;
+    for (const [index, expression] of block.expressions.entries()) {
+      if (index === block.expressions.length - 1) {
+        return resolveBuiltinCallableNames(expression, blockScope);
+      }
+      if (expression.type === "bind") {
+        blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
+      }
+    }
+  }
+  return [];
+}
+
 function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
   if (node.type === "lambda" && (node as LambdaNode).thunk) {
     return walkCallableSelection((node as LambdaNode).body, scope);
@@ -5659,6 +5717,25 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
   }
 
   const funcName = node.procedure.value;
+  if (!BUILTIN_FUNCTIONS.has(funcName)) {
+    const storedBuiltins = resolveBuiltinCallableNames(node.procedure, scope);
+    if (storedBuiltins.length > 0) {
+      return withFunctionStages([
+        ...walkCallableSelection(node.procedure, scope),
+        ...storedBuiltins.flatMap((name) =>
+          walkFunction(
+            {
+              ...node,
+              procedure: { type: "variable", value: name, position: node.position },
+              predicate: [],
+              group: undefined,
+            },
+            scope,
+          ),
+        ),
+      ]);
+    }
+  }
   const capturedCurrent = resolveVariable(scope, "");
   const args =
     capturedCurrent !== null && builtinUsesContextDefault(funcName, node.arguments)
@@ -6831,6 +6908,23 @@ function getFunctionResultObjectAlias(
     );
   }
 
+  if (!BUILTIN_FUNCTIONS.has(node.procedure.value)) {
+    const storedBuiltins = resolveBuiltinCallableNames(node.procedure, scope);
+    if (storedBuiltins.length > 0) {
+      return mergeObjectAliases(
+        storedBuiltins.map((name) =>
+          getFunctionResultObjectAlias(
+            {
+              ...node,
+              procedure: { type: "variable", value: name, position: node.position },
+            },
+            scope,
+          ),
+        ),
+      );
+    }
+  }
+
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
   let args = node.arguments;
@@ -6935,6 +7029,23 @@ function getFunctionResultDynamicObjectAlias(
         );
       }),
     );
+  }
+
+  if (!BUILTIN_FUNCTIONS.has(node.procedure.value)) {
+    const storedBuiltins = resolveBuiltinCallableNames(node.procedure, scope);
+    if (storedBuiltins.length > 0) {
+      return mergeDynamicObjectAliases(
+        storedBuiltins.map((name) =>
+          getFunctionResultDynamicObjectAlias(
+            {
+              ...node,
+              procedure: { type: "variable", value: name, position: node.position },
+            },
+            scope,
+          ),
+        ),
+      );
+    }
   }
 
   const partialBinding = resolvePartial(scope, node.procedure.value);
@@ -7295,6 +7406,21 @@ function getFunctionResultBasePaths(
     });
   }
 
+  if (!BUILTIN_FUNCTIONS.has(node.procedure.value)) {
+    const storedBuiltins = resolveBuiltinCallableNames(node.procedure, scope);
+    if (storedBuiltins.length > 0) {
+      return storedBuiltins.flatMap((name) =>
+        getFunctionResultBasePaths(
+          {
+            ...node,
+            procedure: { type: "variable", value: name, position: node.position },
+          },
+          scope,
+        ),
+      );
+    }
+  }
+
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
   let args = node.arguments;
@@ -7528,6 +7654,21 @@ function getFunctionResultSuffixBasePaths(
         callable.binding.scope,
       );
     });
+  }
+
+  if (!BUILTIN_FUNCTIONS.has(func.procedure.value)) {
+    const storedBuiltins = resolveBuiltinCallableNames(func.procedure, scope);
+    if (storedBuiltins.length > 0) {
+      return storedBuiltins.flatMap((name) =>
+        getFunctionResultSuffixBasePaths(
+          {
+            ...func,
+            procedure: { type: "variable", value: name, position: func.position },
+          },
+          scope,
+        ),
+      );
+    }
   }
 
   const partialBinding = resolvePartial(scope, func.procedure.value);

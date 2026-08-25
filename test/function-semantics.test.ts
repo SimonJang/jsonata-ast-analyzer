@@ -804,6 +804,22 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves suffix reads from a stored conditional builtin", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($fn := flag ? $spread : $clone; $fn(record).first.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "flag", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves explicit root object reads", () => {
     for (const expression of [
       "$keys($)",
