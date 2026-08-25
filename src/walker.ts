@@ -6590,6 +6590,18 @@ function higherOrderCallbackDataNodes(
         resolvingVariables,
       );
     }
+    if (
+      functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "clone" &&
+      functionNode.arguments[0]
+    ) {
+      return higherOrderCallbackDataNodes(
+        funcName,
+        functionNode.arguments[0],
+        scope,
+        resolvingVariables,
+      );
+    }
   }
   if (funcName === "each" && dataArg.type === "object") {
     return (dataArg as ObjectNode).entries.map(([, value]) => value);
