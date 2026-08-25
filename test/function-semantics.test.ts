@@ -65,6 +65,37 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves object aliases from statically known $eval programs", () => {
+    expect(
+      sortPaths(extractPaths('$eval("{\\\"x\\\": detail}").x.children.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(extractPaths('$eval("{(key): detail}").x.children.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(extractPaths('$eval("{\\\"x\\\": children}", detail).x.name')),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",

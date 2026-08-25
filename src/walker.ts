@@ -6100,14 +6100,9 @@ function walkTransformCall(
 }
 
 function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
-  const source = args[0];
-  if (source?.type !== "string") return markAbsolute(["**"]);
-
-  let expression: AstNode;
-  try {
-    expression = parse((source as { value: string }).value);
-  } catch {
-    return [];
+  const expression = getStaticEvalExpression(args);
+  if (!expression) {
+    return args[0]?.type === "string" ? [] : markAbsolute(["**"]);
   }
 
   const contextArg = args[1];
@@ -6122,15 +6117,8 @@ function getStaticEvalResultBasePaths(
   args: AstNode[],
   scope: ScopeTracker,
 ): string[] {
-  const source = args[0];
-  if (source?.type !== "string") return [];
-
-  let expression: AstNode;
-  try {
-    expression = parse((source as { value: string }).value);
-  } catch {
-    return [];
-  }
+  const expression = getStaticEvalExpression(args);
+  if (!expression) return [];
 
   if (getSuffixableResultBasePaths(expression, scope).length === 0) return [];
   const contextArg = args[1];
@@ -6139,6 +6127,45 @@ function getStaticEvalResultBasePaths(
   return getResultBasePathsFromArg(contextArg, scope).flatMap((basePath) =>
     walkContextExpression(expression, basePath, scope),
   );
+}
+
+function getStaticEvalExpression(args: AstNode[]): AstNode | null {
+  const source = args[0];
+  if (source?.type !== "string") return null;
+
+  try {
+    return parse((source as { value: string }).value);
+  } catch {
+    return null;
+  }
+}
+
+function getStaticEvalResultObjectAlias(
+  args: AstNode[],
+  scope: ScopeTracker,
+): ObjectAlias | null {
+  const expression = getStaticEvalExpression(args);
+  if (!expression) return null;
+
+  const alias = objectAliasForNode(expression, scope);
+  if (!alias) return null;
+  const contextArg = args[1];
+  if (!contextArg) return alias;
+
+  return mergeObjectAliases(
+    getResultBasePathsFromArg(contextArg, scope).map((basePath) =>
+      prefixObjectAlias(alias, basePath),
+    ),
+  );
+}
+
+function getStaticEvalResultDynamicObjectAlias(
+  args: AstNode[],
+  scope: ScopeTracker,
+): DynamicObjectAlias | null {
+  if (args[1]) return null;
+  const expression = getStaticEvalExpression(args);
+  return expression ? dynamicObjectAliasForNode(expression, scope) : null;
 }
 
 function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
@@ -7465,6 +7492,10 @@ function getFunctionResultObjectAlias(
     return args[0] ? objectAliasForNode(args[0], argScope) : null;
   }
 
+  if (funcName === "eval") {
+    return getStaticEvalResultObjectAlias(args, argScope);
+  }
+
   if (funcName === "map" || funcName === "each") {
     return getCallbackResultObjectAlias(funcName, args, argScope);
   }
@@ -7587,6 +7618,10 @@ function getFunctionResultDynamicObjectAlias(
 
   if (resolveTransform(argScope, funcName)) {
     return args[0] ? dynamicObjectAliasForNode(args[0], argScope) : null;
+  }
+
+  if (funcName === "eval") {
+    return getStaticEvalResultDynamicObjectAlias(args, argScope);
   }
 
   if (funcName === "map" || funcName === "each") {
