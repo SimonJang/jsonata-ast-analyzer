@@ -1,4 +1,10 @@
-import type { LambdaNode, ObjectNode, PartialNode } from "./types.js";
+import type {
+  AstNode,
+  LambdaNode,
+  ObjectNode,
+  PartialNode,
+  TransformNode,
+} from "./types.js";
 
 export interface LambdaBinding {
   readonly lambda: LambdaNode;
@@ -7,6 +13,16 @@ export interface LambdaBinding {
 
 export interface PartialBinding {
   readonly partial: PartialNode;
+  readonly scope: ScopeTracker;
+}
+
+export interface TransformBinding {
+  readonly transform: TransformNode;
+  readonly scope: ScopeTracker;
+}
+
+export interface ValueBinding {
+  readonly node: AstNode;
   readonly scope: ScopeTracker;
 }
 
@@ -35,6 +51,8 @@ export interface ScopeTracker {
   readonly bindings: ReadonlyMap<string, readonly string[]>;
   readonly lambdas: ReadonlyMap<string, LambdaBinding>;
   readonly partials: ReadonlyMap<string, PartialBinding>;
+  readonly transforms: ReadonlyMap<string, TransformBinding>;
+  readonly values: ReadonlyMap<string, ValueBinding>;
   readonly objectAliases: ReadonlyMap<string, ObjectAlias>;
   readonly dynamicObjectAliases: ReadonlyMap<string, DynamicObjectAlias>;
   readonly suffixBaseBindings: ReadonlyMap<string, readonly string[]>;
@@ -45,6 +63,8 @@ const EMPTY_SCOPE: ScopeTracker = {
   bindings: new Map(),
   lambdas: new Map(),
   partials: new Map(),
+  transforms: new Map(),
+  values: new Map(),
   objectAliases: new Map(),
   dynamicObjectAliases: new Map(),
   suffixBaseBindings: new Map(),
@@ -62,6 +82,8 @@ export function childScope(parent: ScopeTracker): ScopeTracker {
     bindings: new Map(),
     lambdas: new Map(),
     partials: new Map(),
+    transforms: new Map(),
+    values: new Map(),
     objectAliases: new Map(),
     dynamicObjectAliases: new Map(),
     suffixBaseBindings: new Map(),
@@ -82,12 +104,16 @@ export function bindVariable(
   const newBindings = new Map(scope.bindings);
   const newLambdas = new Map(scope.lambdas);
   const newPartials = new Map(scope.partials);
+  const newTransforms = new Map(scope.transforms);
+  const newValues = new Map(scope.values);
   const newObjectAliases = new Map(scope.objectAliases);
   const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
   const newSuffixBaseBindings = new Map(scope.suffixBaseBindings);
   newBindings.set(name, paths);
   newLambdas.delete(name);
   newPartials.delete(name);
+  newTransforms.delete(name);
+  newValues.delete(name);
   newObjectAliases.delete(name);
   newDynamicObjectAliases.delete(name);
   newSuffixBaseBindings.delete(name);
@@ -95,6 +121,8 @@ export function bindVariable(
     bindings: newBindings,
     lambdas: newLambdas,
     partials: newPartials,
+    transforms: newTransforms,
+    values: newValues,
     objectAliases: newObjectAliases,
     dynamicObjectAliases: newDynamicObjectAliases,
     suffixBaseBindings: newSuffixBaseBindings,
@@ -115,6 +143,8 @@ export function bindSuffixBasePaths(
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
+    transforms: scope.transforms,
+    values: scope.values,
     objectAliases: scope.objectAliases,
     dynamicObjectAliases: scope.dynamicObjectAliases,
     suffixBaseBindings: newSuffixBaseBindings,
@@ -135,6 +165,8 @@ export function bindObjectAlias(
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
+    transforms: scope.transforms,
+    values: scope.values,
     objectAliases: newObjectAliases,
     dynamicObjectAliases: newDynamicObjectAliases,
     suffixBaseBindings: scope.suffixBaseBindings,
@@ -153,6 +185,8 @@ export function bindDynamicObjectAlias(
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
+    transforms: scope.transforms,
+    values: scope.values,
     objectAliases: scope.objectAliases,
     dynamicObjectAliases: newDynamicObjectAliases,
     suffixBaseBindings: scope.suffixBaseBindings,
@@ -177,6 +211,8 @@ export function bindLambda(
     bindings: scope.bindings,
     lambdas: newLambdas,
     partials: scope.partials,
+    transforms: scope.transforms,
+    values: scope.values,
     objectAliases: scope.objectAliases,
     dynamicObjectAliases: scope.dynamicObjectAliases,
     suffixBaseBindings: scope.suffixBaseBindings,
@@ -196,6 +232,50 @@ export function bindPartial(
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: newPartials,
+    transforms: scope.transforms,
+    values: scope.values,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
+    parent: scope.parent,
+  };
+}
+
+export function bindTransform(
+  scope: ScopeTracker,
+  name: string,
+  transform: TransformNode,
+  closureScope: ScopeTracker = scope,
+): ScopeTracker {
+  const newTransforms = new Map(scope.transforms);
+  newTransforms.set(name, { transform, scope: closureScope });
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    transforms: newTransforms,
+    values: scope.values,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
+    parent: scope.parent,
+  };
+}
+
+export function bindValue(
+  scope: ScopeTracker,
+  name: string,
+  node: AstNode,
+  closureScope: ScopeTracker = scope,
+): ScopeTracker {
+  const newValues = new Map(scope.values);
+  newValues.set(name, { node, scope: closureScope });
+  return {
+    bindings: scope.bindings,
+    lambdas: scope.lambdas,
+    partials: scope.partials,
+    transforms: scope.transforms,
+    values: newValues,
     objectAliases: scope.objectAliases,
     dynamicObjectAliases: scope.dynamicObjectAliases,
     suffixBaseBindings: scope.suffixBaseBindings,
@@ -236,6 +316,36 @@ export function resolvePartial(
     if (current.bindings.has(name)) {
       return null;
     }
+    current = current.parent;
+  }
+  return null;
+}
+
+export function resolveTransform(
+  scope: ScopeTracker,
+  name: string,
+): TransformBinding | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.transforms.has(name)) {
+      return current.transforms.get(name)!;
+    }
+    if (current.bindings.has(name)) {
+      return null;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+export function resolveValue(
+  scope: ScopeTracker,
+  name: string,
+): ValueBinding | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.values.has(name)) return current.values.get(name)!;
+    if (current.bindings.has(name)) return null;
     current = current.parent;
   }
   return null;

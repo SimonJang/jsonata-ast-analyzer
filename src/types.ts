@@ -55,12 +55,20 @@ export interface WildcardNode extends AnalyzerNode {
   type: "wildcard";
   value: "*";
   position: number;
+  predicate?: AstNode[];
+  group?: GroupByNode;
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface DescendantNode extends AnalyzerNode {
   type: "descendant";
   value: "**";
   position: number;
+  predicate?: AstNode[];
+  group?: GroupByNode;
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface BinaryNode extends AnalyzerNode {
@@ -119,18 +127,30 @@ export interface StringNode extends AnalyzerNode {
   type: "string";
   value: string;
   position: number;
+  predicate?: AstNode[];
+  group?: GroupByNode;
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface NumberNode extends AnalyzerNode {
   type: "number";
   value: number;
   position: number;
+  predicate?: AstNode[];
+  group?: GroupByNode;
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface ValueNode extends AnalyzerNode {
   type: "value";
   value: boolean | null; // true, false, null
   position: number;
+  predicate?: AstNode[];
+  group?: GroupByNode;
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface VariableNode extends AnalyzerNode {
@@ -147,6 +167,10 @@ export interface RegexNode extends AnalyzerNode {
   type: "regex";
   value: RegExp;
   position: number;
+  predicate?: AstNode[];
+  group?: GroupByNode;
+  focusBinding?: ContextBindingNode;
+  indexBinding?: PositionBindingNode;
 }
 
 export interface BindNode extends AnalyzerNode {
@@ -161,7 +185,7 @@ export interface FunctionNode extends AnalyzerNode {
   type: "function";
   value: "(";
   position: number;
-  procedure: VariableNode | LambdaNode; // function name or inline lambda
+  procedure: FunctionProcedureNode;
   arguments: AstNode[]; // call arguments
   group?: GroupByNode;
   predicate?: AstNode[];
@@ -176,6 +200,8 @@ export interface LambdaNode extends AnalyzerNode {
   body: AstNode; // lambda body expression
   signature?: { definition: string }; // optional type signature
   thunk?: boolean; // parser-generated wrapper lambda (no args, wraps nested calls)
+  predicate?: AstNode[];
+  group?: GroupByNode;
 }
 
 export interface ApplyNode extends AnalyzerNode {
@@ -204,6 +230,8 @@ export interface SortNode extends AnalyzerNode {
   type: "sort";
   terms: SortTerm[];
   position?: number;
+  predicate?: AstNode[];
+  indexBinding?: PositionBindingNode;
 }
 
 /** Transform node -- top-level node type for the JSONata transform operator (|...|...|). */
@@ -213,6 +241,8 @@ export interface TransformNode extends AnalyzerNode {
   update: AstNode;
   delete?: AstNode;
   position?: number;
+  predicate?: AstNode[];
+  group?: GroupByNode;
 }
 
 /** Parent operator node -- appears as a step in PathNode.steps or as a filter stage expr. */
@@ -220,6 +250,7 @@ export interface ParentNode extends AnalyzerNode {
   type: "parent";
   slot: { label: string; level: number; index: number };
   position?: number;
+  predicate?: AstNode[];
 }
 
 /** Group-by structure on PathNode.group. Contains array of [key, value] expression pairs. */
@@ -233,9 +264,20 @@ export interface PartialNode extends AnalyzerNode {
   type: "partial";
   value: "(";
   position: number;
-  procedure: VariableNode;
+  procedure: FunctionProcedureNode;
   arguments: AstNode[];
+  predicate?: AstNode[];
+  group?: GroupByNode;
 }
+
+export type FunctionProcedureNode =
+  | VariableNode
+  | LambdaNode
+  | TransformNode
+  | ConditionNode
+  | FunctionNode
+  | BlockNode
+  | PathNode;
 
 // Catch-all for node types not yet handled (parent, partial, error).
 // The walker returns empty paths for these — skip silently per

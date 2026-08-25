@@ -3,6 +3,239 @@ import { extractPaths } from "../src/index.js";
 import { sortPaths } from "./integration/helpers.js";
 
 describe("function semantics", () => {
+  it("extracts paths from statically known $eval programs", () => {
+    expect(
+      extractPaths("$eval('Account.Order.Product.Quantity ~> $sum()')"),
+    ).toEqual([
+      { path: "Account.Order.Product.Quantity", confidence: "static" },
+    ]);
+
+    expect(
+      sortPaths(extractPaths("Account.Order.Product.$eval('Price * Quantity')")),
+    ).toEqual(
+      sortPaths([
+        { path: "Account.Order.Product.Price", confidence: "static" },
+        { path: "Account.Order.Product.Quantity", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "Account.Order.Product.$eval('Width * Height * Depth', Description)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "Account.Order.Product.Description", confidence: "static" },
+        { path: "Account.Order.Product.Description.Depth", confidence: "static" },
+        { path: "Account.Order.Product.Description.Height", confidence: "static" },
+        { path: "Account.Order.Product.Description.Width", confidence: "static" },
+      ]),
+    );
+
+  });
+
+  it("injects path context into built-ins with remaining explicit arguments", () => {
+    for (const expression of [
+      "record.first.name.$substring(1)",
+      "record.first.name.$substring(1, 2)",
+      'record.first.name.$substringBefore("d")',
+      'record.first.name.$substringAfter("d")',
+      'record.first.name.$contains("A")',
+      'record.first.name.$replace("A", "O")',
+      'record.first.name.$split("d")',
+      "record.first.name.$pad(5)",
+    ]) {
+      expect(extractPaths(expression)).toEqual([
+        { path: "record.first.name", confidence: "static" },
+      ]);
+    }
+  });
+
+  it("injects predicate context into built-ins with explicit arguments", () => {
+    expect(
+      extractPaths('record.first.name[$contains("A")]'),
+    ).toEqual([{ path: "record.first.name", confidence: "static" }]);
+  });
+
+  it("binds object property values in explicit and path-context $each/$sift calls", () => {
+    expect(
+      sortPaths(extractPaths("$each(record, function($v) { $v.name })")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(extractPaths("record.$each(function($v) { $v.name })")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(extractPaths("$sift(record, function($v) { $v.active })")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*.active", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(extractPaths("record.$sift(function($v) { $v.active })")),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+        { path: "record.*.active", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("traces conditional and looked-up lambda values used as map callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], config.enabled ? function($x){$x.first.name} : function($x){$x.first.detail.rank})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], $lookup({"project": function($x){$x.first.name}}, "project"))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("traces inline and bound lambda partials used as map callbacks", () => {
+    for (const expression of [
+      '$map([record], function($x, $unused){$x.first.name}(?, 1))',
+      '($p := function($x, $unused){$x.first.name}(?, 1); $map([record], $p))',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "record", confidence: "static" },
+          { path: "record.first.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], function($prefix, $x){$x.first.name}(config.suffix, ?))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.suffix", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves result aliases from selected and conditional lambda callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], $lookup({"project": function($x){{"out":$x.first.name}}}, "project")).out.length',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.first.name.length", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], config.enabled ? function($x){{"out":$x.first.name}} : function($x){{"out":$x.first.detail}}).out.rank',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.first.name.rank", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($fs := [function($x){{"out":$x.first.detail}}]; $map([record], $fs[0]).out.rank)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves result aliases from partial lambda callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], function($prefix, $x){{"out":$x.first.detail}}(config.suffix, ?)).out.rank',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.suffix", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("over-approximates reads from dynamic $eval programs", () => {
+    expect(sortPaths(extractPaths("$eval(config.program)"))).toEqual(
+      sortPaths([
+        { path: "config.program", confidence: "static" },
+        { path: "**", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(extractPaths("$eval(config.program, record.first)")),
+    ).toEqual(
+      sortPaths([
+        { path: "config.program", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "**", confidence: "static" },
+      ]),
+    );
+  });
+
   it("captures lambda scope at definition time", () => {
     expect(
       sortPaths(
@@ -260,6 +493,61 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("traces an inline lambda through partial application", () => {
+    expect(
+      extractPaths(
+        "($project := function($x, $unused){$x.first.name}(?, 1); $project(record))",
+      ),
+    ).toEqual([
+      { path: "record", confidence: "static" },
+      { path: "record.first.name", confidence: "static" },
+    ]);
+  });
+
+  it("traces a lambda returned by a custom function", () => {
+    expect(
+      extractPaths(
+        "($maker := function(){function($x){$x.first.name}}; $maker()(record))",
+      ),
+    ).toEqual([
+      { path: "record", confidence: "static" },
+      { path: "record.first.name", confidence: "static" },
+    ]);
+  });
+
+  it("traces a partial returned by a custom function", () => {
+    expect(
+      extractPaths(
+        "($project := function($x){$x.first.name}; $maker := function(){$project(?)}; $maker()(record))",
+      ),
+    ).toEqual([
+      { path: "record", confidence: "static" },
+      { path: "record.first.name", confidence: "static" },
+    ]);
+  });
+
+  it("traces a lambda selected from a stored array", () => {
+    expect(
+      extractPaths(
+        "($functions := [function($x){$x.first.name}]; $functions[0](record))",
+      ),
+    ).toEqual([
+      { path: "record", confidence: "static" },
+      { path: "record.first.name", confidence: "static" },
+    ]);
+  });
+
+  it("traces a lambda selected from a stored object", () => {
+    expect(
+      extractPaths(
+        '($functions := {"project": function($x){$x.first.name}}; $functions.project(record))',
+      ),
+    ).toEqual([
+      { path: "record", confidence: "static" },
+      { path: "record.first.name", confidence: "static" },
+    ]);
+  });
+
   it("resolves variable-bound callbacks in filtered path chains", () => {
     expect(
       sortPaths(
@@ -377,6 +665,186 @@ describe("function semantics", () => {
     );
     expect(sortPaths(extractPaths('$lookup($, "customer")'))).toEqual(
       sortPaths([{ path: "customer", confidence: "static" }]),
+    );
+  });
+
+  it("preserves context-default root object reads", () => {
+    for (const expression of ["$keys()", "$spread()", "$boolean()", "$not()"]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([{ path: "*", confidence: "static" }]),
+      );
+    }
+    for (const expression of ["$clone()", "$string()"]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([{ path: "**", confidence: "static" }]),
+      );
+    }
+  });
+
+  it("preserves explicit root object reads", () => {
+    for (const expression of [
+      "$keys($)",
+      "$spread($)",
+      "$boolean($)",
+      "$not($)",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([{ path: "*", confidence: "static" }]),
+      );
+    }
+    for (const expression of ["$clone($)", "$string($)"]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([{ path: "**", confidence: "static" }]),
+      );
+    }
+
+    expect(sortPaths(extractPaths("record.$clone($)"))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
+      ]),
+    );
+
+    for (const expression of [
+      "$each($, function($v, $k){$k})",
+      "$sift($, function($v, $k){true})",
+      "$merge([$])",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([{ path: "*", confidence: "static" }]),
+      );
+    }
+  });
+
+  it("injects context defaults for user-defined functions", () => {
+    for (const expression of [
+      "($f := function($x)<o-:x>{$x.record.first.name}; $f())",
+      "(function($x)<o-:x>{$x.record.first.name})()",
+      "($f := function($x)<o-:o>{$x}; $f().record.first.name)",
+      '(($f := function($prefix, $x)<so-:x>{$x.record.first.name}; $f("ignored")))',
+      '(($f := function($x, $suffix)<o-s:x>{$x.record.first.name}; $f("ignored")))',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([{ path: "record.first.name", confidence: "static" }]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "record.($f := function($x)<o-:x>{$x.first.name}; $f())",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([{ path: "record.first.name", confidence: "static" }]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function($x)<o-:x>{$x.first.name}; record.$f())",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("injects bound function context defaults in path stages", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function($x)<o-:x>{$x.active}; items[$f()].name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function($x)<o-:x>{$x.rank}; items^(<$f()).name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items.name", confidence: "static" },
+        { path: "items.rank", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($f := function($x)<o-:x>{$x.category}; items{$f(): "x"})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function($x)<o-:x>{$x.active}; items.($f()))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([{ path: "items.active", confidence: "static" }]),
+    );
+  });
+
+  it("preserves static context-default lookup keys", () => {
+    expect(sortPaths(extractPaths('$lookup("items")'))).toEqual(
+      sortPaths([{ path: "items", confidence: "static" }]),
+    );
+    expect(sortPaths(extractPaths('$lookup("items").name'))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+    expect(sortPaths(extractPaths('($x := $lookup("items"); $x.name)'))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+    expect(sortPaths(extractPaths('record.$lookup("first").name'))).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves dynamic context-default lookup keys", () => {
+    expect(sortPaths(extractPaths("$lookup(config.key).name"))).toEqual(
+      sortPaths([
+        { path: "config.key", confidence: "static" },
+        { path: "[*]", confidence: "dynamic" },
+        { path: "[*].name", confidence: "dynamic" },
+      ]),
+    );
+    expect(
+      sortPaths(extractPaths("($x := $lookup(config.key); $x.name)")),
+    ).toEqual(
+      sortPaths([
+        { path: "config.key", confidence: "static" },
+        { path: "[*]", confidence: "dynamic" },
+        { path: "[*].name", confidence: "dynamic" },
+      ]),
     );
   });
 
@@ -782,7 +1250,8 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
-        { path: "record.name", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+        { path: "record.*.name", confidence: "static" },
       ]),
     );
   });
@@ -793,8 +1262,8 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
-        { path: "record.detail", confidence: "static" },
-        { path: "record.detail.name", confidence: "static" },
+        { path: "record.*.detail", confidence: "static" },
+        { path: "record.*.detail.name", confidence: "static" },
       ]),
     );
   });
@@ -806,7 +1275,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "record", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
-        { path: "record.active", confidence: "static" },
+        { path: "record.*.active", confidence: "static" },
       ]),
     );
   });
@@ -820,7 +1289,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "record", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
-        { path: "record.active", confidence: "static" },
+        { path: "record.*.active", confidence: "static" },
       ]),
     );
   });
@@ -836,7 +1305,10 @@ describe("function semantics", () => {
 
   it("preserves root aliases through path-preserving functions", () => {
     expect(sortPaths(extractPaths("$clone($).customer.name"))).toEqual(
-      sortPaths([{ path: "customer.name", confidence: "static" }]),
+      sortPaths([
+        { path: "**", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
+      ]),
     );
   });
 
@@ -1619,7 +2091,8 @@ describe("function semantics", () => {
       sortPaths([
         { path: "key", confidence: "static" },
         { path: "obj", confidence: "static" },
-        { path: "obj.name", confidence: "static" },
+        { path: "obj.*", confidence: "static" },
+        { path: "obj.*.name", confidence: "static" },
       ]),
     );
   });
@@ -1636,8 +2109,8 @@ describe("function semantics", () => {
         { path: "flag", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "obj", confidence: "static" },
-        { path: "obj.detail", confidence: "static" },
-        { path: "obj.detail.name", confidence: "static" },
+        { path: "obj.*.detail", confidence: "static" },
+        { path: "obj.*.detail.name", confidence: "static" },
       ]),
     );
   });
@@ -2603,8 +3076,8 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
-        { path: "record.detail", confidence: "static" },
-        { path: "record.detail.name", confidence: "static" },
+        { path: "record.*.detail", confidence: "static" },
+        { path: "record.*.detail.name", confidence: "static" },
       ]),
     );
   });
@@ -2690,8 +3163,8 @@ describe("function semantics", () => {
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
         { path: "record", confidence: "static" },
-        { path: "record.detail", confidence: "static" },
-        { path: "record.detail.name", confidence: "static" },
+        { path: "record.*.detail", confidence: "static" },
+        { path: "record.*.detail.name", confidence: "static" },
       ]),
     );
   });

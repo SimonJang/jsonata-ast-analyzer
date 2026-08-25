@@ -12,19 +12,129 @@ describe("path-stage semantics", () => {
       ),
     ).toEqual(
       sortPaths([
-        { path: "library.loans.books", confidence: "static" },
-        { path: "library.loans.books.isbn", confidence: "static" },
-        { path: "library.loans.books.title", confidence: "static" },
+        { path: "library.books", confidence: "static" },
+        { path: "library.books.isbn", confidence: "static" },
+        { path: "library.books.title", confidence: "static" },
         { path: "library.loans.customer", confidence: "static" },
         { path: "library.loans.isbn", confidence: "static" },
       ]),
     );
   });
 
+  it("contextualizes projections after a tuple reset is consumed", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          'library.loans@$l.books[$l.isbn=isbn].{"title":title,"customer":$l.customer}',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "library.books", confidence: "static" },
+        { path: "library.books.isbn", confidence: "static" },
+        { path: "library.books.title", confidence: "static" },
+        { path: "library.loans.customer", confidence: "static" },
+        { path: "library.loans.isbn", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          'library.loans@$l.books@$b[$l.isbn=$b.isbn].customers[$l.customer=id].{"name":name}',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "library.books.isbn", confidence: "static" },
+        { path: "library.customers", confidence: "static" },
+        { path: "library.customers.id", confidence: "static" },
+        { path: "library.customers.name", confidence: "static" },
+        { path: "library.loans.customer", confidence: "static" },
+        { path: "library.loans.isbn", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("composes transparent parenthesized path steps", () => {
+    expect(extractPaths("(foo).(blah).baz.(fud)")).toEqual([
+      { path: "foo.blah.baz.fud", confidence: "static" },
+    ]);
+  });
+
+  it("carries a tuple-reset block result into its predicate and projection", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          'Employee@$e.(Contact)[ssn=$e.SSN].{"phone":Phone[type="mobile"].number}',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "Contact", confidence: "static" },
+        { path: "Contact.ssn", confidence: "static" },
+        { path: "Contact.Phone.number", confidence: "static" },
+        { path: "Contact.Phone.type", confidence: "static" },
+        { path: "Employee.SSN", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("carries a tuple-reset block result into group entries", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "Employee@$e.(Contact)[ssn=$e.SSN]{$e.FirstName: Phone[type='mobile'].number}",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "Contact", confidence: "static" },
+        { path: "Contact.ssn", confidence: "static" },
+        { path: "Contact.Phone.number", confidence: "static" },
+        { path: "Contact.Phone.type", confidence: "static" },
+        { path: "Employee.FirstName", confidence: "static" },
+        { path: "Employee.SSN", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("resets bare path context after @ tuple bindings", () => {
+    expect(sortPaths(extractPaths("a.b@$x.c"))).toEqual(
+      sortPaths([
+        { path: "a.b", confidence: "static" },
+        { path: "a.c", confidence: "static" },
+      ]),
+    );
+    expect(sortPaths(extractPaths("a.b@$x.$x.c"))).toEqual(
+      sortPaths([{ path: "a.b.c", confidence: "static" }]),
+    );
+    expect(sortPaths(extractPaths("a.b@$x.c@$y.d"))).toEqual(
+      sortPaths([
+        { path: "a.b", confidence: "static" },
+        { path: "a.c", confidence: "static" },
+        { path: "a.d", confidence: "static" },
+      ]),
+    );
+    expect(extractPaths("a.b#$i.c")).toEqual([
+      { path: "a.b.c", confidence: "static" },
+    ]);
+  });
+
   it("keeps # position bindings out of input paths", () => {
     expect(extractPaths("items#$i[$i > 0].name")).toEqual([
       { path: "items.name", confidence: "static" },
     ]);
+  });
+
+  it("keeps staged # position bindings out of dynamic selectors", () => {
+    expect(sortPaths(extractPaths("items[active]#$i[$i].name"))).toEqual(
+      sortPaths([
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+    expect(extractPaths("$[[1..4]]#$i[$i]")).toEqual([]);
   });
 
   it("does not mark variables bound to numeric indexes as dynamic selectors", () => {
@@ -102,11 +212,11 @@ describe("path-stage semantics", () => {
     );
   });
 
-  it("keeps root-relative object projection aliases root-relative", () => {
+  it("keeps current-context object projection aliases contextual", () => {
     expect(sortPaths(extractPaths('items.{"x": $.root}.x.name'))).toEqual(
       sortPaths([
-        { path: "root", confidence: "static" },
-        { path: "root.name", confidence: "static" },
+        { path: "items.root", confidence: "static" },
+        { path: "items.root.name", confidence: "static" },
       ]),
     );
   });
@@ -902,13 +1012,34 @@ describe("path-stage semantics", () => {
     const expressions = [
       '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $fn := function($c){{(key): %.owner}}; $fn($r.x.children).x.name)',
       '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $map($r.x.children, function($c){{(key): %.owner}}).x.name)',
-      '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $each($r.x.children, function($c){{(key): %.owner}}).x.name)',
       '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $reduce($r.x.children, function($acc,$c){{(key): %.owner}}, {}).x.name)',
     ];
 
     for (const expression of expressions) {
       expect(sortPaths(extractPaths(expression))).toEqual(expected);
     }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($r := $map(items, function($v){flag ? {"x": $v.detail} : fallback}); $each($r.x.children, function($c){{(key): %.owner}}).x.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children", confidence: "static" },
+        { path: "fallback.x.children.owner", confidence: "static" },
+        { path: "fallback.x.children.owner.name", confidence: "static" },
+        { path: "flag", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.children", confidence: "static" },
+        { path: "items.detail.children.owner", confidence: "static" },
+        { path: "items.detail.children.owner.name", confidence: "static" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
   });
 
   it("preserves nested dynamic object aliases", () => {
@@ -1937,9 +2068,85 @@ describe("path-stage semantics", () => {
   });
 
   it("keeps bare-only focus projection paths root-relative", () => {
-    expect(extractPaths("items@$v.(price)")).toEqual([
-      { path: "price", confidence: "static" },
-    ]);
+    expect(sortPaths(extractPaths("items@$v.(price)"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps an outer focus binding in a block projection group key", () => {
+    expect(
+      sortPaths(extractPaths('Employee@$e.(Contact){$e.FirstName: "x"}')),
+    ).toEqual(
+      sortPaths([
+        { path: "Contact", confidence: "static" },
+        { path: "Employee.FirstName", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("rebases current-context references in filter predicates", () => {
+    expect(sortPaths(extractPaths("items[$.active].name"))).toEqual(
+      sortPaths([
+        { path: "items.active", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("rebases current-context references in sort terms", () => {
+    expect(sortPaths(extractPaths("items^(<$.rank).name"))).toEqual(
+      sortPaths([
+        { path: "items.name", confidence: "static" },
+        { path: "items.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("rebases current-context references in group entries", () => {
+    expect(sortPaths(extractPaths("items{$.category: $.total}"))).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+        { path: "items.total", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("resolves ordinary scoped function calls in group entries", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($base := Account; $f := function(){ $base.name }; items{$f(): "x"})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "Account", confidence: "static" },
+        { path: "Account.name", confidence: "static" },
+        { path: "items", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("rebases current-context arguments in function path steps", () => {
+    expect(sortPaths(extractPaths("Account.$string($.name)"))).toEqual(
+      sortPaths([{ path: "Account.name", confidence: "static" }]),
+    );
+    expect(sortPaths(extractPaths("Account.$string($)"))).toEqual(
+      sortPaths([
+        { path: "Account", confidence: "static" },
+        { path: "Account.**", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps root-context arguments absolute in function path steps", () => {
+    expect(sortPaths(extractPaths("Account.$string($$.root)"))).toEqual(
+      sortPaths([{ path: "root", confidence: "static" }]),
+    );
   });
 
   it("keeps focus bindings on parenthesized path filters", () => {

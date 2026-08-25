@@ -1,10 +1,12 @@
 import type {
   AstNode,
   ContextBindingNode,
+  FunctionProcedureNode,
   GroupByNode,
   LambdaNode,
   PositionBindingNode,
   SourceAstMetadata,
+  TransformNode,
   VariableNode,
 } from "./types.js";
 
@@ -80,12 +82,23 @@ function normalizeVariable(node: RawAstNode): VariableNode {
   };
 }
 
-function normalizeFunctionProcedure(node: RawAstNode): VariableNode | LambdaNode {
-  if (node.type === "lambda") return normalizeAst(node) as LambdaNode;
+function normalizeFunctionProcedure(node: RawAstNode): FunctionProcedureNode {
+  if (["lambda", "transform", "function"].includes(String(node.type))) {
+    return normalizeAst(node) as FunctionProcedureNode;
+  }
 
   const expressions = node.type === "block" ? rawList(node.expressions) : [];
-  if (expressions.length === 1 && expressions[0].type === "lambda") {
-    return normalizeAst(expressions[0]) as LambdaNode;
+  if (
+    expressions.length === 1 &&
+    ["lambda", "transform", "condition", "function"].includes(
+      String(expressions[0].type),
+    )
+  ) {
+    return normalizeAst(expressions[0]) as FunctionProcedureNode;
+  }
+
+  if (node.type === "block" || node.type === "path") {
+    return normalizeAst(node) as FunctionProcedureNode;
   }
 
   return normalizeVariable(node);
@@ -125,6 +138,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "wildcard",
         value: "*",
         position: positionOf(node),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "descendant":
@@ -132,6 +152,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "descendant",
         value: "**",
         position: positionOf(node),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "binary":
@@ -208,6 +235,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "string",
         value: String(node.value ?? ""),
         position: positionOf(node),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "number":
@@ -215,6 +249,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "number",
         value: Number(node.value),
         position: positionOf(node),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "value":
@@ -222,6 +263,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "value",
         value: node.value as boolean | null,
         position: positionOf(node),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "variable":
@@ -231,6 +279,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "regex",
         value: node.value as RegExp,
         position: positionOf(node),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
+        focusBinding: contextBinding(node.focus, positionOf(node)),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "bind":
@@ -266,6 +321,11 @@ export function normalizeAst(node: RawAstNode): AstNode {
         body: normalizeAst(node.body as RawAstNode),
         signature: node.signature as { definition: string } | undefined,
         thunk: node.thunk as boolean | undefined,
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
         source: sourceOf(node),
       };
     case "apply":
@@ -284,6 +344,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         position: typeof node.position === "number" ? node.position : undefined,
         source: sourceOf(node),
       };
+    case "index":
+      return {
+        type: "position-binding",
+        name: String(node.value ?? ""),
+        position: positionOf(node),
+        source: sourceOf(node),
+      };
     case "sort":
       return {
         type: "sort",
@@ -292,6 +359,11 @@ export function normalizeAst(node: RawAstNode): AstNode {
           expression: normalizeAst(term.expression as RawAstNode),
         })),
         position: typeof node.position === "number" ? node.position : undefined,
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        indexBinding: positionBinding(node.index, positionOf(node)),
         source: sourceOf(node),
       };
     case "transform":
@@ -301,6 +373,11 @@ export function normalizeAst(node: RawAstNode): AstNode {
         update: normalizeAst(node.update as RawAstNode),
         delete: node.delete ? normalizeAst(node.delete as RawAstNode) : undefined,
         position: typeof node.position === "number" ? node.position : undefined,
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
         source: sourceOf(node),
       };
     case "parent":
@@ -308,6 +385,10 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "parent",
         slot: node.slot as { label: string; level: number; index: number },
         position: typeof node.position === "number" ? node.position : undefined,
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
         source: sourceOf(node),
       };
     case "partial":
@@ -315,8 +396,13 @@ export function normalizeAst(node: RawAstNode): AstNode {
         type: "partial",
         value: "(",
         position: positionOf(node),
-        procedure: normalizeVariable(node.procedure as RawAstNode),
+        procedure: normalizeFunctionProcedure(node.procedure as RawAstNode),
         arguments: rawList(node.arguments).map(normalizeAst),
+        predicate: [
+          ...rawList(node.predicate),
+          ...rawList(node.stages),
+        ].map(normalizeAst),
+        group: normalizeGroup(node.group),
         source: sourceOf(node),
       };
     default:

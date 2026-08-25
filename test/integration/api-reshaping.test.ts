@@ -152,7 +152,7 @@ describe("API Reshaping", () => {
         name: "focus variable cross-reference: extracts focus-resolved paths without double prefix",
         expression: `orders@$o[$o.total > 100].id`,
         expectedPaths: [
-          { path: "orders.id", confidence: "static" },
+          { path: "id", confidence: "static" },
           { path: "orders.total", confidence: "static" },
         ],
       });
@@ -165,6 +165,7 @@ describe("API Reshaping", () => {
         expression: `($cfg := config; items[$cfg.minPrice < price].name)`,
         expectedPaths: [
           { path: "config", confidence: "static" },
+          { path: "config.minPrice", confidence: "static" },
           { path: "items.name", confidence: "static" },
           { path: "items.price", confidence: "static" },
         ],
@@ -374,12 +375,13 @@ describe("API Reshaping", () => {
 
   describe("FOCV regression: focus variable prefix handling and variable-in-filter scope", () => {
     const fixtures: IntegrationFixture[] = [
-      // Edge 1: Simple focus variable without filter -- baseline: focus var alone should not cause issues
+      // Edge 1: Without an attached stage, the next bare step uses the tuple parent context.
       {
         name: "FOCV-R01: simple focus variable without filter produces path continuation only",
         expression: `orders@$o.id`,
         expectedPaths: [
-          { path: "orders.id", confidence: "static" },
+          { path: "id", confidence: "static" },
+          { path: "orders", confidence: "static" },
         ],
       },
       // Edge 2: Focus variable with compound predicate -- multiple focus-var references in AND predicate
@@ -388,8 +390,8 @@ describe("API Reshaping", () => {
         expression: `items@$i[$i.price > 50 and $i.active].name`,
         expectedPaths: [
           { path: "items.active", confidence: "static" },
-          { path: "items.name", confidence: "static" },
           { path: "items.price", confidence: "static" },
+          { path: "name", confidence: "static" },
         ],
       },
       // Edge 3: Nested focus variables -- each resolves to own context
@@ -397,8 +399,9 @@ describe("API Reshaping", () => {
         name: "FOCV-R03: nested focus variables each resolve to their own context prefix",
         expression: `departments@$d.employees@$e[$e.salary > 50000].name`,
         expectedPaths: [
-          { path: "departments.employees.name", confidence: "static" },
-          { path: "departments.employees.salary", confidence: "static" },
+          { path: "departments", confidence: "static" },
+          { path: "employees.salary", confidence: "static" },
+          { path: "name", confidence: "static" },
         ],
       },
       // Edge 4: Focus variable with bare field in same filter -- mix of focus-var (no prefix) and bare (prefix)
@@ -407,8 +410,8 @@ describe("API Reshaping", () => {
         expression: `items@$i[$i.category = type].name`,
         expectedPaths: [
           { path: "items.category", confidence: "static" },
-          { path: "items.name", confidence: "static" },
-          { path: "items.type", confidence: "static" },
+          { path: "name", confidence: "static" },
+          { path: "type", confidence: "static" },
         ],
       },
       // Edge 5: External variable cross-ref with focus -- external var not re-emitted from filter
@@ -416,8 +419,8 @@ describe("API Reshaping", () => {
         name: "FOCV-R05: external variable cross-ref with focus variable in filter does not re-emit external path",
         expression: `($min := threshold; orders@$o[$o.total > $min].id)`,
         expectedPaths: [
-          { path: "orders.id", confidence: "static" },
           { path: "orders.total", confidence: "static" },
+          { path: "id", confidence: "static" },
           { path: "threshold", confidence: "static" },
         ],
       },
@@ -437,6 +440,8 @@ describe("API Reshaping", () => {
         expression: `($cfg := config; items[price > $cfg.min][price < $cfg.max].name)`,
         expectedPaths: [
           { path: "config", confidence: "static" },
+          { path: "config.max", confidence: "static" },
+          { path: "config.min", confidence: "static" },
           { path: "items.name", confidence: "static" },
           { path: "items.price", confidence: "static" },
         ],
@@ -446,7 +451,8 @@ describe("API Reshaping", () => {
         name: "FOCV-R08: focus variable in path continuation (no filter) resolves correctly",
         expression: `orders@$o.items.name`,
         expectedPaths: [
-          { path: "orders.items.name", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          { path: "orders", confidence: "static" },
         ],
       },
       // Edge 9: Cross-referenced focus variables in nested contexts
@@ -454,9 +460,9 @@ describe("API Reshaping", () => {
         name: "FOCV-R09: cross-referenced focus variables in nested filter resolve inner focus correctly",
         expression: `library.loans@$l.books@$b[$l.isbn = $b.isbn].title`,
         expectedPaths: [
+          { path: "library.books.isbn", confidence: "static" },
           { path: "library.loans.isbn", confidence: "static" },
-          { path: "library.loans.books.isbn", confidence: "static" },
-          { path: "library.loans.books.title", confidence: "static" },
+          { path: "library.title", confidence: "static" },
         ],
       },
       // Edge 10: Chained apply with focus variable input -- combines focus filter with HOF
@@ -466,7 +472,7 @@ describe("API Reshaping", () => {
         expectedPaths: [
           { path: "orders", confidence: "static" },
           { path: "orders.active", confidence: "static" },
-          { path: "orders.total", confidence: "static" },
+          { path: "total", confidence: "static" },
         ],
       },
       // Edge 11: Focus variable with string comparison in filter -- string literal produces no paths
@@ -474,8 +480,8 @@ describe("API Reshaping", () => {
         name: "FOCV-R11: focus variable with string literal comparison in filter handles literals correctly",
         expression: `users@$u[$u.role = "admin"].email`,
         expectedPaths: [
-          { path: "users.email", confidence: "static" },
           { path: "users.role", confidence: "static" },
+          { path: "email", confidence: "static" },
         ],
       },
       // Edge 12: Multiple external variables in filter without focus -- all suppressed from filter

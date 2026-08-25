@@ -71,7 +71,7 @@ for (let i = 0; i < 19; i++) {
     "path stages",
     `context binding ${i}`,
     `${root}@$item${i}[$item${i}.price${i} > 10].name${i}`,
-    [path(`${root}.name${i}`), path(`${root}.price${i}`)],
+    [path(`name${i}`), path(`${root}.price${i}`)],
   );
 }
 
@@ -198,14 +198,11 @@ for (let i = 0; i < 15; i++) {
   );
   add(
     "transforms",
-    `piped nested transform ${i}`,
+    `piped stored nested transform ${i}`,
     `payload${i} ~> |Account${i}|{"order": |Order${i}|{"total": Price${i} * Qty${i}}|}|`,
     [
       path(`payload${i}`),
       path(`payload${i}.Account${i}`),
-      path(`payload${i}.Account${i}.Order${i}`),
-      path(`payload${i}.Account${i}.Order${i}.Price${i}`),
-      path(`payload${i}.Account${i}.Order${i}.Qty${i}`),
     ],
   );
 }
@@ -222,9 +219,9 @@ for (let i = 0; i < 13; i++) {
     `join projection ${i}`,
     `library${i}.loans${i}@$l${i}.books${i}@$b${i}[$l${i}.isbn${i}=$b${i}.isbn${i}].{"title":$b${i}.title${i},"customer":$l${i}.customer${i}}`,
     [
-      path(`library${i}.loans${i}.books${i}`),
-      path(`library${i}.loans${i}.books${i}.isbn${i}`),
-      path(`library${i}.loans${i}.books${i}.title${i}`),
+      path(`library${i}.books${i}`),
+      path(`library${i}.books${i}.isbn${i}`),
+      path(`library${i}.books${i}.title${i}`),
       path(`library${i}.loans${i}.customer${i}`),
       path(`library${i}.loans${i}.isbn${i}`),
     ],

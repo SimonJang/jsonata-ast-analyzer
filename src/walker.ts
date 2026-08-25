@@ -6,6 +6,7 @@ import type {
   BindNode,
   BlockNode,
   ConditionNode,
+  DescendantNode,
   FilterStage,
   FunctionNode,
   GroupByNode,
@@ -13,14 +14,17 @@ import type {
   NameNode,
   NegateNode,
   ObjectNode,
+  ParentNode,
   PathNode,
   PartialNode,
+  PositionBindingNode,
   SortNode,
   TransformNode,
   VariableNode,
   WildcardNode,
 } from "./types.js";
 import { buildPathString } from "./path-builder.js";
+import { parse } from "./parser.js";
 import {
   type ScopeTracker,
   createScope,
@@ -31,8 +35,12 @@ import {
   bindDynamicObjectAlias,
   bindLambda,
   bindPartial,
+  bindTransform,
+  bindValue,
   resolveLambda,
   resolvePartial,
+  resolveTransform,
+  resolveValue,
   resolveVariable,
   resolveSuffixBasePaths,
   resolveObjectAlias,
@@ -40,6 +48,7 @@ import {
   type DynamicObjectAlias,
   type LambdaBinding,
   type ObjectAlias,
+  type TransformBinding,
 } from "./scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
 
@@ -60,6 +69,126 @@ const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
   "clone",
 ]);
 
+function bindCallableValue(
+  scope: ScopeTracker,
+  name: string,
+  value: AstNode,
+  closureScope: ScopeTracker,
+): ScopeTracker {
+  const valueScope = bindValue(scope, name, value, closureScope);
+  if (value.type === "lambda") {
+    return bindLambda(valueScope, name, value as LambdaNode, closureScope);
+  }
+  if (value.type === "partial") {
+    return bindPartial(valueScope, name, value as PartialNode, closureScope);
+  }
+  if (value.type === "transform") {
+    return bindTransform(valueScope, name, value as TransformNode, closureScope);
+  }
+  return valueScope;
+}
+const IMPLICIT_ROOT_SHALLOW_FUNCTIONS = new Set([
+  "keys",
+  "spread",
+  "boolean",
+  "not",
+]);
+const IMPLICIT_ROOT_DEEP_FUNCTIONS = new Set(["clone", "string"]);
+
+const CONTEXT_DEFAULT_BUILTINS = new Set([
+  "string",
+  "substring",
+  "substringBefore",
+  "substringAfter",
+  "lowercase",
+  "uppercase",
+  "length",
+  "trim",
+  "pad",
+  "match",
+  "contains",
+  "replace",
+  "split",
+  "formatNumber",
+  "formatBase",
+  "formatInteger",
+  "parseInteger",
+  "number",
+  "floor",
+  "ceil",
+  "round",
+  "abs",
+  "sqrt",
+  "power",
+  "boolean",
+  "not",
+  "sift",
+  "keys",
+  "lookup",
+  "spread",
+  "each",
+  "base64encode",
+  "base64decode",
+  "encodeUrlComponent",
+  "encodeUrl",
+  "decodeUrlComponent",
+  "decodeUrl",
+  "toMillis",
+  "fromMillis",
+  "clone",
+]);
+
+function builtinUsesContextDefault(funcName: string, args: AstNode[]): boolean {
+  if (!CONTEXT_DEFAULT_BUILTINS.has(funcName)) return false;
+  if (args.length === 0) return true;
+
+  switch (funcName) {
+    case "substring":
+      return args[0]?.type !== "string";
+    case "substringBefore":
+    case "substringAfter":
+    case "contains":
+    case "split":
+    case "parseInteger":
+      return args.length < 2;
+    case "replace":
+      return args.length < 3;
+    case "pad":
+      return args[0]?.type === "number";
+    case "formatNumber":
+    case "formatInteger":
+    case "fromMillis":
+      return args[0]?.type !== "number";
+    case "match":
+      return args[0]?.type !== "string";
+    case "power":
+      return args.length < 2;
+    case "lookup":
+    case "each":
+    case "sift":
+      return args.length === 1;
+    default:
+      return false;
+  }
+}
+
+function withImplicitRootFunctionArgument(
+  funcName: string,
+  args: AstNode[],
+  position: number,
+): AstNode[] {
+  if (funcName !== "lookup" || args.length !== 1) return args;
+
+  return [
+    {
+      type: "variable",
+      value: "$",
+      position,
+    } as VariableNode,
+    ...args,
+  ];
+}
+
 /**
  * Walk an AST node and extract all data paths as raw strings.
  * Dispatches on node.type using a switch statement.
@@ -76,9 +205,9 @@ export function walkNode(
     case "name":
       return [(node as NameNode).value];
     case "wildcard":
-      return ["*"];
+      return walkWildcard(node as WildcardNode, scope);
     case "descendant":
-      return ["**"];
+      return walkDescendant(node as DescendantNode, scope);
     case "binary":
       return walkBinary(node as BinaryNode, scope);
     case "condition":
@@ -105,7 +234,7 @@ export function walkNode(
     case "number":
     case "value":
     case "regex":
-      return []; // literals produce no paths
+      return walkLiteralPredicates(node, scope);
     case "variable":
       return walkVariable(node as VariableNode, scope);
     case "parent":
@@ -117,6 +246,101 @@ export function walkNode(
       // Unknown node type -- skip silently (over-approximate: don't crash)
       return [];
   }
+}
+
+function walkLiteralPredicates(
+  node: AstNode & {
+    predicate?: AstNode[];
+    group?: GroupByNode;
+    focusBinding?: { name: string };
+    indexBinding?: { name: string };
+  },
+  scope: ScopeTracker,
+): string[] {
+  let literalScope = scope;
+  if (node.focusBinding) {
+    literalScope = bindVariable(childScope(literalScope), node.focusBinding.name, []);
+  }
+  if (node.indexBinding) {
+    if (literalScope === scope) literalScope = childScope(literalScope);
+    literalScope = bindVariable(literalScope, node.indexBinding.name, []);
+  }
+  return [
+    ...walkSourceLessFilterStages(
+      node.predicate ?? [],
+      literalScope,
+    ),
+    ...(node.group
+      ? walkSourceLessGroupEntries(node.group, literalScope)
+      : []),
+  ];
+}
+
+function walkWildcard(node: WildcardNode, scope: ScopeTracker): string[] {
+  const { stageScope, stageVariables, nonPathVariables } = bindBroadStepScope(
+    node,
+    "*",
+    scope,
+  );
+  return [
+    "*",
+    ...walkFilterStages(
+      node.predicate ?? [],
+      "*",
+      stageScope,
+      nonPathVariables,
+      stageVariables,
+    ),
+    ...(node.group
+      ? walkContextGroupEntries(node.group, "*", stageScope, stageVariables)
+      : []),
+  ];
+}
+
+function walkDescendant(node: DescendantNode, scope: ScopeTracker): string[] {
+  const { stageScope, stageVariables, nonPathVariables } = bindBroadStepScope(
+    node,
+    "**",
+    scope,
+  );
+  return [
+    "**",
+    ...walkFilterStages(
+      node.predicate ?? [],
+      "**",
+      stageScope,
+      nonPathVariables,
+      stageVariables,
+    ),
+    ...(node.group
+      ? walkContextGroupEntries(node.group, "**", stageScope, stageVariables)
+      : []),
+  ];
+}
+
+function bindBroadStepScope(
+  node: WildcardNode | DescendantNode,
+  basePath: string,
+  scope: ScopeTracker,
+): {
+  stageScope: ScopeTracker;
+  stageVariables: Set<string>;
+  nonPathVariables: Set<string>;
+} {
+  let stageScope = scope;
+  const stageVariables = new Set<string>();
+  const nonPathVariables = new Set<string>();
+  if (node.focusBinding) {
+    stageScope = bindVariable(childScope(stageScope), node.focusBinding.name, [basePath]);
+    stageVariables.add(node.focusBinding.name);
+  }
+  if (node.indexBinding) {
+    if (stageScope === scope) stageScope = childScope(stageScope);
+    stageScope = bindVariable(stageScope, node.indexBinding.name, []);
+    stageVariables.add(node.indexBinding.name);
+    nonPathVariables.add(node.indexBinding.name);
+  }
+  return { stageScope, stageVariables, nonPathVariables };
 }
 
 /**
@@ -278,6 +502,262 @@ function transformPatternSteps(pattern: AstNode): AstNode[] | null {
   return null;
 }
 
+function staticTransformPatternSequences(pattern: AstNode): string[][] {
+  if (isRootReference(pattern)) return [[]];
+  if (pattern.type === "name") return [[(pattern as NameNode).value]];
+  if (pattern.type === "wildcard") return [["*"]];
+  if (pattern.type === "array") {
+    return (pattern as ArrayNode).expressions.flatMap(staticTransformPatternSequences);
+  }
+  if (pattern.type !== "path") return [];
+
+  const sequence: string[] = [];
+  for (const step of (pattern as PathNode).steps) {
+    if (step.type === "name") {
+      sequence.push((step as NameNode).value);
+    } else if (step.type === "wildcard") {
+      sequence.push("*");
+    } else if (isRootReference(step)) {
+      continue;
+    } else {
+      return [];
+    }
+  }
+  return [sequence];
+}
+
+interface ResolvedTransformCall {
+  readonly binding: TransformBinding;
+  readonly arguments: AstNode[];
+}
+
+function resolveTransformFunctionCalls(
+  functionNode: FunctionNode,
+  scope: ScopeTracker,
+  requireAllCallables = true,
+): ResolvedTransformCall[] {
+  if (functionNode.procedure.type === "transform") {
+    return [{
+      binding: { transform: functionNode.procedure, scope },
+      arguments: functionNode.arguments,
+    }];
+  }
+
+  if (
+    functionNode.procedure.type === "variable" &&
+    functionNode.procedure.value === "map"
+  ) {
+    const callback = findHigherOrderTransformCallback(
+      functionNode.arguments,
+      scope,
+    );
+    const dataArg = functionNode.arguments[0];
+    if (callback && dataArg) {
+      return resolveTransformFunctionCalls(
+        {
+          ...functionNode,
+          procedure: functionNode.arguments[
+            callback.index
+          ] as FunctionNode["procedure"],
+          arguments: [dataArg],
+        },
+        scope,
+      );
+    }
+  }
+
+  const selectedCallables = resolveCallableValues(functionNode.procedure, scope);
+  if (selectedCallables.length > 0) {
+    const resolvedCalls: ResolvedTransformCall[] = [];
+    for (const callable of selectedCallables) {
+      if (callable.kind === "transform") {
+        resolvedCalls.push({
+          binding: callable.binding,
+          arguments: functionNode.arguments,
+        });
+        continue;
+      }
+      if (callable.kind !== "partial") {
+        if (requireAllCallables) return [];
+        continue;
+      }
+      const partialCalls = resolveTransformFunctionCalls(
+        {
+          ...functionNode,
+          procedure: callable.binding.partial.procedure,
+          arguments: applyPartialArguments(
+            callable.binding.partial,
+            functionNode.arguments,
+          ),
+        },
+        callable.binding.scope,
+        requireAllCallables,
+      );
+      if (partialCalls.length === 0 && requireAllCallables) return [];
+      resolvedCalls.push(...partialCalls);
+    }
+    return resolvedCalls;
+  }
+  if (functionNode.procedure.type !== "variable") return [];
+
+  const directBinding = resolveTransform(scope, functionNode.procedure.value);
+  if (directBinding) {
+    return [{ binding: directBinding, arguments: functionNode.arguments }];
+  }
+
+  const partialBinding = resolvePartial(scope, functionNode.procedure.value);
+  if (!partialBinding) return [];
+  return resolveTransformFunctionCalls(
+    {
+      ...functionNode,
+      procedure: partialBinding.partial.procedure,
+      arguments: applyPartialArguments(
+        partialBinding.partial,
+        functionNode.arguments,
+      ),
+    },
+    partialBinding.scope,
+    requireAllCallables,
+  );
+}
+
+function transformWritesSuffix(
+  functionNode: FunctionNode,
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): boolean {
+  const resolvedCalls = resolveTransformFunctionCalls(functionNode, scope);
+  if (resolvedCalls.length === 0) return false;
+
+  const suffixNames: string[] = [];
+  for (const step of suffixSteps) {
+    if (step.type !== "name") return false;
+    suffixNames.push((step as NameNode).value);
+  }
+
+  return resolvedCalls.every(({ binding }) => {
+    if (binding.transform.update.type !== "object") return false;
+    const updateKeys = new Set(
+      (binding.transform.update as ObjectNode).entries
+        .map(([key]) => staticObjectKey(key))
+        .filter((key): key is string => key !== null),
+    );
+    return staticTransformPatternSequences(binding.transform.pattern).some(
+      (pattern) =>
+        suffixNames.length === pattern.length + 1 &&
+        pattern.every(
+          (segment, index) => segment === "*" || segment === suffixNames[index],
+        ) &&
+        updateKeys.has(suffixNames[pattern.length]),
+    );
+  });
+}
+
+interface TransformOutputSelection {
+  readonly binding: TransformBinding;
+  readonly callArguments: readonly AstNode[];
+  readonly matchedPattern: readonly string[];
+  readonly updateValue: AstNode;
+  readonly remainder: readonly AstNode[];
+}
+
+function transformOutputSelections(
+  functionNode: FunctionNode,
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): TransformOutputSelection[] {
+  const resolvedCalls = resolveTransformFunctionCalls(functionNode, scope);
+  if (resolvedCalls.length === 0) return [];
+  if (
+    suffixSteps.some(
+      (step) =>
+        step.type !== "name" || ((step as NameNode).stages?.length ?? 0) > 0,
+    )
+  ) {
+    return [];
+  }
+
+  const suffixNames = suffixSteps.map((step) => (step as NameNode).value);
+  const selections: TransformOutputSelection[] = [];
+  for (const resolvedCall of resolvedCalls) {
+    const { binding } = resolvedCall;
+    if (binding.transform.update.type !== "object") return [];
+    const callSelections: TransformOutputSelection[] = [];
+    for (const pattern of staticTransformPatternSequences(binding.transform.pattern)) {
+      if (
+        suffixNames.length <= pattern.length ||
+        !pattern.every(
+          (segment, index) => segment === "*" || segment === suffixNames[index],
+        )
+      ) {
+        continue;
+      }
+
+      const updateKey = suffixNames[pattern.length];
+      for (const [keyNode, updateValue] of (binding.transform.update as ObjectNode)
+        .entries) {
+        if (staticObjectKey(keyNode) !== updateKey) continue;
+        callSelections.push({
+          binding,
+          callArguments: resolvedCall.arguments,
+          matchedPattern: suffixNames.slice(0, pattern.length),
+          updateValue,
+          remainder: suffixSteps.slice(pattern.length + 1),
+        });
+      }
+    }
+    if (callSelections.length === 0) return [];
+    selections.push(...callSelections);
+  }
+  return selections;
+}
+
+function appendSelectionSteps(node: AstNode, steps: readonly AstNode[]): AstNode {
+  if (steps.length === 0) return node;
+  if (node.type === "path") {
+    return {
+      ...node,
+      steps: [...(node as PathNode).steps, ...steps],
+    } as PathNode;
+  }
+  return {
+    type: "path",
+    steps: [node, ...steps],
+    source: node.source,
+  } as PathNode;
+}
+
+function transformOutputSelectionSourcePaths(
+  functionNode: FunctionNode,
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] | null {
+  const selections = transformOutputSelections(functionNode, suffixSteps, scope);
+  if (selections.length === 0) return null;
+
+  return selections.flatMap((selection) => {
+    if (selection.remainder.length === 0) return [];
+    const input = selection.callArguments[0];
+    if (!input) return [];
+    const inputPaths = identityReferencePaths(input, scope) ?? walkNode(input, scope);
+    const inputBasePaths = extractBasePaths(input, scope);
+    const inputPrefixes =
+      inputBasePaths.length > 0 ? inputBasePaths : [inputPaths[0] ?? ""];
+    const selectedUpdateValue = appendSelectionSteps(
+      selection.updateValue,
+      selection.remainder,
+    );
+    const localSourcePaths = walkTransformContextExpression(
+      selection.matchedPattern.join("."),
+      selectedUpdateValue,
+      selection.binding.scope,
+    );
+    return inputPrefixes.flatMap((prefix) =>
+      prefixPaths(prefix, localSourcePaths),
+    );
+  });
+}
+
 function transformApplyAliasProjectionContextPaths(
   transformNode: TransformNode,
   patternSteps: AstNode[],
@@ -410,6 +890,18 @@ function isRootReference(node: AstNode): boolean {
   return node.type === "variable" && ["", "$"].includes((node as VariableNode).value);
 }
 
+function identityReferencePaths(
+  node: AstNode,
+  scope: ScopeTracker,
+): string[] | null {
+  if (!isRootReference(node)) return null;
+  if ((node as VariableNode).value === "") {
+    const capturedCurrent = resolveVariable(scope, "");
+    if (capturedCurrent !== null) return [...capturedCurrent];
+  }
+  return [ROOT_PATH];
+}
+
 function markAbsolute(paths: string[]): string[] {
   return paths.map((path) => (path.startsWith(ROOT_PATH) ? path : appendPath(ROOT_PATH, path)));
 }
@@ -433,7 +925,8 @@ function appliedFunctionFromApply(node: ApplyNode): FunctionNode | null {
 }
 
 function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
-  if (isRootReference(node)) return [ROOT_PATH];
+  const identityPaths = identityReferencePaths(node, scope);
+  if (identityPaths) return identityPaths;
 
   switch (node.type) {
     case "name":
@@ -668,7 +1161,16 @@ function selectObjectAliasPaths(
 
     if (!best) return null;
 
-    const suffix = buildPathString(suffixSteps.slice(best.consumed));
+    const selectedStep = suffixSteps[best.consumed - 1] as NameNode;
+    let remainingSteps = suffixSteps.slice(best.consumed);
+    if (
+      selectedStep.focusBinding &&
+      remainingSteps[0]?.type === "variable" &&
+      (remainingSteps[0] as VariableNode).value === selectedStep.focusBinding.name
+    ) {
+      remainingSteps = remainingSteps.slice(1);
+    }
+    const suffix = buildPathString(remainingSteps);
     return best.paths.map((path) => appendPath(path, suffix));
   }
   if (selector.type === "wildcard") {
@@ -1439,21 +1941,12 @@ function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectA
         closureScope,
       );
 
-      if (bindNode.rhs.type === "lambda") {
-        currentScope = bindLambda(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as LambdaNode,
-          closureScope,
-        );
-      } else if (bindNode.rhs.type === "partial") {
-        currentScope = bindPartial(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as PartialNode,
-          closureScope,
-        );
-      }
+      currentScope = bindCallableValue(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
     }
   }
 
@@ -1598,7 +2091,7 @@ function firstUnboundPathVariableIndex(steps: AstNode[]): number {
   for (const [index, step] of steps.entries()) {
     if (step.type === "variable") {
       const name = (step as VariableNode).value;
-      if (!localVariables.has(name)) return index;
+      if (name !== "" && !localVariables.has(name)) return index;
     }
 
     const bindingStep = step as AstNode & {
@@ -1948,6 +2441,13 @@ function pathResultAliasContextBasePaths(
   const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
   const suffixSteps = node.steps.slice(resultAliasStepIndex + 1);
   const suffix = buildPathString(suffixSteps);
+  if (
+    suffix &&
+    resultAliasStep.type === "function" &&
+    transformWritesSuffix(resultAliasStep as FunctionNode, suffixSteps, scope)
+  ) {
+    return [];
+  }
   const withContext = (paths: string[]) =>
     prefixProjectionPaths(
       contextPrefix,
@@ -2195,21 +2695,12 @@ function bindingAliasPathsFromBlock(node: BlockNode, scope: ScopeTracker): strin
         closureScope,
       );
 
-      if (bindNode.rhs.type === "lambda") {
-        currentScope = bindLambda(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as LambdaNode,
-          closureScope,
-        );
-      } else if (bindNode.rhs.type === "partial") {
-        currentScope = bindPartial(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as PartialNode,
-          closureScope,
-        );
-      }
+      currentScope = bindCallableValue(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
     } else if (expr.type === "block") {
       result = bindingAliasPathsFromBlock(expr as BlockNode, childScope(currentScope));
     } else {
@@ -2231,16 +2722,30 @@ function walkContextExpression(
   const localSet = new Set(localPaths);
 
   const variables = collectVariableNames(expr);
+  const usesCurrentContext =
+    variables.has("") ||
+    containsContextDefaultLambda(expr) ||
+    containsContextDefaultCall(expr, scope) ||
+    containsBuiltinContextDefaultCall(expr);
+  if (usesCurrentContext && contextPrefix) {
+    const contextScope = bindVariable(childScope(scope), "", [contextPrefix]);
+    const contextPaths = walkNode(expr, contextScope);
+    if (keepBarePathsRootRelative && stageVariables.size > 0) {
+      return contextPaths;
+    }
+    return contextPaths.flatMap((path) =>
+      localSet.has(path) ? prefixPaths(contextPrefix, [path]) : [path],
+    );
+  }
+
   const hasStageVariable = [...variables].some((name) => stageVariables.has(name));
   if (keepBarePathsRootRelative && stageVariables.size > 0) {
     return hasStageVariable ? walkNode(expr, scope) : [...localPaths];
   }
 
   const paths = prefixPaths(contextPrefix, localPaths);
-  if (hasStageVariable) {
-    for (const scopedPath of walkNode(expr, scope)) {
-      if (!localSet.has(scopedPath)) paths.push(scopedPath);
-    }
+  for (const scopedPath of walkNode(expr, scope)) {
+    if (!localSet.has(scopedPath)) paths.push(scopedPath);
   }
 
   return paths;
@@ -2275,18 +2780,317 @@ function collectVariableNames(node: AstNode, names = new Set<string>()): Set<str
   return names;
 }
 
+function containsContextDefaultLambda(node: AstNode): boolean {
+  if (
+    node.type === "lambda" &&
+    contextDefaultParameterIndex(node as LambdaNode) >= 0
+  ) {
+    return true;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "source") continue;
+    if (Array.isArray(value)) {
+      if (
+        value.some(
+          (item) =>
+            item &&
+            typeof item === "object" &&
+            containsContextDefaultLambda(item as AstNode),
+        )
+      ) {
+        return true;
+      }
+    } else if (
+      value &&
+      typeof value === "object" &&
+      containsContextDefaultLambda(value as AstNode)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function containsContextDefaultCall(
+  node: AstNode,
+  scope: ScopeTracker,
+): boolean {
+  if (node.type === "function") {
+    const functionNode = node as FunctionNode;
+    const binding =
+      functionNode.procedure.type === "lambda"
+        ? { lambda: functionNode.procedure, scope }
+        : functionNode.procedure.type === "variable"
+          ? resolveLambda(scope, functionNode.procedure.value)
+          : null;
+    if (
+      binding &&
+      contextDefaultParameterIndex(binding.lambda) >= 0 &&
+      functionNode.arguments.length < binding.lambda.arguments.length
+    ) {
+      return true;
+    }
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "source") continue;
+    if (Array.isArray(value)) {
+      if (
+        value.some(
+          (item) =>
+            item &&
+            typeof item === "object" &&
+            containsContextDefaultCall(item as AstNode, scope),
+        )
+      ) {
+        return true;
+      }
+    } else if (
+      value &&
+      typeof value === "object" &&
+      containsContextDefaultCall(value as AstNode, scope)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function containsBuiltinContextDefaultCall(node: AstNode): boolean {
+  if (
+    node.type === "function" &&
+    (node as FunctionNode).procedure.type === "variable" &&
+    builtinUsesContextDefault(
+      ((node as FunctionNode).procedure as VariableNode).value,
+      (node as FunctionNode).arguments,
+    )
+  ) {
+    return true;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "source") continue;
+    if (Array.isArray(value)) {
+      if (
+        value.some(
+          (item) =>
+            item &&
+            typeof item === "object" &&
+            containsBuiltinContextDefaultCall(item as AstNode),
+        )
+      ) {
+        return true;
+      }
+    } else if (
+      value &&
+      typeof value === "object" &&
+      containsBuiltinContextDefaultCall(value as AstNode)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Extract paths from a path node's steps, handling variable steps,
  * filter stages on name steps, sort steps, and group-by expressions.
  */
 function walkPath(node: PathNode, scope: ScopeTracker): string[] {
+  if (node.steps.length === 0) return [];
+
+  const transparentBlockCount = node.steps.filter(isTransparentPathBlock).length;
+  const transparentSteps = flattenTransparentPathBlocks(node.steps);
+  if (
+    isTransparentPathBlock(node.steps[0]) &&
+    transparentBlockCount >= 2 &&
+    transparentSteps
+  ) {
+    return walkPath({ ...node, steps: transparentSteps }, scope);
+  }
+
+  const storedCallableFunctionIndex = node.steps.findIndex(
+    (step, index) =>
+      index > 0 && step.type === "function" &&
+      (step as FunctionNode).procedure.type === "path",
+  );
+  if (storedCallableFunctionIndex > 0) {
+    const functionStep = node.steps[storedCallableFunctionIndex] as FunctionNode;
+    const procedure = {
+      ...(functionStep.procedure as PathNode),
+      steps: [
+        ...node.steps.slice(0, storedCallableFunctionIndex),
+        ...(functionStep.procedure as PathNode).steps,
+      ],
+    } as PathNode;
+    if (resolveCallableValues(procedure, scope).length > 0) {
+      return walkPath(
+        {
+          ...node,
+          steps: [
+            { ...functionStep, procedure },
+            ...node.steps.slice(storedCallableFunctionIndex + 1),
+          ],
+        },
+        scope,
+      );
+    }
+  }
+
   let stageScope = childScope(scope);
   const stageVariables = new Set<string>();
   const nonPathVariables = new Set<string>();
 
+  const firstStep = node.steps[0];
+  const capturedCurrentPaths =
+    firstStep.type === "variable" && (firstStep as VariableNode).value === ""
+      ? resolveVariable(scope, "")
+      : null;
+  if (capturedCurrentPaths && capturedCurrentPaths.length > 0) {
+    const currentStep = firstStep as VariableNode;
+    const suffixSteps = node.steps.slice(1);
+    const suffix = buildPathString(suffixSteps);
+    const paths = capturedCurrentPaths.map((path) => appendPath(path, suffix));
+    for (const capturedPath of capturedCurrentPaths) {
+      paths.push(
+        ...walkFilterStages(
+          currentStep.predicate ?? [],
+          capturedPath,
+          scope,
+        ),
+        ...walkResolvedVariableSuffixFilterStages(
+          suffixSteps,
+          capturedPath,
+          scope,
+          new Set(),
+        ),
+      );
+    }
+    return paths;
+  }
+  if (capturedCurrentPaths !== null) return [];
+
   if (isRootReference(node.steps[0])) {
-    const rootPaths = walkPath({ ...node, steps: node.steps.slice(1) }, scope);
-    return rootPaths.length > 0 ? markAbsolute(rootPaths) : [ROOT_PATH];
+    const rootStep = node.steps[0] as VariableNode;
+    let rootScope = childScope(scope);
+    if (rootStep.focusBinding) {
+      rootScope = bindVariable(rootScope, rootStep.focusBinding.name, [ROOT_PATH]);
+      stageVariables.add(rootStep.focusBinding.name);
+    }
+    if (rootStep.indexBinding) {
+      rootScope = bindVariable(rootScope, rootStep.indexBinding.name, []);
+      nonPathVariables.add(rootStep.indexBinding.name);
+    }
+    const stagePaths = walkFilterStages(
+      rootStep.predicate ?? [],
+      ROOT_PATH,
+      rootScope,
+      nonPathVariables,
+      stageVariables,
+    );
+    const rootPaths = walkPath(
+      { ...node, steps: node.steps.slice(1) },
+      rootScope,
+    );
+    return [
+      ...stagePaths,
+      ...(rootPaths.length > 0 ? markAbsolute(rootPaths) : [ROOT_PATH]),
+    ];
+  }
+
+  const rootContextStepIndex = node.steps.findIndex(
+    (step, index) =>
+      index > 0 &&
+      step.type === "variable" &&
+      (step as VariableNode).value === "$",
+  );
+  if (rootContextStepIndex >= 0) {
+    const rootStep = node.steps[rootContextStepIndex] as VariableNode;
+    let rootScope = childScope(scope);
+    const rootStageVariables = new Set<string>();
+    const rootNonPathVariables = new Set<string>();
+    if (rootStep.focusBinding) {
+      rootScope = bindVariable(rootScope, rootStep.focusBinding.name, [ROOT_PATH]);
+      rootStageVariables.add(rootStep.focusBinding.name);
+    }
+    if (rootStep.indexBinding) {
+      rootScope = bindVariable(rootScope, rootStep.indexBinding.name, []);
+      rootNonPathVariables.add(rootStep.indexBinding.name);
+    }
+    const prefixPaths = walkPath(
+      { ...node, steps: node.steps.slice(0, rootContextStepIndex), group: undefined },
+      scope,
+    );
+    const suffixPaths = walkPath(
+      { ...node, steps: node.steps.slice(rootContextStepIndex + 1) },
+      rootScope,
+    );
+    return [
+      ...prefixPaths,
+      ...walkFilterStages(
+        rootStep.predicate ?? [],
+        ROOT_PATH,
+        rootScope,
+        rootNonPathVariables,
+        rootStageVariables,
+      ),
+      ...(suffixPaths.length > 0 ? markAbsolute(suffixPaths) : [ROOT_PATH]),
+    ];
+  }
+
+  const initialLookupStep = node.steps[0];
+  if (
+    initialLookupStep?.type === "function" &&
+    (initialLookupStep as FunctionNode).procedure.type === "variable" &&
+    ((initialLookupStep as FunctionNode).procedure as VariableNode).value === "lookup" &&
+    (initialLookupStep as FunctionNode).arguments.length === 1
+  ) {
+    const lookup = initialLookupStep as FunctionNode;
+    return walkPath(
+      {
+        ...node,
+        steps: [
+          {
+            ...lookup,
+            arguments: withImplicitRootFunctionArgument(
+              "lookup",
+              lookup.arguments,
+              lookup.position,
+            ),
+          },
+          ...node.steps.slice(1),
+        ],
+      },
+      scope,
+    );
+  }
+
+  const contextDefaultLookupIndex = node.steps.findIndex(
+    (step, index) =>
+      index > 0 &&
+      step.type === "function" &&
+      (step as FunctionNode).procedure.type === "variable" &&
+      ((step as FunctionNode).procedure as VariableNode).value === "lookup" &&
+      (step as FunctionNode).arguments.length === 1,
+  );
+  if (contextDefaultLookupIndex >= 0) {
+    const lookup = node.steps[contextDefaultLookupIndex] as FunctionNode;
+    const apply: ApplyNode = {
+      type: "apply",
+      value: "~>",
+      position: lookup.position,
+      lhs: {
+        ...node,
+        steps: node.steps.slice(0, contextDefaultLookupIndex),
+        group: undefined,
+      },
+      rhs: lookup,
+    };
+    const suffixSteps = node.steps.slice(contextDefaultLookupIndex + 1);
+    return suffixSteps.length === 0
+      ? walkApply(apply, scope)
+      : walkPath({ ...node, steps: [apply, ...suffixSteps] }, scope);
   }
 
   // Check if any step is an externally scoped variable (e.g., $x.name).
@@ -2587,6 +3391,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   let skipFunctionResultSuffixStages = false;
   let resultAliasSuffixStageStart = -1;
   let skipResultAliasGroupBy = false;
+  let localVariableSuffixStart = -1;
+  const referencedVariables = collectVariableNames(node);
   if (
     (resultAliasStepIndex === 0 &&
       (node.steps[0]?.type === "function" ||
@@ -2659,13 +3465,21 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
     // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
     const funcStep = node.steps[funcStepIndex] as FunctionNode;
+    const functionSuffixSteps = node.steps.slice(funcStepIndex + 1);
+    const suffixIsTransformOutput = transformWritesSuffix(
+      funcStep,
+      functionSuffixSteps,
+      scope,
+    );
     const resultBasePaths = getFunctionResultBasePaths(funcStep, scope);
     if (resultBasePaths.length > 0) {
       for (const resultBasePath of resultBasePaths) {
-        paths.push(...prefixPaths(resultBasePath, [basePath]));
+        if (!suffixIsTransformOutput) {
+          paths.push(...prefixPaths(resultBasePath, [basePath]));
+        }
         paths.push(
           ...walkResolvedVariableSuffixFilterStages(
-            node.steps.slice(funcStepIndex + 1),
+            functionSuffixSteps,
             resultBasePath,
             scope,
             new Set(),
@@ -2681,6 +3495,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
 
   // Iterate steps and handle filter stages on name steps, sort steps
   for (let i = 0; i < node.steps.length; i++) {
+    if (localVariableSuffixStart >= 0 && i > localVariableSuffixStart) continue;
     const step = node.steps[i];
     const contextPrefix = buildPathString(node.steps.slice(0, i + 1)) ?? "";
 
@@ -2691,10 +3506,14 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       !(resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart)
     ) {
       const projectionPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const resultAliasScope =
+        projectionPrefix && collectVariableNames(step).has("")
+          ? bindVariable(childScope(stageScope), "", [projectionPrefix])
+          : stageScope;
       const resultPaths = selectResultAliasStepPaths(
         step,
         node.steps.slice(i + 1),
-        stageScope,
+        resultAliasScope,
         !(step.type === "block" && projectionPrefix),
       );
       if (resultPaths) {
@@ -2713,7 +3532,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           step,
           suffixSteps,
           suffixGroupNode,
-          stageScope,
+          resultAliasScope,
         );
         if (aliasSuffixStagePaths.length > 0) {
           paths.push(
@@ -2736,6 +3555,9 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           contextPrefix ? [contextPrefix] : [],
         );
         stageVariables.add(nameStep.focusBinding.name);
+        if (!referencedVariables.has(nameStep.focusBinding.name) && contextPrefix) {
+          paths.push(contextPrefix);
+        }
       }
       if (nameStep.indexBinding) {
         stageScope = bindVariable(stageScope, nameStep.indexBinding.name, []);
@@ -2750,6 +3572,101 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(
           ...walkFilterStages(
             nameStep.stages!,
+            nameStep.focusBinding ? parentPath(contextPrefix) : contextPrefix,
+            stageScope,
+            nonPathVariables,
+            stageVariables,
+          ),
+        );
+      }
+    } else if (step.type === "variable" && (step as VariableNode).value === "") {
+      const contextStep = step as VariableNode;
+      if (contextStep.focusBinding) {
+        stageScope = bindVariable(
+          stageScope,
+          contextStep.focusBinding.name,
+          contextPrefix ? [contextPrefix] : [],
+        );
+        stageVariables.add(contextStep.focusBinding.name);
+      }
+      if (contextStep.indexBinding) {
+        stageScope = bindVariable(stageScope, contextStep.indexBinding.name, []);
+        nonPathVariables.add(contextStep.indexBinding.name);
+      }
+      paths.push(
+        ...walkFilterStages(
+          contextStep.predicate ?? [],
+          contextPrefix,
+          stageScope,
+          nonPathVariables,
+          stageVariables,
+        ),
+      );
+    } else if (step.type === "variable") {
+      if (resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart) {
+        continue;
+      }
+      const variableStep = step as VariableNode;
+      const resolved = resolveVariable(stageScope, variableStep.value);
+      if (resolved && resolved.length > 0) {
+        const suffixSteps = node.steps.slice(i + 1);
+        const suffix = buildPathString(suffixSteps);
+        paths.push(...resolved.map((path) => appendPath(path, suffix)));
+        for (const resolvedPath of resolved) {
+          paths.push(
+            ...walkResolvedVariableSuffixFilterStages(
+              suffixSteps,
+              resolvedPath,
+              stageScope,
+              stageVariables,
+            ),
+            ...walkResolvedVariableSuffixSortTerms(
+              suffixSteps,
+              resolvedPath,
+              stageScope,
+              stageVariables,
+            ),
+            ...walkResultBaseSuffixProjectionSteps(
+              [resolvedPath],
+              suffixSteps,
+              stageScope,
+            ).map(resolveParentPathSegments),
+            ...walkResultBaseSuffixFunctionSteps(
+              [resolvedPath],
+              suffixSteps,
+              stageScope,
+            ),
+          );
+          if (node.group) {
+            paths.push(
+              ...walkContextGroupEntries(
+                node.group,
+                appendPath(resolvedPath, suffix),
+                stageScope,
+                stageVariables,
+              ),
+            );
+          }
+        }
+        if (node.group) skipResultAliasGroupBy = true;
+        localVariableSuffixStart = i;
+      }
+    } else if (step.type === "wildcard") {
+      const wildcardStep = step as WildcardNode;
+      const wildcardBindings = bindBroadStepScope(
+        wildcardStep,
+        contextPrefix,
+        stageScope,
+      );
+      stageScope = wildcardBindings.stageScope;
+      wildcardBindings.stageVariables.forEach((name) => stageVariables.add(name));
+      wildcardBindings.nonPathVariables.forEach((name) =>
+        nonPathVariables.add(name),
+      );
+      if (wildcardStep.predicate && wildcardStep.predicate.length > 0) {
+        paths.push(
+          ...walkFilterStages(
+            wildcardStep.predicate,
             contextPrefix,
             stageScope,
             nonPathVariables,
@@ -2757,19 +3674,106 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           ),
         );
       }
+    } else if (step.type === "descendant") {
+      const descendantStep = step as DescendantNode;
+      const descendantBindings = bindBroadStepScope(
+        descendantStep,
+        contextPrefix,
+        stageScope,
+      );
+      stageScope = descendantBindings.stageScope;
+      descendantBindings.stageVariables.forEach((name) =>
+        stageVariables.add(name),
+      );
+      descendantBindings.nonPathVariables.forEach((name) =>
+        nonPathVariables.add(name),
+      );
+      if (descendantStep.predicate && descendantStep.predicate.length > 0) {
+        paths.push(
+          ...walkFilterStages(
+            descendantStep.predicate,
+            contextPrefix,
+            stageScope,
+            nonPathVariables,
+            stageVariables,
+          ),
+        );
+      }
+    } else if (step.type === "parent") {
+      const parentStep = step as ParentNode;
+      if (parentStep.predicate && parentStep.predicate.length > 0) {
+        paths.push(
+          ...walkFilterStages(
+            parentStep.predicate,
+            contextPrefix,
+            stageScope,
+            nonPathVariables,
+            stageVariables,
+          ),
+        );
+      }
+    } else if (["string", "number", "value", "regex"].includes(step.type)) {
+      const literalStep = step as AstNode & {
+        predicate?: AstNode[];
+        group?: GroupByNode;
+        focusBinding?: { name: string };
+        indexBinding?: { name: string };
+      };
+      if (literalStep.focusBinding) {
+        stageScope = bindVariable(
+          stageScope,
+          literalStep.focusBinding.name,
+          [],
+        );
+        stageVariables.add(literalStep.focusBinding.name);
+      }
+      if (literalStep.indexBinding) {
+        stageScope = bindVariable(stageScope, literalStep.indexBinding.name, []);
+        stageVariables.add(literalStep.indexBinding.name);
+        nonPathVariables.add(literalStep.indexBinding.name);
+      }
+      paths.push(
+        ...walkSourceLessFilterStages(
+          literalStep.predicate ?? [],
+          stageScope,
+        ),
+        ...(literalStep.group
+          ? walkSourceLessGroupEntries(literalStep.group, stageScope)
+          : []),
+      );
+    } else if (
+      step.type === "partial" ||
+      step.type === "lambda" ||
+      step.type === "transform"
+    ) {
+      paths.push(...walkNode(step, stageScope));
     } else if (step.type === "sort") {
       if (resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart) {
         continue;
       }
       const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
       const aliasStep = node.steps[i - 1];
+      const sortStep = step as SortNode;
+      if (sortStep.indexBinding) {
+        stageScope = bindVariable(stageScope, sortStep.indexBinding.name, []);
+        nonPathVariables.add(sortStep.indexBinding.name);
+      }
       paths.push(
         ...walkSortTerms(
-          step as SortNode,
+          sortStep,
           contextPrefix,
           stageScope,
           stageVariables,
           aliasStep && isResultAliasStep(aliasStep) ? aliasStep : undefined,
+        ),
+      );
+      paths.push(
+        ...walkFilterStages(
+          sortStep.predicate ?? [],
+          contextPrefix,
+          stageScope,
+          nonPathVariables,
+          stageVariables,
         ),
       );
     } else if (step.type === "object") {
@@ -2779,7 +3783,8 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Object constructor step in path: orders.items.{"key": val}
       // Walk value expressions and prefix with path up to this step
       const prefixSteps = node.steps.slice(0, i);
-      const contextPrefix = buildPathString(prefixSteps) ?? "";
+      const contextPrefix = buildProjectionContextPath(prefixSteps) ?? "";
+      const keepBarePathsRootRelative = hasPendingProjectionFocusReset(prefixSteps);
       const objectStep = step as ObjectNode;
       const aliasPaths =
         i > 0 && isResultAliasStep(node.steps[i - 1])
@@ -2791,10 +3796,22 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
       for (const [key, val] of objectStep.entries) {
         paths.push(
-          ...walkContextExpression(key, contextPrefix, stageScope, stageVariables, true),
+          ...walkContextExpression(
+            key,
+            contextPrefix,
+            stageScope,
+            stageVariables,
+            keepBarePathsRootRelative,
+          ),
         );
         paths.push(
-          ...walkContextExpression(val, contextPrefix, stageScope, stageVariables, true),
+          ...walkContextExpression(
+            val,
+            contextPrefix,
+            stageScope,
+            stageVariables,
+            keepBarePathsRootRelative,
+          ),
         );
       }
       if (objectStep.predicate && objectStep.predicate.length > 0) {
@@ -2892,6 +3909,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           predicateNonPathVariables.add(arrayStep.indexBinding.name);
         }
 
+        if (resultBasePaths.length === 0) {
+          paths.push(
+            ...walkSourceLessFilterStages(
+              arrayStep.predicate,
+              predicateScope,
+            ),
+          );
+        }
+
         for (const resultBasePath of resultBasePaths) {
           paths.push(
             ...walkFilterStages(
@@ -2910,8 +3936,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       }
       // Block expression step in path: orders.items.(expr)
       // Walk all expressions and prefix with path up to this step
-      const contextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
+      const prefixSteps = node.steps.slice(0, i);
+      const structuralContextPrefix = buildProjectionContextPath(prefixSteps) ?? "";
+      const contextPrefix = hasPendingProjectionFocusReset(prefixSteps)
+        ? parentPath(structuralContextPrefix)
+        : structuralContextPrefix;
       const blockStep = step as BlockNode;
+      const blockPathStart = paths.length;
+      if (blockStep.expressions.length === 0 && contextPrefix) {
+        paths.push(contextPrefix);
+      }
       const blockBasePaths = blockContextBasePaths(
         blockStep,
         contextPrefix,
@@ -2939,6 +3973,22 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         stageScope = bindVariable(stageScope, blockStep.indexBinding.name, []);
         nonPathVariables.add(blockStep.indexBinding.name);
       }
+      const capturesCurrentContext =
+        Boolean(contextPrefix) &&
+        (collectVariableNames(blockStep).has("") ||
+          containsContextDefaultLambda(blockStep));
+      let blockEvaluationScope = stageScope;
+      const blockEvaluationStageVariables = new Set(
+        blockExpressionStageVariables,
+      );
+      if (capturesCurrentContext) {
+        blockEvaluationScope = bindVariable(
+          childScope(stageScope),
+          "",
+          [contextPrefix],
+        );
+        blockEvaluationStageVariables.add("");
+      }
       const aliasPaths =
         i > 0 && isResultAliasStep(node.steps[i - 1])
           ? selectResultAliasProjectionStepPaths(
@@ -2952,7 +4002,20 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
         paths.push(...aliasPaths);
         continue;
       }
+      const hasBindings = blockStep.expressions.some((expr) => expr.type === "bind");
+      if (hasBindings) {
+        paths.push(
+          ...walkContextExpression(
+            blockStep,
+            contextPrefix,
+            blockEvaluationScope,
+            blockEvaluationStageVariables,
+            true,
+          ),
+        );
+      }
       for (const expr of blockStep.expressions) {
+        if (hasBindings && expr.type === "bind") continue;
         paths.push(
           ...walkContextExpression(
             expr,
@@ -2997,6 +4060,16 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           predicateNonPathVariables.add(blockStep.indexBinding.name);
         }
 
+
+        if (predicatePrefixes.length === 0) {
+          paths.push(
+            ...walkSourceLessFilterStages(
+              blockStep.predicate,
+              predicateScope,
+            ),
+          );
+        }
+
         for (const prefix of predicatePrefixes) {
           if (blockObjectAlias || blockDynamicObjectAlias) {
             for (const stage of blockStep.predicate) {
@@ -3023,6 +4096,15 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
           }
         }
       }
+      if (
+        contextPrefix &&
+        ![...stageVariables].some((name) => referencedVariables.has(name)) &&
+        !paths.slice(blockPathStart).some(
+          (path) => path === contextPrefix || path.startsWith(`${contextPrefix}.`),
+        )
+      ) {
+        paths.push(contextPrefix);
+      }
     } else if (step.type === "function") {
       if (resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart) {
         continue;
@@ -3030,16 +4112,50 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       // Function call step (e.g., $lookup(obj, key) in $lookup(obj, key).field)
       // Function arguments in a path step are evaluated against the prior path context.
       const functionContextPrefix = buildPathString(node.steps.slice(0, i)) ?? "";
-      paths.push(
-        ...(functionContextPrefix
-          ? walkContextExpression(
-              step,
-              functionContextPrefix,
-              stageScope,
-              stageVariables,
-            )
-          : walkFunction(step as FunctionNode, stageScope)),
-      );
+      const functionStep = step as FunctionNode;
+      if (functionContextPrefix && functionStep.arguments.length === 0) {
+        paths.push(functionContextPrefix);
+      }
+      const contextDefaultLambdaBinding =
+        functionStep.procedure.type === "lambda"
+          ? { lambda: functionStep.procedure, scope: stageScope }
+          : functionStep.procedure.type === "variable"
+            ? resolveLambda(stageScope, functionStep.procedure.value)
+            : null;
+      const contextDefaultLambda =
+        functionContextPrefix &&
+        contextDefaultLambdaBinding &&
+        contextDefaultParameterIndex(contextDefaultLambdaBinding.lambda) >= 0 &&
+        functionStep.arguments.length <
+          contextDefaultLambdaBinding.lambda.arguments.length;
+      const contextDefaultBuiltin =
+        functionContextPrefix &&
+        functionStep.procedure.type === "variable" &&
+        builtinUsesContextDefault(
+          functionStep.procedure.value,
+          functionStep.arguments,
+        );
+      if (contextDefaultLambda || contextDefaultBuiltin) {
+        const contextScope = bindVariable(
+          childScope(stageScope),
+          "",
+          [functionContextPrefix],
+        );
+        paths.push(
+          ...walkFunction(functionStep, contextScope),
+        );
+      } else {
+        paths.push(
+          ...(functionContextPrefix
+            ? walkContextExpression(
+                step,
+                functionContextPrefix,
+                stageScope,
+                stageVariables,
+              )
+            : walkFunction(functionStep, stageScope)),
+        );
+      }
     } else if (step.type === "apply") {
       paths.push(...walkApply(step as ApplyNode, stageScope));
     }
@@ -3048,6 +4164,26 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
   // Handle group-by on the PathNode (node.group)
   if (node.group && !skipResultAliasGroupBy) {
     paths.push(...walkGroupBy(node, stageScope, stageVariables));
+  }
+
+  if (funcStepIndex >= 0 && funcStepIndex < node.steps.length - 1) {
+    const functionStep = node.steps[funcStepIndex] as FunctionNode;
+    const functionSuffixSteps = node.steps.slice(funcStepIndex + 1);
+    const transformSourcePaths = transformOutputSelectionSourcePaths(
+      functionStep,
+      functionSuffixSteps,
+      stageScope,
+    );
+    if (transformSourcePaths !== null) {
+      paths.push(...transformSourcePaths);
+      const suffix = buildPathString(functionSuffixSteps);
+      const outputPaths = new Set(
+        getFunctionResultBasePaths(functionStep, stageScope).map((base) =>
+          appendPath(base, suffix),
+        ),
+      );
+      return paths.filter((path) => !outputPaths.has(path));
+    }
   }
 
   return paths;
@@ -3202,7 +4338,10 @@ function walkGroupBy(
   if (resultAliasStepIndex >= 0) {
     const resultAliasStep = node.steps[resultAliasStepIndex];
     const prefixSteps = node.steps.slice(0, resultAliasStepIndex);
-    const contextPrefix = buildPathString(prefixSteps) ?? "";
+    const structuralContextPrefix = buildProjectionContextPath(prefixSteps) ?? "";
+    const contextPrefix = hasPendingProjectionFocusReset(prefixSteps)
+      ? parentPath(structuralContextPrefix)
+      : structuralContextPrefix;
     const objectAlias =
       resultAliasStep.type === "object"
         ? objectConstructorContextAlias(
@@ -3269,9 +4408,8 @@ function walkGroupBy(
       );
     }
 
-    const groupStageVariables = new Set(
-      focusBinding ? [focusBinding.name] : [],
-    );
+    const groupStageVariables = new Set(stageVariables);
+    if (focusBinding) groupStageVariables.add(focusBinding.name);
     if (resultBasePaths.length > 0) {
       return resultBasePaths.flatMap((basePath) =>
         walkContextGroupEntries(groupNode, basePath, groupScope, groupStageVariables),
@@ -3333,8 +4471,18 @@ function walkFilterStages(
   stageVariables: ReadonlySet<string> = new Set(),
 ): string[] {
   const paths: string[] = [];
+  let stageScope = scope;
+  const stageNonPathVariables = new Set(nonPathVariables);
+  const activeStageVariables = new Set(stageVariables);
 
   for (const stage of stages) {
+    if (stage.type === "position-binding") {
+      const binding = stage as PositionBindingNode;
+      stageScope = bindVariable(stageScope, binding.name, []);
+      stageNonPathVariables.add(binding.name);
+      activeStageVariables.add(binding.name);
+      continue;
+    }
     if (stage.type !== "filter") continue;
 
     const filterStage = stage as unknown as FilterStage;
@@ -3345,8 +4493,8 @@ function walkFilterStages(
     // ADV-02: pure $variable in bracket position with no resolved data paths -> dynamic wildcard
     if (filterStage.expr.type === "variable") {
       const varNode = filterStage.expr as VariableNode;
-      const resolved = resolveVariable(scope, varNode.value);
-      if (nonPathVariables.has(varNode.value)) continue;
+      const resolved = resolveVariable(stageScope, varNode.value);
+      if (stageNonPathVariables.has(varNode.value)) continue;
       if (!resolved) {
         paths.push(`${contextPrefix}[*]`);
         continue; // [*] replaces predicate walk -- do not also walk the predicate
@@ -3358,13 +4506,52 @@ function walkFilterStages(
       ...walkContextExpression(
         filterStage.expr,
         contextPrefix,
-        scope,
-        stageVariables,
+        stageScope,
+        activeStageVariables,
       ),
     );
   }
 
   return paths;
+}
+
+function walkSourceLessFilterStages(
+  stages: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+  let stageScope = bindVariable(childScope(scope), "", []);
+
+  for (const stage of stages) {
+    if (stage.type === "position-binding") {
+      const binding = stage as PositionBindingNode;
+      stageScope = bindVariable(stageScope, binding.name, []);
+      continue;
+    }
+    if (stage.type !== "filter") continue;
+
+    const expression = (stage as unknown as FilterStage).expr;
+    if (isNumericIndex(expression)) continue;
+    paths.push(
+      ...walkNode(expression, stageScope).filter((path) =>
+        path.startsWith(ROOT_PATH),
+      ),
+    );
+  }
+
+  return paths;
+}
+
+function walkSourceLessGroupEntries(
+  groupNode: GroupByNode,
+  scope: ScopeTracker,
+): string[] {
+  const contextScope = bindVariable(childScope(scope), "", []);
+  return groupNode.entries.flatMap(([key, value]) =>
+    [...walkNode(key, contextScope), ...walkNode(value, contextScope)].filter(
+      (path) => path.startsWith(ROOT_PATH),
+    ),
+  );
 }
 
 /**
@@ -3420,21 +4607,41 @@ function walkTransform(node: TransformNode, scope: ScopeTracker): string[] {
     );
   }
 
+  paths.push(
+    ...walkSourceLessFilterStages(node.predicate ?? [], scope),
+    ...(node.group ? walkSourceLessGroupEntries(node.group, scope) : []),
+  );
+
   return paths;
 }
 
 /** Extract paths from both sides of a binary operator. */
 function walkBinary(node: BinaryNode, scope: ScopeTracker): string[] {
-  return [...walkNode(node.lhs, scope), ...walkNode(node.rhs, scope)];
+  const paths = [...walkNode(node.lhs, scope), ...walkNode(node.rhs, scope)];
+  if (node.value === "=" || node.value === "!=") {
+    for (const operand of [node.lhs, node.rhs]) {
+      const identityPaths = identityReferencePaths(operand, scope);
+      if (identityPaths) {
+        paths.push(...identityPaths.map((path) => appendPath(path, "**")));
+      }
+    }
+  }
+  return paths;
 }
 
 /** Extract paths from condition, then-branch, and optional else-branch. */
 function walkCondition(node: ConditionNode, scope: ScopeTracker): string[] {
   return [
     ...walkNode(node.condition, scope),
-    ...walkNode(node.then, scope),
-    ...(node.else ? walkNode(node.else, scope) : []),
+    ...walkValueExpression(node.then, scope),
+    ...(node.else ? walkValueExpression(node.else, scope) : []),
   ];
+}
+
+function walkValueExpression(node: AstNode, scope: ScopeTracker): string[] {
+  return resolveCallableValues(node, scope).length > 0
+    ? walkCallableSelection(node, scope)
+    : walkNode(node, scope);
 }
 
 /**
@@ -3451,10 +4658,14 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
     if (expr.type === "bind") {
       const bindNode = expr as BindNode;
       const closureScope = currentScope;
-      const rhsPaths = isRootReference(bindNode.rhs)
-        ? [ROOT_PATH]
-        : walkNode(bindNode.rhs, currentScope);
-      paths.push(...rhsPaths.filter((path) => path !== ROOT_PATH));
+      const identityPaths = identityReferencePaths(bindNode.rhs, currentScope);
+      const returnsCallable = resolveCallableValues(bindNode.rhs, currentScope).length > 0;
+      const rhsPaths =
+        identityPaths ??
+        (returnsCallable
+          ? walkCallableSelection(bindNode.rhs, currentScope)
+          : walkNode(bindNode.rhs, currentScope));
+      if (!identityPaths && bindNode.rhs.type !== "transform") paths.push(...rhsPaths);
       currentScope = bindVariable(
         currentScope,
         bindNode.lhs.value,
@@ -3479,22 +4690,12 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
         closureScope,
       );
 
-      // If the RHS is a lambda, store the lambda node for SCOPE-05 tracing
-      if (bindNode.rhs.type === "lambda") {
-        currentScope = bindLambda(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as LambdaNode,
-          closureScope,
-        );
-      } else if (bindNode.rhs.type === "partial") {
-        currentScope = bindPartial(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as PartialNode,
-          closureScope,
-        );
-      }
+      currentScope = bindCallableValue(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
     } else if (expr.type === "block") {
       // Inner block: create a child scope so bindings don't leak
       const innerScope = childScope(currentScope);
@@ -3512,6 +4713,7 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
     const objectAlias = objectAliasFromBlock(node, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
     const suffixBasePaths = getBlockResultSuffixBasePaths(node, scope);
+    const resultBasePaths = bindingAliasPathsFromBlock(node, scope);
     paths.push(
       ...(objectAlias || dynamicObjectAlias
         ? walkAliasGroupEntries(
@@ -3521,14 +4723,16 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
             groupScope,
             suffixBasePaths,
           )
-        : bindingAliasPathsFromBlock(node, scope).flatMap((basePath) =>
-            walkContextGroupEntries(
-              node.group!,
-              basePath,
-              groupScope,
-              groupStageVariables,
-            ),
-          )),
+        : resultBasePaths.length > 0
+          ? resultBasePaths.flatMap((basePath) =>
+              walkContextGroupEntries(
+                node.group!,
+                basePath,
+                groupScope,
+                groupStageVariables,
+              ),
+            )
+          : walkSourceLessGroupEntries(node.group, groupScope)),
     );
   }
 
@@ -3553,7 +4757,16 @@ function walkBlock(node: BlockNode, scope: ScopeTracker): string[] {
         ),
       );
     } else {
-      for (const resultBasePath of bindingAliasPathsFromBlock(node, scope)) {
+      const resultBasePaths = bindingAliasPathsFromBlock(node, scope);
+      if (resultBasePaths.length === 0) {
+        paths.push(
+          ...walkSourceLessFilterStages(
+            node.predicate,
+            predicateScope,
+          ),
+        );
+      }
+      for (const resultBasePath of resultBasePaths) {
         paths.push(
           ...walkFilterStages(
             node.predicate,
@@ -3591,10 +4804,9 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
     if (expr.type === "bind") {
       const bindNode = expr as BindNode;
       const closureScope = currentScope;
-      const rhsPaths = isRootReference(bindNode.rhs)
-        ? [ROOT_PATH]
-        : walkNode(bindNode.rhs, currentScope);
-      paths.push(...rhsPaths.filter((path) => path !== ROOT_PATH));
+      const identityPaths = identityReferencePaths(bindNode.rhs, currentScope);
+      const rhsPaths = identityPaths ?? walkValueExpression(bindNode.rhs, currentScope);
+      if (!identityPaths) paths.push(...rhsPaths);
       currentScope = bindVariable(
         currentScope,
         bindNode.lhs.value,
@@ -3618,8 +4830,14 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
         bindNode.rhs,
         closureScope,
       );
+      currentScope = bindCallableValue(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
     } else {
-      paths.push(...walkNode(expr, currentScope));
+      paths.push(...walkValueExpression(expr, currentScope));
     }
   }
   if (node.predicate && node.predicate.length > 0) {
@@ -3662,6 +4880,14 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
         ),
       );
     } else {
+      if (resultBasePaths.length === 0) {
+        paths.push(
+          ...walkSourceLessFilterStages(
+            node.predicate,
+            predicateScope,
+          ),
+        );
+      }
       for (const resultBasePath of resultBasePaths) {
         paths.push(
           ...walkFilterStages(
@@ -3680,17 +4906,22 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
     const objectAlias = objectAliasForNode(node, scope);
     const dynamicObjectAlias = dynamicObjectAliasForNode(node, scope);
     const resultBasePaths = bindingAliasPaths(node, scope);
+    const groupStageVariables = new Set(
+      node.focusBinding ? [node.focusBinding.name] : [],
+    );
     paths.push(
       ...(objectAlias || dynamicObjectAlias
         ? walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, groupScope)
-        : resultBasePaths.flatMap((basePath) =>
-            walkContextGroupEntries(
-              node.group!,
-              basePath,
-              groupScope,
-              new Set(node.focusBinding ? [node.focusBinding.name] : []),
-            ),
-          )),
+        : resultBasePaths.length > 0
+          ? resultBasePaths.flatMap((basePath) =>
+              walkContextGroupEntries(
+                node.group!,
+                basePath,
+                groupScope,
+                groupStageVariables,
+              ),
+            )
+          : walkSourceLessGroupEntries(node.group, groupScope)),
     );
   }
   return paths;
@@ -3699,8 +4930,8 @@ function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
 /** Extract value paths from an object constructor. */
 function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
   const paths = node.entries.flatMap(([key, val]) => [
-    ...walkNode(key, scope),
-    ...walkNode(val, scope),
+    ...walkValueExpression(key, scope),
+    ...walkValueExpression(val, scope),
   ]);
   if (node.predicate && node.predicate.length > 0) {
     const objectAlias = objectAliasFromObject(node, scope);
@@ -3728,12 +4959,14 @@ function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
     for (const stage of node.predicate) {
       if (stage.type !== "filter") continue;
       paths.push(
-        ...selectAliasExpressionPaths(
-          objectAlias,
-          dynamicObjectAlias,
-          (stage as unknown as FilterStage).expr,
-          predicateScope,
-        ),
+        ...(objectAlias || dynamicObjectAlias || resultBasePaths.length > 0
+          ? selectAliasExpressionPaths(
+              objectAlias,
+              dynamicObjectAlias,
+              (stage as unknown as FilterStage).expr,
+              predicateScope,
+            )
+          : walkSourceLessFilterStages([stage], predicateScope)),
       );
     }
   }
@@ -3765,14 +4998,16 @@ function walkObject(node: ObjectNode, scope: ScopeTracker): string[] {
     paths.push(
       ...(objectAlias || dynamicObjectAlias
         ? walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, groupScope)
-        : resultBasePaths.flatMap((basePath) =>
-            walkContextGroupEntries(
-              node.group!,
-              basePath,
-              groupScope,
-              groupStageVariables,
-            ),
-          )),
+        : resultBasePaths.length > 0
+          ? resultBasePaths.flatMap((basePath) =>
+              walkContextGroupEntries(
+                node.group!,
+                basePath,
+                groupScope,
+                groupStageVariables,
+              ),
+            )
+          : walkSourceLessGroupEntries(node.group, groupScope)),
     );
   }
   return paths;
@@ -3784,9 +5019,30 @@ function isPlaceholder(node: AstNode): boolean {
 
 /** Extract read effects from bound partial-application arguments. */
 function walkPartial(node: PartialNode, scope: ScopeTracker): string[] {
-  return node.arguments.flatMap((arg) =>
-    isPlaceholder(arg) ? [] : walkNode(arg, scope),
-  );
+  return [
+    ...walkFunctionProcedureSelection(node.procedure, scope),
+    ...node.arguments.flatMap((arg) =>
+      isPlaceholder(arg) ? [] : walkNode(arg, scope),
+    ),
+    ...walkSourceLessFilterStages(node.predicate ?? [], scope),
+    ...(node.group ? walkSourceLessGroupEntries(node.group, scope) : []),
+  ];
+}
+
+function walkFunctionProcedureSelection(
+  procedure: FunctionNode["procedure"],
+  scope: ScopeTracker,
+): string[] {
+  if (procedure.type !== "condition") return [];
+  return [
+    ...walkNode(procedure.condition, scope),
+    ...(isFunctionProcedureNode(procedure.then)
+      ? walkFunctionProcedureSelection(procedure.then, scope)
+      : []),
+    ...(procedure.else && isFunctionProcedureNode(procedure.else)
+      ? walkFunctionProcedureSelection(procedure.else, scope)
+      : []),
+  ];
 }
 
 /**
@@ -3794,9 +5050,37 @@ function walkPartial(node: PartialNode, scope: ScopeTracker): string[] {
  * Built-in function names and the root reference ($) produce no paths.
  */
 function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
-  // Root reference ($) produces no paths
-  if (node.value === "") {
-    return [];
+  const capturedCurrentContext =
+    node.value === "" ? resolveVariable(scope, "") : null;
+  if (isRootReference(node) && capturedCurrentContext === null) {
+    let rootScope = childScope(scope);
+    const stageVariables = new Set<string>();
+    const nonPathVariables = new Set<string>();
+    if (node.focusBinding) {
+      rootScope = bindVariable(rootScope, node.focusBinding.name, [ROOT_PATH]);
+      stageVariables.add(node.focusBinding.name);
+    }
+    if (node.indexBinding) {
+      rootScope = bindVariable(rootScope, node.indexBinding.name, []);
+      nonPathVariables.add(node.indexBinding.name);
+    }
+    return [
+      ...walkFilterStages(
+        node.predicate ?? [],
+        ROOT_PATH,
+        rootScope,
+        nonPathVariables,
+        stageVariables,
+      ),
+      ...(node.group
+        ? walkContextGroupEntries(
+            node.group,
+            ROOT_PATH,
+            rootScope,
+            stageVariables,
+          )
+        : []),
+    ];
   }
 
   // Check scope first (scope bindings shadow built-ins)
@@ -3812,6 +5096,15 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
     if (predicates && predicates.length > 0) {
       const objectAlias = resolveObjectAlias(scope, node.value);
       const dynamicObjectAlias = resolveDynamicObjectAlias(scope, node.value);
+      if (variableBasePaths.length === 0) {
+        paths.push(
+          ...predicates.flatMap((stage) =>
+            stage.type === "filter"
+              ? walkNode((stage as unknown as FilterStage).expr, scope)
+              : [],
+          ),
+        );
+      }
       for (const resolvedPath of variableBasePaths) {
         let predicateScope = scope;
         const predicateStageVariables = new Set<string>();
@@ -3910,11 +5203,354 @@ function walkVariable(node: VariableNode, scope: ScopeTracker): string[] {
  * the current scope to extract paths.
  */
 function walkLambda(node: LambdaNode, scope: ScopeTracker): string[] {
-  // Thunk lambdas are parser-generated wrappers, not user-defined functions
-  if (node.thunk) {
-    return walkNode(node.body, scope);
+  return [
+    // Thunk lambdas are parser-generated wrappers, not user-defined functions.
+    ...(node.thunk ? walkNode(node.body, scope) : []),
+    ...walkSourceLessFilterStages(node.predicate ?? [], scope),
+    ...(node.group ? walkSourceLessGroupEntries(node.group, scope) : []),
+  ];
+}
+
+function isFunctionProcedureNode(
+  node: AstNode,
+): node is FunctionNode["procedure"] {
+  return [
+    "variable",
+    "lambda",
+    "transform",
+    "condition",
+    "function",
+    "block",
+    "path",
+  ].includes(node.type);
+}
+
+type ResolvedCallable =
+  | { readonly kind: "lambda"; readonly binding: LambdaBinding }
+  | { readonly kind: "transform"; readonly binding: TransformBinding }
+  | {
+      readonly kind: "partial";
+      readonly binding: NonNullable<ReturnType<typeof resolvePartial>>;
+    };
+
+function bindCallableBlockValue(
+  scope: ScopeTracker,
+  bindNode: BindNode,
+): ScopeTracker {
+  const closureScope = scope;
+  let nextScope = bindVariable(
+    scope,
+    bindNode.lhs.value,
+    bindingAliasPaths(bindNode.rhs, scope),
+  );
+  nextScope = bindSuffixBasePathsIfPresent(
+    nextScope,
+    bindNode.lhs.value,
+    bindNode.rhs,
+    closureScope,
+  );
+  nextScope = bindObjectAliasIfPresent(
+    nextScope,
+    bindNode.lhs.value,
+    bindNode.rhs,
+    closureScope,
+  );
+  nextScope = bindDynamicObjectAliasIfPresent(
+    nextScope,
+    bindNode.lhs.value,
+    bindNode.rhs,
+    closureScope,
+  );
+  return bindCallableValue(
+    nextScope,
+    bindNode.lhs.value,
+    bindNode.rhs,
+    closureScope,
+  );
+}
+
+function lambdaCallScope(
+  binding: LambdaBinding,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): ScopeTracker {
+  let resultScope = childScope(binding.scope);
+  for (let index = 0; index < binding.lambda.arguments.length; index++) {
+    const parameter = binding.lambda.arguments[index];
+    const arg = callArgs[index];
+    const argPaths = arg ? extractBasePaths(arg, callScope) : [];
+    resultScope = arg
+      ? bindArgumentParameter(resultScope, parameter, argPaths, arg, callScope)
+      : bindVariable(resultScope, parameter.value, argPaths);
   }
-  return [];
+  return resultScope;
+}
+
+function resolveCallableValues(
+  node: AstNode,
+  scope: ScopeTracker,
+): ResolvedCallable[] {
+  if (node.type === "lambda") {
+    const lambda = node as LambdaNode;
+    return lambda.thunk
+      ? resolveCallableValues(lambda.body, scope)
+      : [{ kind: "lambda", binding: { lambda, scope } }];
+  }
+  if (node.type === "transform") {
+    return [
+      { kind: "transform", binding: { transform: node as TransformNode, scope } },
+    ];
+  }
+  if (node.type === "partial") {
+    return [
+      {
+        kind: "partial",
+        binding: { partial: node as PartialNode, scope },
+      },
+    ];
+  }
+  if (node.type === "variable") {
+    const variable = node as VariableNode;
+    const name = variable.value;
+    const lambda = resolveLambda(scope, name);
+    if (lambda) return [{ kind: "lambda", binding: lambda }];
+    const transform = resolveTransform(scope, name);
+    if (transform) return [{ kind: "transform", binding: transform }];
+    const partial = resolvePartial(scope, name);
+    if (partial) return [{ kind: "partial", binding: partial }];
+    const value = resolveValue(scope, name);
+    if (!value) return [];
+    const numericFilter = (variable.predicate ?? []).find(
+      (stage) =>
+        stage.type === "filter" &&
+        (stage as unknown as FilterStage).expr.type === "number",
+    ) as unknown as FilterStage | undefined;
+    if (value.node.type === "array" && numericFilter) {
+      const index = Number(
+        ((numericFilter as unknown as FilterStage).expr as { value: number }).value,
+      );
+      const selected = (value.node as ArrayNode).expressions[index];
+      return selected ? resolveCallableValues(selected, value.scope) : [];
+    }
+    return resolveCallableValues(value.node, value.scope);
+  }
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((value) =>
+      resolveCallableValues(value, scope),
+    );
+  }
+  if (node.type === "object") {
+    return (node as ObjectNode).entries.flatMap(([, value]) =>
+      resolveCallableValues(value, scope),
+    );
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [
+      ...resolveCallableValues(condition.then, scope),
+      ...(condition.else ? resolveCallableValues(condition.else, scope) : []),
+    ];
+  }
+  if (node.type === "block") {
+    const block = node as BlockNode;
+    let blockScope = scope;
+    for (const [index, expression] of block.expressions.entries()) {
+      if (index === block.expressions.length - 1) {
+        return resolveCallableValues(expression, blockScope);
+      }
+      if (expression.type === "bind") {
+        blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
+      }
+    }
+    return [];
+  }
+  if (node.type === "path") {
+    const path = node as PathNode;
+    const [first, ...suffixSteps] = path.steps;
+    if (!first) return [];
+
+    let sourceNode = first;
+    let sourceScope = scope;
+    if (first.type === "variable") {
+      const value = resolveValue(scope, (first as VariableNode).value);
+      if (!value) return resolveCallableValues(first, scope);
+      sourceNode = value.node;
+      sourceScope = value.scope;
+    }
+
+    const [selector, ...rest] = suffixSteps;
+    if (sourceNode.type === "object" && selector?.type === "name") {
+      return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
+        staticObjectKey(key) === (selector as NameNode).value
+          ? resolveCallableValues(
+              rest.length > 0
+                ? ({ type: "path", steps: [value, ...rest] } as PathNode)
+                : value,
+              sourceScope,
+            )
+          : [],
+      );
+    }
+    return suffixSteps.length === 0
+      ? resolveCallableValues(sourceNode, sourceScope)
+      : [];
+  }
+  if (node.type !== "function") return [];
+
+  const functionNode = node as FunctionNode;
+  if (
+    functionNode.procedure.type === "variable" &&
+    functionNode.procedure.value === "lookup"
+  ) {
+    const objectArg = functionNode.arguments[0];
+    if (!objectArg) return [];
+    let objectNode = objectArg;
+    let objectScope = scope;
+    if (objectArg.type === "variable") {
+      const value = resolveValue(scope, (objectArg as VariableNode).value);
+      if (value) {
+        objectNode = value.node;
+        objectScope = value.scope;
+      }
+    }
+    if (objectNode.type !== "object") return [];
+
+    const keyArg = functionNode.arguments[1];
+    const staticKey = keyArg?.type === "string"
+      ? (keyArg as { value: string }).value
+      : null;
+    return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
+      staticKey === null || staticObjectKey(key) === staticKey
+        ? resolveCallableValues(value, objectScope)
+        : [],
+    );
+  }
+  const lambdaBinding =
+    functionNode.procedure.type === "lambda"
+      ? { lambda: functionNode.procedure, scope }
+      : functionNode.procedure.type === "variable"
+        ? resolveLambda(scope, functionNode.procedure.value)
+        : null;
+  if (!lambdaBinding) return [];
+  return resolveCallableValues(
+    lambdaBinding.lambda.body,
+    lambdaCallScope(lambdaBinding, functionNode.arguments, scope),
+  );
+}
+
+function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
+  if (node.type === "lambda" && (node as LambdaNode).thunk) {
+    return walkCallableSelection((node as LambdaNode).body, scope);
+  }
+  if (node.type === "variable") {
+    return ((node as VariableNode).predicate ?? []).flatMap((stage) =>
+      stage.type === "filter" &&
+      !isNumericIndex((stage as unknown as FilterStage).expr)
+        ? walkNode((stage as unknown as FilterStage).expr, scope)
+        : [],
+    );
+  }
+  if (["lambda", "transform"].includes(node.type)) return [];
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((value) =>
+      resolveCallableValues(value, scope).length > 0
+        ? walkCallableSelection(value, scope)
+        : walkNode(value, scope),
+    );
+  }
+  if (node.type === "object") {
+    return (node as ObjectNode).entries.flatMap(([key, value]) => [
+      ...walkNode(key, scope),
+      ...(resolveCallableValues(value, scope).length > 0
+        ? walkCallableSelection(value, scope)
+        : walkNode(value, scope)),
+    ]);
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [
+      ...walkNode(condition.condition, scope),
+      ...walkCallableSelection(condition.then, scope),
+      ...(condition.else ? walkCallableSelection(condition.else, scope) : []),
+    ];
+  }
+  if (node.type === "block") {
+    const block = node as BlockNode;
+    const paths: string[] = [];
+    let blockScope = scope;
+    for (const [index, expression] of block.expressions.entries()) {
+      const isLast = index === block.expressions.length - 1;
+      if (isLast) {
+        paths.push(...walkCallableSelection(expression, blockScope));
+      } else if (expression.type === "bind") {
+        const bindNode = expression as BindNode;
+        paths.push(...walkCallableSelection(bindNode.rhs, blockScope));
+        blockScope = bindCallableBlockValue(blockScope, bindNode);
+      } else {
+        paths.push(...walkNode(expression, blockScope));
+      }
+    }
+    return paths;
+  }
+  if (node.type === "path") {
+    return (node as PathNode).steps.flatMap((step) => {
+      if (["array", "object", "block"].includes(step.type)) {
+        return walkCallableSelection(step, scope);
+      }
+      return walkSourceLessFilterStages(
+        (step as AstNode & { predicate?: AstNode[] }).predicate ?? [],
+        scope,
+      );
+    });
+  }
+  if (node.type === "function" && resolveCallableValues(node, scope).length > 0) {
+    const functionNode = node as FunctionNode;
+    if (
+      functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "lookup"
+    ) {
+      return functionNode.arguments.flatMap((arg) =>
+        resolveCallableValues(arg, scope).length > 0
+          ? walkCallableSelection(arg, scope)
+          : walkNode(arg, scope),
+      );
+    }
+    return walkFunction(node as FunctionNode, scope);
+  }
+  return walkNode(node, scope);
+}
+
+function walkReturnedCallableCall(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): string[] {
+  if (!["function", "block", "path"].includes(node.procedure.type)) return [];
+  const producer = node.procedure;
+  const paths = walkCallableSelection(producer, scope);
+  const callables = resolveCallableValues(producer, scope);
+  if (callables.length === 0) {
+    return [...paths, ...node.arguments.flatMap((arg) => walkNode(arg, scope))];
+  }
+  for (const callable of callables) {
+    if (callable.kind === "transform") {
+      paths.push(...walkTransformCall(callable.binding, node.arguments, scope));
+    } else if (callable.kind === "lambda") {
+      paths.push(...walkCustomFunctionCall(callable.binding, node.arguments, scope));
+    } else {
+      paths.push(...walkPartialCall(callable.binding, node.arguments, scope));
+    }
+  }
+  return paths;
+}
+
+function conditionalProcedureCalls(node: FunctionNode): FunctionNode[] {
+  if (node.procedure.type !== "condition") return [];
+  const condition = node.procedure;
+  return [condition.then, condition.else].flatMap((procedure) =>
+    procedure && isFunctionProcedureNode(procedure)
+      ? [{ ...node, procedure }]
+      : [],
+  );
 }
 
 /**
@@ -3942,14 +5578,96 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
     );
   }
 
+  if (node.procedure.type === "transform") {
+    return withFunctionStages(
+      walkTransformCall(
+        { transform: node.procedure, scope },
+        node.arguments,
+        scope,
+      ),
+    );
+  }
+
+  if (node.procedure.type === "condition") {
+    return withFunctionStages([
+      ...walkNode(node.procedure.condition, scope),
+      ...conditionalProcedureCalls(node).flatMap((call) =>
+        walkFunction(call, scope),
+      ),
+    ]);
+  }
+  if (
+    node.procedure.type === "function" ||
+    node.procedure.type === "block" ||
+    node.procedure.type === "path"
+  ) {
+    return withFunctionStages(walkReturnedCallableCall(node, scope));
+  }
+
   const funcName = node.procedure.value;
-  const args = node.arguments;
+  const capturedCurrent = resolveVariable(scope, "");
+  const args =
+    capturedCurrent !== null && builtinUsesContextDefault(funcName, node.arguments)
+      ? [
+          {
+            type: "variable",
+            value: "",
+            position: node.position,
+          } as VariableNode,
+          ...node.arguments,
+        ]
+      : withImplicitRootFunctionArgument(
+          funcName,
+          node.arguments,
+          node.position,
+        );
   const paths: string[] = [];
+
+  if (args.length === 0 && IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)) {
+    paths.push("*");
+  }
+  if (args.length === 0 && IMPLICIT_ROOT_DEEP_FUNCTIONS.has(funcName)) {
+    paths.push("**");
+  }
+
+  const explicitContextPaths = args[0]
+    ? identityReferencePaths(args[0], scope)
+    : null;
+  if (
+    args.length > 0 &&
+    explicitContextPaths &&
+    IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)
+  ) {
+    paths.push(...explicitContextPaths.map((path) => appendPath(path, "*")));
+  }
+  if (
+    args.length > 0 &&
+    explicitContextPaths &&
+    IMPLICIT_ROOT_DEEP_FUNCTIONS.has(funcName)
+  ) {
+    paths.push(...explicitContextPaths.map((path) => appendPath(path, "**")));
+  }
+  if (funcName === "merge") {
+    const mergeInputs =
+      args[0]?.type === "array"
+        ? (args[0] as ArrayNode).expressions
+        : args[0]
+          ? [args[0]]
+          : [];
+    for (const input of mergeInputs) {
+      const identityPaths = identityReferencePaths(input, scope);
+      if (identityPaths) {
+        paths.push(...identityPaths.map((path) => appendPath(path, "*")));
+      }
+    }
+  }
 
   // Step 1: Check if this is a known higher-order function
   const semantics = HIGHER_ORDER_SEMANTICS[funcName];
   if (semantics) {
-    return withFunctionStages(walkHigherOrderCall(node, semantics, scope));
+    return withFunctionStages(
+      walkHigherOrderCall({ ...node, arguments: args }, semantics, scope),
+    );
   }
 
   // Step 2: Check if this is a custom function call (lambda bound in scope)
@@ -3961,6 +5679,26 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
   const partialBinding = resolvePartial(scope, funcName);
   if (partialBinding) {
     return withFunctionStages(walkPartialCall(partialBinding, args, scope));
+  }
+
+  const transformBinding = resolveTransform(scope, funcName);
+  if (transformBinding) {
+    return withFunctionStages(walkTransformCall(transformBinding, args, scope));
+  }
+
+  const storedCallables = resolveCallableValues(node.procedure, scope);
+  if (storedCallables.length > 0) {
+    const storedPaths = walkCallableSelection(node.procedure, scope);
+    for (const callable of storedCallables) {
+      if (callable.kind === "transform") {
+        storedPaths.push(...walkTransformCall(callable.binding, args, scope));
+      } else if (callable.kind === "lambda") {
+        storedPaths.push(...walkCustomFunctionCall(callable.binding, args, scope));
+      } else {
+        storedPaths.push(...walkPartialCall(callable.binding, args, scope));
+      }
+    }
+    return withFunctionStages(storedPaths);
   }
 
   // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
@@ -3975,11 +5713,77 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
     }
   }
 
+  if (funcName === "eval") {
+    paths.push(...walkStaticEval(args, scope));
+  }
+
   if (funcName === "lookup") {
     paths.push(...getLookupResultBasePaths(args, scope));
   }
 
   return withFunctionStages(paths);
+}
+
+function walkTransformCall(
+  binding: TransformBinding,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): string[] {
+  const paths: string[] = [];
+  const input = callArgs[0];
+
+  for (const arg of callArgs) {
+    const identityPaths = identityReferencePaths(arg, callScope);
+    if (identityPaths) {
+      paths.push(...identityPaths.filter((path) => path !== ROOT_PATH));
+    } else {
+      paths.push(...walkNode(arg, callScope));
+    }
+  }
+  if (!input) return paths;
+
+  const transformPaths = walkTransform(binding.transform, binding.scope);
+  const inputPaths =
+    identityReferencePaths(input, callScope) ?? walkNode(input, callScope);
+  const transformBasePaths = extractBasePaths(input, callScope);
+  if (transformBasePaths.includes(ROOT_PATH)) paths.push("**");
+
+  const aliasContextPaths = transformApplyAliasContextPaths(
+    binding.transform,
+    transformPaths,
+    input,
+    inputPaths,
+    callScope,
+  );
+  if (aliasContextPaths) return [...paths, ...aliasContextPaths];
+
+  const transformPrefixes =
+    transformBasePaths.length > 0
+      ? transformBasePaths
+      : [inputPaths[0] ?? ""];
+  paths.push(
+    ...transformPrefixes.flatMap((prefix) => prefixPaths(prefix, transformPaths)),
+  );
+  return paths;
+}
+
+function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
+  const source = args[0];
+  if (source?.type !== "string") return markAbsolute(["**"]);
+
+  let expression: AstNode;
+  try {
+    expression = parse((source as { value: string }).value);
+  } catch {
+    return [];
+  }
+
+  const contextArg = args[1];
+  if (!contextArg) return walkNode(expression, scope);
+
+  return getResultBasePathsFromArg(contextArg, scope).flatMap((basePath) =>
+    walkContextExpression(expression, basePath, scope),
+  );
 }
 
 function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
@@ -4009,8 +5813,15 @@ function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string
         : [],
     );
   }
+  const resultBasePaths = getFunctionResultBasePaths(node, scope);
+  if (resultBasePaths.length === 0) {
+    return walkSourceLessFilterStages(
+      node.predicate,
+      predicateScope,
+    );
+  }
 
-  return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
+  return resultBasePaths.flatMap((basePath) =>
     walkFilterStages(
       node.predicate!,
       basePath,
@@ -4041,7 +5852,12 @@ function walkFunctionGroupBy(node: FunctionNode, scope: ScopeTracker): string[] 
     );
   }
 
-  return getFunctionResultBasePaths(node, scope).flatMap((basePath) =>
+  const resultBasePaths = getFunctionResultBasePaths(node, scope);
+  if (resultBasePaths.length === 0) {
+    return walkSourceLessGroupEntries(node.group, groupScope);
+  }
+
+  return resultBasePaths.flatMap((basePath) =>
     walkContextGroupEntries(node.group!, basePath, groupScope, groupStageVariables),
   );
 }
@@ -4060,6 +5876,120 @@ function filterToBasePaths(paths: string[]): string[] {
   );
 }
 
+function flattenSimpleContextBlocks(steps: AstNode[]): AstNode[] {
+  return steps.flatMap((step) => {
+    if (step.type !== "block") return [step];
+
+    const block = step as BlockNode;
+    if (block.expressions.length !== 1 || block.expressions[0]?.type !== "path") {
+      return [step];
+    }
+
+    const innerSteps = (block.expressions[0] as PathNode).steps;
+    if (
+      innerSteps.some(
+        (innerStep) =>
+          !["name", "wildcard", "descendant", "parent", "block"].includes(
+            innerStep.type,
+          ),
+      )
+    ) {
+      return [step];
+    }
+
+    const flattened = flattenSimpleContextBlocks(innerSteps);
+    const lastIndex = flattened.length - 1;
+    if (lastIndex < 0 || (!block.focusBinding && !block.indexBinding)) {
+      return flattened;
+    }
+
+    return flattened.map((innerStep, index) =>
+      index === lastIndex
+        ? {
+            ...innerStep,
+            ...(block.focusBinding ? { focusBinding: block.focusBinding } : {}),
+            ...(block.indexBinding ? { indexBinding: block.indexBinding } : {}),
+          }
+        : innerStep,
+    );
+  });
+}
+
+function isTransparentPathBlock(step: AstNode): boolean {
+  if (step.type !== "block") return false;
+
+  const block = step as BlockNode;
+  return (
+    block.expressions.length === 1 &&
+    block.expressions[0]?.type === "path" &&
+    !block.group &&
+    !block.predicate?.length &&
+    !block.focusBinding &&
+    !block.indexBinding
+  );
+}
+
+function flattenTransparentPathBlocks(steps: AstNode[]): AstNode[] | null {
+  let changed = false;
+  const flattened: AstNode[] = [];
+
+  for (const step of steps) {
+    if (step.type !== "block") {
+      flattened.push(step);
+      continue;
+    }
+
+    if (!isTransparentPathBlock(step)) {
+      flattened.push(step);
+      continue;
+    }
+
+    const block = step as BlockNode;
+    const inner = flattenTransparentPathBlocks(
+      (block.expressions[0] as PathNode).steps,
+    );
+    flattened.push(...(inner ?? (block.expressions[0] as PathNode).steps));
+    changed = true;
+  }
+
+  return changed ? flattened : null;
+}
+
+function buildProjectionContextPath(steps: AstNode[]): string | null {
+  return buildPathString(flattenSimpleContextBlocks(steps));
+}
+
+function hasPendingProjectionFocusReset(steps: AstNode[]): boolean {
+  return hasPendingFocusReset(flattenSimpleContextBlocks(steps));
+}
+
+function hasPendingFocusReset(steps: AstNode[]): boolean {
+  let focusBindingName: string | null = null;
+
+  for (const step of steps) {
+    if (
+      step.type === "variable" &&
+      !["", "$"].includes((step as VariableNode).value)
+    ) {
+      if ((step as VariableNode).value !== focusBindingName) return false;
+      focusBindingName = null;
+      continue;
+    }
+
+    const isPathSegment = ["name", "wildcard", "descendant", "parent"].includes(
+      step.type,
+    );
+    if (isPathSegment && focusBindingName !== null) focusBindingName = null;
+
+    const focusBinding = (
+      step as AstNode & { focusBinding?: { name: string } }
+    ).focusBinding;
+    if (isPathSegment && focusBinding) focusBindingName = focusBinding.name;
+  }
+
+  return focusBindingName !== null;
+}
+
 /**
  * Extract only the collection-identity (base) paths from a data argument node,
  * excluding filter predicate paths. Used specifically for HOF lambda parameter
@@ -4072,14 +6002,34 @@ function filterToBasePaths(paths: string[]): string[] {
  * Default: falls back to walkNode (no filter stages to strip)
  */
 function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+  if (node.type === "variable" && (node as VariableNode).value === "") {
+    const capturedCurrent = resolveVariable(scope, "");
+    if (capturedCurrent !== null) return filterToBasePaths([...capturedCurrent]);
+  }
   if (isRootReference(node)) return [ROOT_PATH];
 
   if (node.type === "path") {
     const pathNode = node as PathNode;
+    const firstStep = pathNode.steps[0];
+    if (firstStep?.type === "variable" && (firstStep as VariableNode).value === "") {
+      const capturedCurrent = resolveVariable(scope, "");
+      if (capturedCurrent !== null) {
+        const suffix = buildPathString(pathNode.steps.slice(1));
+        return filterToBasePaths([...capturedCurrent]).map((path) =>
+          appendPath(path, suffix),
+        );
+      }
+    }
     if (isRootReference(pathNode.steps[0])) {
-      return markAbsolute(
-        extractBasePaths({ ...pathNode, steps: pathNode.steps.slice(1) }, scope),
+      const rootPaths = extractBasePaths(
+        { ...pathNode, steps: pathNode.steps.slice(1) },
+        scope,
       );
+      return rootPaths.length > 0 ? markAbsolute(rootPaths) : [ROOT_PATH];
+    }
+    const tupleBasePath = buildPathString(pathNode.steps);
+    if (tupleBasePath && hasPendingFocusReset(pathNode.steps)) {
+      return [parentPath(tupleBasePath) || ROOT_PATH];
     }
     // Check for variable steps (e.g., $v.children) -- must resolve variable
     const varStepIndex = pathNode.steps.findIndex((s) => s.type === "variable");
@@ -4168,12 +6118,19 @@ function walkHigherOrderCall(
 ): string[] {
   const args = node.arguments;
   const paths: string[] = [];
-  const callback = findHigherOrderCallback(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const transformCallback = findHigherOrderTransformCallback(args, scope);
+  const funcName =
+    node.procedure.type === "variable" ? node.procedure.value : "";
 
   // Extract paths from all non-lambda arguments (they're data reads)
   // This emits ALL paths including filter predicates (correct -- they are data reads)
   for (const [index, arg] of args.entries()) {
-    if (arg.type !== "lambda" && index !== callback?.index) {
+    if (
+      arg.type !== "lambda" &&
+      index !== callback?.index &&
+      index !== transformCallback?.index
+    ) {
       paths.push(...walkNode(arg, scope));
     }
   }
@@ -4181,28 +6138,133 @@ function walkHigherOrderCall(
   if (callback) {
     // Get the data argument (first non-lambda arg) BASE paths for binding
     // Uses extractBasePaths to exclude filter predicate paths from binding
-    const dataArg = args[0];
-    const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
-    const funcName =
-      node.procedure.type === "variable" ? node.procedure.value : "";
-
-    // Walk lambda body with parameter bindings
-    paths.push(
-      ...(funcName === "reduce"
-        ? walkReduceLambdaWithBindings(callback.lambda, args, callback.scope, scope)
-        : walkLambdaWithBindings(
-            funcName,
-            callback.lambda,
-            dataArgPaths,
-            dataArg,
-            semantics,
-            callback.scope,
-            scope,
-          )),
+    const usesImplicitRoot =
+      callback.index === 0 && (funcName === "each" || funcName === "sift");
+    const dataArg = usesImplicitRoot ? undefined : args[0];
+    const dataArgPaths = higherOrderCallbackDataPaths(
+      funcName,
+      dataArg,
+      scope,
+      usesImplicitRoot,
     );
+    paths.push(...walkCallableSelection(args[callback.index], scope));
+
+    if (usesImplicitRoot) paths.push("*");
+    if (!usesImplicitRoot && (funcName === "each" || funcName === "sift") && dataArg) {
+      const identityPaths = identityReferencePaths(dataArg, scope);
+      if (identityPaths) {
+        paths.push(...identityPaths.map((path) => appendPath(path, "*")));
+      }
+    }
+
+    // Walk every possible lambda body with parameter bindings.
+    for (const binding of callback.bindings) {
+      paths.push(
+        ...(funcName === "reduce"
+          ? walkReduceLambdaWithBindings(binding.lambda, args, binding.scope, scope)
+          : walkLambdaWithBindings(
+              funcName,
+              binding.lambda,
+              dataArgPaths,
+              dataArg,
+              semantics,
+              binding.scope,
+              scope,
+            )),
+      );
+    }
+    const callbackInput =
+      dataArg ??
+      ({
+        type: "wildcard",
+        value: "*",
+        position: node.position,
+      } as WildcardNode);
+    for (const binding of callback.partials) {
+      paths.push(...walkPartialCall(binding, [callbackInput], scope));
+    }
+  }
+
+  if (transformCallback) {
+    const usesImplicitRoot =
+      transformCallback.index === 0 && (funcName === "each" || funcName === "sift");
+    const dataArg = usesImplicitRoot
+      ? ({
+          type: "wildcard",
+          value: "*",
+          position: node.position,
+        } as WildcardNode)
+      : args[0];
+    if (dataArg) {
+      const producer = args[transformCallback.index];
+      paths.push(...walkCallableSelection(producer, scope));
+      const transformCalls = resolveTransformFunctionCalls(
+        {
+          type: "function",
+          value: "(",
+          position: node.position,
+          procedure: producer as FunctionNode["procedure"],
+          arguments: [dataArg],
+        },
+        scope,
+        false,
+      );
+      for (const call of transformCalls) {
+        paths.push(...walkTransformCall(call.binding, call.arguments, scope));
+      }
+    }
   }
 
   return paths;
+}
+
+function higherOrderCallbackDataPaths(
+  funcName: string,
+  dataArg: AstNode | undefined,
+  scope: ScopeTracker,
+  usesImplicitRoot = false,
+): string[] {
+  const basePaths = usesImplicitRoot
+    ? [ROOT_PATH]
+    : dataArg
+      ? extractBasePaths(dataArg, scope)
+      : [];
+  if (funcName !== "each" && funcName !== "sift") return basePaths;
+
+  if (dataArg?.type === "object") {
+    return (dataArg as ObjectNode).entries.flatMap(([, value]) =>
+      bindingAliasPaths(value, scope),
+    );
+  }
+  const objectAlias = dataArg ? objectAliasForNode(dataArg, scope) : null;
+  if (objectAlias && objectAlias.size > 0) {
+    return [...objectAlias.values()].flatMap((paths) => [...paths]);
+  }
+  return basePaths.map((path) => appendPath(path, "*"));
+}
+
+function bindHigherOrderLambdaCallbackScope(
+  funcName: "map" | "each",
+  binding: LambdaBinding,
+  dataArgPaths: string[],
+  dataArg: AstNode | undefined,
+  dataArgScope: ScopeTracker,
+): ScopeTracker {
+  let lambdaScope = childScope(binding.scope);
+  for (let i = 0; i < binding.lambda.arguments.length; i++) {
+    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
+    if (!role) continue;
+    lambdaScope = bindHigherOrderParameter(
+      lambdaScope,
+      funcName,
+      binding.lambda.arguments[i],
+      role,
+      dataArgPaths,
+      dataArg,
+      dataArgScope,
+    );
+  }
+  return lambdaScope;
 }
 
 function walkReduceLambdaWithBindings(
@@ -4268,6 +6330,102 @@ function findHigherOrderCallback(
   return binding
     ? { index: variableIndex, lambda: binding.lambda, scope: binding.scope }
     : null;
+}
+
+function findResolvedHigherOrderLambdaCallbacks(
+  args: AstNode[],
+  scope: ScopeTracker,
+): {
+  index: number;
+  bindings: LambdaBinding[];
+  partials: NonNullable<ReturnType<typeof resolvePartial>>[];
+} | null {
+  for (const [index, arg] of args.entries()) {
+    const callables = resolveCallableValues(arg, scope);
+    const bindings = callables.flatMap((callable) =>
+      callable.kind === "lambda" ? [callable.binding] : [],
+    );
+    const partials = callables.flatMap((callable) =>
+      callable.kind === "partial" && partialCanInvokeLambda(callable.binding)
+        ? [callable.binding]
+        : [],
+    );
+    if (bindings.length > 0 || partials.length > 0) {
+      return { index, bindings, partials };
+    }
+  }
+  return null;
+}
+
+function partialCanInvokeLambda(
+  binding: NonNullable<ReturnType<typeof resolvePartial>>,
+): boolean {
+  return resolveCallableValues(
+    binding.partial.procedure,
+    binding.scope,
+  ).some(
+    (callable) =>
+      callable.kind === "lambda" ||
+      (callable.kind === "partial" && partialCanInvokeLambda(callable.binding)),
+  );
+}
+
+interface ResolvedLambdaCall {
+  readonly binding: LambdaBinding;
+  readonly arguments: AstNode[];
+}
+
+function resolveLambdaFunctionCalls(
+  procedure: FunctionNode["procedure"],
+  callArgs: AstNode[],
+  scope: ScopeTracker,
+): ResolvedLambdaCall[] {
+  return resolveCallableValues(procedure, scope).flatMap((callable) => {
+    if (callable.kind === "lambda") {
+      return [{ binding: callable.binding, arguments: callArgs }];
+    }
+    if (callable.kind !== "partial") return [];
+    return resolveLambdaFunctionCalls(
+      callable.binding.partial.procedure,
+      applyPartialArguments(callable.binding.partial, callArgs),
+      callable.binding.scope,
+    );
+  });
+}
+
+function higherOrderPartialLambdaCalls(
+  callback: NonNullable<ReturnType<typeof findResolvedHigherOrderLambdaCallbacks>>,
+  dataArg: AstNode | undefined,
+): ResolvedLambdaCall[] {
+  if (!dataArg) return [];
+  return callback.partials.flatMap((binding) =>
+    resolveLambdaFunctionCalls(
+      binding.partial.procedure,
+      applyPartialArguments(binding.partial, [dataArg]),
+      binding.scope,
+    ),
+  );
+}
+
+function findHigherOrderTransformCallback(
+  args: AstNode[],
+  scope: ScopeTracker,
+): { index: number } | null {
+  for (const [index, arg] of args.entries()) {
+    const calls = resolveTransformFunctionCalls(
+      {
+        type: "function",
+        value: "(",
+        position: (arg as { position?: number }).position ?? 0,
+        procedure: arg as FunctionNode["procedure"],
+        arguments: [],
+      },
+      scope,
+      false,
+    );
+    if (calls.length > 0) return { index };
+  }
+  return null;
 }
 
 /**
@@ -4391,6 +6549,60 @@ function shouldBindDataArgumentAlias(funcName: string, role: string): boolean {
   );
 }
 
+function contextDefaultParameterIndex(lambda: LambdaNode): number {
+  const definition = lambda.signature?.definition;
+  if (!definition) return -1;
+
+  let parameterIndex = -1;
+  for (let index = 1; index < definition.length; index++) {
+    const symbol = definition[index];
+    if (symbol === ":") break;
+    if ("snbloafjx".includes(symbol)) {
+      parameterIndex += 1;
+      continue;
+    }
+    if (symbol === "(") {
+      parameterIndex += 1;
+      while (index < definition.length && definition[index] !== ")") index += 1;
+      continue;
+    }
+    if (symbol === "<") {
+      let depth = 1;
+      while (index + 1 < definition.length && depth > 0) {
+        index += 1;
+        if (definition[index] === "<") depth += 1;
+        if (definition[index] === ">") depth -= 1;
+      }
+      continue;
+    }
+    if (symbol === "-") return parameterIndex;
+  }
+  return -1;
+}
+
+function lambdaContextDefaultArgumentVariants(
+  lambda: LambdaNode,
+  callArgs: AstNode[],
+): AstNode[][] {
+  const contextIndex = contextDefaultParameterIndex(lambda);
+  if (contextIndex < 0 || callArgs.length >= lambda.arguments.length) {
+    return [callArgs];
+  }
+
+  const withDefault = [
+    ...callArgs.slice(0, contextIndex),
+    {
+      type: "variable",
+      value: "",
+      position: lambda.position,
+    } as VariableNode,
+    ...callArgs.slice(contextIndex),
+  ];
+  return callArgs.length === contextIndex
+    ? [withDefault]
+    : [callArgs, withDefault];
+}
+
 /**
  * Handle custom function calls where the procedure resolves to a lambda in scope.
  * Binds call-site argument paths to lambda parameters and walks the body.
@@ -4403,15 +6615,25 @@ function walkCustomFunctionCall(
   binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
+  defaultsApplied = false,
 ): string[] {
   const { lambda, scope } = binding;
+  if (!defaultsApplied) {
+    const variants = lambdaContextDefaultArgumentVariants(lambda, callArgs);
+    if (variants.length > 1 || variants[0] !== callArgs) {
+      return variants.flatMap((args) =>
+        walkCustomFunctionCall(binding, args, callScope, true),
+      );
+    }
+  }
   const paths: string[] = [];
 
   // Extract paths from all call-site arguments
   const argPathSets: string[][] = [];
   for (const arg of callArgs) {
-    const argPaths = walkNode(arg, callScope);
-    paths.push(...argPaths);
+    const identityPaths = identityReferencePaths(arg, callScope);
+    const argPaths = identityPaths ?? walkNode(arg, callScope);
+    if (!identityPaths) paths.push(...argPaths);
     argPathSets.push(argPaths);
   }
 
@@ -4428,9 +6650,13 @@ function walkCustomFunctionCall(
 
   // Walk the lambda body with parameter bindings
   const parentBasePaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
+  const bodyPaths =
+    resolveCallableValues(lambda.body, lambdaScope).length > 0
+      ? walkCallableSelection(lambda.body, lambdaScope)
+      : walkNode(lambda.body, lambdaScope);
   paths.push(
     ...resolveCallbackParentPaths(
-      walkNode(lambda.body, lambdaScope),
+      bodyPaths,
       parentBasePaths.length > 0 ? parentBasePaths : (argPathSets[0] ?? []),
     ),
   );
@@ -4507,6 +6733,49 @@ function getFunctionResultObjectAlias(
       scope,
     );
   }
+  if (node.procedure.type === "transform") {
+    return node.arguments[0] ? objectAliasForNode(node.arguments[0], scope) : null;
+  }
+  if (node.procedure.type === "condition") {
+    return mergeObjectAliases(
+      conditionalProcedureCalls(node).map((call) =>
+        getFunctionResultObjectAlias(call, scope),
+      ),
+    );
+  }
+  if (
+    node.procedure.type === "function" ||
+    node.procedure.type === "block" ||
+    node.procedure.type === "path"
+  ) {
+    return mergeObjectAliases(
+      resolveCallableValues(node.procedure, scope).map((callable) => {
+        if (callable.kind === "lambda") {
+          return getCustomFunctionResultObjectAlias(
+            callable.binding,
+            node.arguments,
+            scope,
+          );
+        }
+        if (callable.kind === "transform") {
+          return node.arguments[0]
+            ? objectAliasForNode(node.arguments[0], scope)
+            : null;
+        }
+        return getFunctionResultObjectAlias(
+          {
+            ...node,
+            procedure: callable.binding.partial.procedure,
+            arguments: applyPartialArguments(
+              callable.binding.partial,
+              node.arguments,
+            ),
+          },
+          callable.binding.scope,
+        );
+      }),
+    );
+  }
 
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
@@ -4514,14 +6783,29 @@ function getFunctionResultObjectAlias(
   let argScope = scope;
 
   if (partialBinding) {
+    if (partialBinding.partial.procedure.type !== "variable") {
+      return getFunctionResultObjectAlias(
+        {
+          ...node,
+          procedure: partialBinding.partial.procedure,
+          arguments: applyPartialArguments(partialBinding.partial, node.arguments),
+        },
+        partialBinding.scope,
+      );
+    }
     funcName = partialBinding.partial.procedure.value;
     args = applyPartialArguments(partialBinding.partial, node.arguments);
     argScope = partialBinding.scope;
   }
+  args = withImplicitRootFunctionArgument(funcName, args, node.position);
 
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {
     return getCustomFunctionResultObjectAlias(lambdaBinding, args, argScope);
+  }
+
+  if (resolveTransform(argScope, funcName)) {
+    return args[0] ? objectAliasForNode(args[0], argScope) : null;
   }
 
   if (funcName === "map" || funcName === "each") {
@@ -4553,6 +6837,51 @@ function getFunctionResultDynamicObjectAlias(
       scope,
     );
   }
+  if (node.procedure.type === "transform") {
+    return node.arguments[0]
+      ? dynamicObjectAliasForNode(node.arguments[0], scope)
+      : null;
+  }
+  if (node.procedure.type === "condition") {
+    return mergeDynamicObjectAliases(
+      conditionalProcedureCalls(node).map((call) =>
+        getFunctionResultDynamicObjectAlias(call, scope),
+      ),
+    );
+  }
+  if (
+    node.procedure.type === "function" ||
+    node.procedure.type === "block" ||
+    node.procedure.type === "path"
+  ) {
+    return mergeDynamicObjectAliases(
+      resolveCallableValues(node.procedure, scope).map((callable) => {
+        if (callable.kind === "lambda") {
+          return getCustomFunctionResultDynamicObjectAlias(
+            callable.binding,
+            node.arguments,
+            scope,
+          );
+        }
+        if (callable.kind === "transform") {
+          return node.arguments[0]
+            ? dynamicObjectAliasForNode(node.arguments[0], scope)
+            : null;
+        }
+        return getFunctionResultDynamicObjectAlias(
+          {
+            ...node,
+            procedure: callable.binding.partial.procedure,
+            arguments: applyPartialArguments(
+              callable.binding.partial,
+              node.arguments,
+            ),
+          },
+          callable.binding.scope,
+        );
+      }),
+    );
+  }
 
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
@@ -4560,14 +6889,29 @@ function getFunctionResultDynamicObjectAlias(
   let argScope = scope;
 
   if (partialBinding) {
+    if (partialBinding.partial.procedure.type !== "variable") {
+      return getFunctionResultDynamicObjectAlias(
+        {
+          ...node,
+          procedure: partialBinding.partial.procedure,
+          arguments: applyPartialArguments(partialBinding.partial, node.arguments),
+        },
+        partialBinding.scope,
+      );
+    }
     funcName = partialBinding.partial.procedure.value;
     args = applyPartialArguments(partialBinding.partial, node.arguments);
     argScope = partialBinding.scope;
   }
+  args = withImplicitRootFunctionArgument(funcName, args, node.position);
 
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {
     return getCustomFunctionResultDynamicObjectAlias(lambdaBinding, args, argScope);
+  }
+
+  if (resolveTransform(argScope, funcName)) {
+    return args[0] ? dynamicObjectAliasForNode(args[0], argScope) : null;
   }
 
   if (funcName === "map" || funcName === "each") {
@@ -4594,8 +6938,19 @@ function getCustomFunctionResultObjectAlias(
   binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
+  defaultsApplied = false,
 ): ObjectAlias | null {
   const { lambda, scope } = binding;
+  if (!defaultsApplied) {
+    const variants = lambdaContextDefaultArgumentVariants(lambda, callArgs);
+    if (variants.length > 1 || variants[0] !== callArgs) {
+      return mergeObjectAliases(
+        variants.map((args) =>
+          getCustomFunctionResultObjectAlias(binding, args, callScope, true),
+        ),
+      );
+    }
+  }
   let lambdaScope = childScope(scope);
 
   for (let i = 0; i < lambda.arguments.length; i++) {
@@ -4616,8 +6971,24 @@ function getCustomFunctionResultDynamicObjectAlias(
   binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
+  defaultsApplied = false,
 ): DynamicObjectAlias | null {
   const { lambda, scope } = binding;
+  if (!defaultsApplied) {
+    const variants = lambdaContextDefaultArgumentVariants(lambda, callArgs);
+    if (variants.length > 1 || variants[0] !== callArgs) {
+      return mergeDynamicObjectAliases(
+        variants.map((args) =>
+          getCustomFunctionResultDynamicObjectAlias(
+            binding,
+            args,
+            callScope,
+            true,
+          ),
+        ),
+      );
+    }
+  }
   let lambdaScope = childScope(scope);
 
   for (let i = 0; i < lambda.arguments.length; i++) {
@@ -4641,31 +7012,41 @@ function getCallbackResultObjectAlias(
   args: AstNode[],
   scope: ScopeTracker,
 ): ObjectAlias | null {
-  const callback = findHigherOrderCallback(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
   if (!callback) return null;
 
   const dataArg = args[0];
-  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
-  let lambdaScope = childScope(callback.scope);
-
-  for (let i = 0; i < callback.lambda.arguments.length; i++) {
-    const param = callback.lambda.arguments[i];
-    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
-
-    if (!role) continue;
-    lambdaScope = bindHigherOrderParameter(
-      lambdaScope,
-      funcName,
-      param,
-      role,
-      dataArgPaths,
-      dataArg,
-      scope,
-    );
-  }
-
-  const alias = objectAliasForNode(callback.lambda.body, lambdaScope);
-  return alias ? resolveCallbackObjectAliasParentPaths(alias, dataArgPaths) : null;
+  const dataArgPaths = higherOrderCallbackDataPaths(
+    funcName,
+    dataArg,
+    scope,
+  );
+  return mergeObjectAliases(
+    [
+      ...callback.bindings.map((binding) => {
+        const lambdaScope = bindHigherOrderLambdaCallbackScope(
+          funcName,
+          binding,
+          dataArgPaths,
+          dataArg,
+          scope,
+        );
+        const alias = objectAliasForNode(binding.lambda.body, lambdaScope);
+        return alias
+          ? resolveCallbackObjectAliasParentPaths(alias, dataArgPaths)
+          : null;
+      }),
+      ...(funcName === "map"
+        ? higherOrderPartialLambdaCalls(callback, dataArg).map((call) =>
+            getCustomFunctionResultObjectAlias(
+              call.binding,
+              call.arguments,
+              scope,
+            ),
+          )
+        : []),
+    ],
+  );
 }
 
 function getCallbackResultDynamicObjectAlias(
@@ -4673,33 +7054,41 @@ function getCallbackResultDynamicObjectAlias(
   args: AstNode[],
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
-  const callback = findHigherOrderCallback(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
   if (!callback) return null;
 
   const dataArg = args[0];
-  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
-  let lambdaScope = childScope(callback.scope);
-
-  for (let i = 0; i < callback.lambda.arguments.length; i++) {
-    const param = callback.lambda.arguments[i];
-    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
-
-    if (!role) continue;
-    lambdaScope = bindHigherOrderParameter(
-      lambdaScope,
-      funcName,
-      param,
-      role,
-      dataArgPaths,
-      dataArg,
-      scope,
-    );
-  }
-
-  const alias = dynamicObjectAliasForNode(callback.lambda.body, lambdaScope);
-  return alias
-    ? resolveCallbackDynamicObjectAliasParentPaths(alias, dataArgPaths)
-    : null;
+  const dataArgPaths = higherOrderCallbackDataPaths(
+    funcName,
+    dataArg,
+    scope,
+  );
+  return mergeDynamicObjectAliases(
+    [
+      ...callback.bindings.map((binding) => {
+        const lambdaScope = bindHigherOrderLambdaCallbackScope(
+          funcName,
+          binding,
+          dataArgPaths,
+          dataArg,
+          scope,
+        );
+        const alias = dynamicObjectAliasForNode(binding.lambda.body, lambdaScope);
+        return alias
+          ? resolveCallbackDynamicObjectAliasParentPaths(alias, dataArgPaths)
+          : null;
+      }),
+      ...(funcName === "map"
+        ? higherOrderPartialLambdaCalls(callback, dataArg).map((call) =>
+            getCustomFunctionResultDynamicObjectAlias(
+              call.binding,
+              call.arguments,
+              scope,
+            ),
+          )
+        : []),
+    ],
+  );
 }
 
 function getReduceResultObjectAlias(
@@ -4813,6 +7202,44 @@ function getFunctionResultBasePaths(
       scope,
     );
   }
+  if (node.procedure.type === "transform") {
+    return node.arguments[0]
+      ? getResultBasePathsFromArg(node.arguments[0], scope)
+      : [];
+  }
+  if (node.procedure.type === "condition") {
+    return conditionalProcedureCalls(node).flatMap((call) =>
+      getFunctionResultBasePaths(call, scope),
+    );
+  }
+  if (
+    node.procedure.type === "function" ||
+    node.procedure.type === "block" ||
+    node.procedure.type === "path"
+  ) {
+    return resolveCallableValues(node.procedure, scope).flatMap((callable) => {
+      if (callable.kind === "lambda") {
+        return getCustomFunctionResultBasePaths(
+          callable.binding,
+          node.arguments,
+          scope,
+        );
+      }
+      if (callable.kind === "transform") {
+        return node.arguments[0]
+          ? getResultBasePathsFromArg(node.arguments[0], scope)
+          : [];
+      }
+      return getFunctionResultBasePaths(
+        {
+          ...node,
+          procedure: callable.binding.partial.procedure,
+          arguments: applyPartialArguments(callable.binding.partial, node.arguments),
+        },
+        callable.binding.scope,
+      );
+    });
+  }
 
   const partialBinding = resolvePartial(scope, node.procedure.value);
   let funcName = node.procedure.value;
@@ -4820,14 +7247,29 @@ function getFunctionResultBasePaths(
   let argScope = scope;
 
   if (partialBinding) {
+    if (partialBinding.partial.procedure.type !== "variable") {
+      return getFunctionResultBasePaths(
+        {
+          ...node,
+          procedure: partialBinding.partial.procedure,
+          arguments: applyPartialArguments(partialBinding.partial, node.arguments),
+        },
+        partialBinding.scope,
+      );
+    }
     funcName = partialBinding.partial.procedure.value;
     args = applyPartialArguments(partialBinding.partial, node.arguments);
     argScope = partialBinding.scope;
   }
+  args = withImplicitRootFunctionArgument(funcName, args, node.position);
 
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {
     return getCustomFunctionResultBasePaths(lambdaBinding, args, argScope);
+  }
+
+  if (resolveTransform(argScope, funcName)) {
+    return args[0] ? getResultBasePathsFromArg(args[0], argScope) : [];
   }
 
   if (funcName === "map" || funcName === "each") {
@@ -4855,8 +7297,21 @@ function getCustomFunctionResultBasePaths(
   binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
+  defaultsApplied = false,
 ): string[] {
   const { lambda, scope } = binding;
+  if (!defaultsApplied) {
+    const variants = lambdaContextDefaultArgumentVariants(lambda, callArgs);
+    if (variants.length > 1 || variants[0] !== callArgs) {
+      return [
+        ...new Set(
+          variants.flatMap((args) =>
+            getCustomFunctionResultBasePaths(binding, args, callScope, true),
+          ),
+        ),
+      ];
+    }
+  }
   let lambdaScope = childScope(scope);
 
   for (let i = 0; i < lambda.arguments.length; i++) {
@@ -4880,33 +7335,39 @@ function getCallbackResultBasePaths(
   args: AstNode[],
   scope: ScopeTracker,
 ): string[] {
-  const callback = findHigherOrderCallback(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
   if (!callback) return [];
 
   const dataArg = args[0];
-  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
-  let lambdaScope = childScope(callback.scope);
-
-  for (let i = 0; i < callback.lambda.arguments.length; i++) {
-    const param = callback.lambda.arguments[i];
-    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
-
-    if (!role) continue;
-    lambdaScope = bindHigherOrderParameter(
-      lambdaScope,
-      funcName,
-      param,
-      role,
-      dataArgPaths,
-      dataArg,
-      scope,
-    );
-  }
-
-  return resolveCallbackParentPaths(
-    bindingAliasPaths(callback.lambda.body, lambdaScope),
-    dataArgPaths,
+  const dataArgPaths = higherOrderCallbackDataPaths(
+    funcName,
+    dataArg,
+    scope,
   );
+  return [
+    ...callback.bindings.flatMap((binding) => {
+      const lambdaScope = bindHigherOrderLambdaCallbackScope(
+        funcName,
+        binding,
+        dataArgPaths,
+        dataArg,
+        scope,
+      );
+      return resolveCallbackParentPaths(
+        bindingAliasPaths(binding.lambda.body, lambdaScope),
+        dataArgPaths,
+      );
+    }),
+    ...(funcName === "map"
+      ? higherOrderPartialLambdaCalls(callback, dataArg).flatMap((call) =>
+          getCustomFunctionResultBasePaths(
+            call.binding,
+            call.arguments,
+            scope,
+          ),
+        )
+      : []),
+  ];
 }
 
 function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
@@ -4968,6 +7429,44 @@ function getFunctionResultSuffixBasePaths(
       scope,
     );
   }
+  if (func.procedure.type === "transform") {
+    return func.arguments[0]
+      ? getResultSuffixBasePaths(func.arguments[0], scope)
+      : [];
+  }
+  if (func.procedure.type === "condition") {
+    return conditionalProcedureCalls(func).flatMap((call) =>
+      getFunctionResultSuffixBasePaths(call, scope),
+    );
+  }
+  if (
+    func.procedure.type === "function" ||
+    func.procedure.type === "block" ||
+    func.procedure.type === "path"
+  ) {
+    return resolveCallableValues(func.procedure, scope).flatMap((callable) => {
+      if (callable.kind === "lambda") {
+        return getCustomFunctionResultSuffixBasePaths(
+          callable.binding,
+          func.arguments,
+          scope,
+        );
+      }
+      if (callable.kind === "transform") {
+        return func.arguments[0]
+          ? getResultSuffixBasePaths(func.arguments[0], scope)
+          : [];
+      }
+      return getFunctionResultSuffixBasePaths(
+        {
+          ...func,
+          procedure: callable.binding.partial.procedure,
+          arguments: applyPartialArguments(callable.binding.partial, func.arguments),
+        },
+        callable.binding.scope,
+      );
+    });
+  }
 
   const partialBinding = resolvePartial(scope, func.procedure.value);
   let funcName = func.procedure.value;
@@ -4975,14 +7474,29 @@ function getFunctionResultSuffixBasePaths(
   let argScope = scope;
 
   if (partialBinding) {
+    if (partialBinding.partial.procedure.type !== "variable") {
+      return getFunctionResultSuffixBasePaths(
+        {
+          ...func,
+          procedure: partialBinding.partial.procedure,
+          arguments: applyPartialArguments(partialBinding.partial, func.arguments),
+        },
+        partialBinding.scope,
+      );
+    }
     funcName = partialBinding.partial.procedure.value;
     args = applyPartialArguments(partialBinding.partial, func.arguments);
     argScope = partialBinding.scope;
   }
+  args = withImplicitRootFunctionArgument(funcName, args, func.position);
 
   const lambdaBinding = resolveLambda(argScope, funcName);
   if (lambdaBinding) {
     return getCustomFunctionResultSuffixBasePaths(lambdaBinding, args, argScope);
+  }
+
+  if (resolveTransform(argScope, funcName)) {
+    return args[0] ? getResultSuffixBasePaths(args[0], argScope) : [];
   }
 
   if (funcName === "map" || funcName === "each") {
@@ -5104,8 +7618,26 @@ function getCustomFunctionResultSuffixBasePaths(
   binding: LambdaBinding,
   callArgs: AstNode[],
   callScope: ScopeTracker,
+  defaultsApplied = false,
 ): string[] {
   const { lambda, scope } = binding;
+  if (!defaultsApplied) {
+    const variants = lambdaContextDefaultArgumentVariants(lambda, callArgs);
+    if (variants.length > 1 || variants[0] !== callArgs) {
+      return [
+        ...new Set(
+          variants.flatMap((args) =>
+            getCustomFunctionResultSuffixBasePaths(
+              binding,
+              args,
+              callScope,
+              true,
+            ),
+          ),
+        ),
+      ];
+    }
+  }
   let lambdaScope = childScope(scope);
 
   for (let i = 0; i < lambda.arguments.length; i++) {
@@ -5125,30 +7657,38 @@ function getCallbackResultSuffixBasePaths(
   args: AstNode[],
   scope: ScopeTracker,
 ): string[] {
-  const callback = findHigherOrderCallback(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
   if (!callback) return [];
 
   const dataArg = args[0];
-  const dataArgPaths = dataArg ? extractBasePaths(dataArg, scope) : [];
-  let lambdaScope = childScope(callback.scope);
-
-  for (let i = 0; i < callback.lambda.arguments.length; i++) {
-    const param = callback.lambda.arguments[i];
-    const role = HIGHER_ORDER_SEMANTICS[funcName][i];
-
-    if (!role) continue;
-    lambdaScope = bindHigherOrderParameter(
-      lambdaScope,
-      funcName,
-      param,
-      role,
-      dataArgPaths,
-      dataArg,
-      scope,
-    );
-  }
-
-  return getResultSuffixBasePaths(callback.lambda.body, lambdaScope);
+  const dataArgPaths = higherOrderCallbackDataPaths(
+    funcName,
+    dataArg,
+    scope,
+  );
+  return [
+    ...callback.bindings.flatMap((binding) =>
+      getResultSuffixBasePaths(
+        binding.lambda.body,
+        bindHigherOrderLambdaCallbackScope(
+          funcName,
+          binding,
+          dataArgPaths,
+          dataArg,
+          scope,
+        ),
+      ),
+    ),
+    ...(funcName === "map"
+      ? higherOrderPartialLambdaCalls(callback, dataArg).flatMap((call) =>
+          getCustomFunctionResultSuffixBasePaths(
+            call.binding,
+            call.arguments,
+            scope,
+          ),
+        )
+      : []),
+  ];
 }
 
 function getBlockResultSuffixBasePaths(
@@ -5187,21 +7727,12 @@ function getBlockResultSuffixBasePaths(
         closureScope,
       );
 
-      if (bindNode.rhs.type === "lambda") {
-        currentScope = bindLambda(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as LambdaNode,
-          closureScope,
-        );
-      } else if (bindNode.rhs.type === "partial") {
-        currentScope = bindPartial(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as PartialNode,
-          closureScope,
-        );
-      }
+      currentScope = bindCallableValue(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
     } else if (expr.type === "block") {
       result = getBlockResultSuffixBasePaths(expr as BlockNode, childScope(currentScope));
     } else {
@@ -5296,18 +7827,18 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   }
 
   if (!staticSelector && paths.length === 0 && !objectAlias && !dynamicObjectAlias) {
-    const basePaths = isRootReference(objectArg)
-      ? [ROOT_PATH]
-      : getResultBasePathsFromArg(objectArg, scope);
+    const basePaths =
+      identityReferencePaths(objectArg, scope) ??
+      getResultBasePathsFromArg(objectArg, scope);
     paths.push(...basePaths.map(appendDynamicLookupMarker));
   }
 
   if (paths.length > 0) return paths;
   if (objectArg.type === "object" && (objectAlias || dynamicObjectAlias)) return [];
 
-  const basePaths = isRootReference(objectArg)
-    ? [ROOT_PATH]
-    : getResultBasePathsFromArg(objectArg, scope);
+  const basePaths =
+    identityReferencePaths(objectArg, scope) ??
+    getResultBasePathsFromArg(objectArg, scope);
   return staticSelector
     ? basePaths.map((path) => appendPath(path, staticSelector))
     : basePaths;
@@ -5428,21 +7959,12 @@ function lookupPathValueAliasBasePathsFromNode(
         closureScope,
       );
 
-      if (bindNode.rhs.type === "lambda") {
-        currentScope = bindLambda(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as LambdaNode,
-          closureScope,
-        );
-      } else if (bindNode.rhs.type === "partial") {
-        currentScope = bindPartial(
-          currentScope,
-          bindNode.lhs.value,
-          bindNode.rhs as PartialNode,
-          closureScope,
-        );
-      }
+      currentScope = bindCallableValue(
+        currentScope,
+        bindNode.lhs.value,
+        bindNode.rhs,
+        closureScope,
+      );
     }
 
     return result;
@@ -5515,7 +8037,8 @@ function getMergeResultBasePaths(node: AstNode, scope: ScopeTracker): string[] {
 }
 
 function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[] {
-  if (isRootReference(node)) return [ROOT_PATH];
+  const identityPaths = identityReferencePaths(node, scope);
+  if (identityPaths) return identityPaths;
 
   if (node.type === "function") {
     const paths = getFunctionResultBasePaths(node as FunctionNode, scope);
@@ -5611,6 +8134,8 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
   } else if (node.rhs.type === "transform") {
     const transformNode = node.rhs as TransformNode;
     const transformPaths = walkTransform(transformNode, scope);
+    const transformBasePaths = extractBasePaths(node.lhs, scope);
+    if (transformBasePaths.includes(ROOT_PATH)) paths.push("**");
     const aliasContextPaths = transformApplyAliasContextPaths(
       transformNode,
       transformPaths,
@@ -5622,7 +8147,6 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
       paths.push(...aliasContextPaths);
       return paths;
     }
-    const transformBasePaths = extractBasePaths(node.lhs, scope);
     const transformPrefixes =
       transformBasePaths.length > 0 ? transformBasePaths : [lhsPaths[0] ?? ""];
     paths.push(

@@ -112,6 +112,15 @@ describe("extractPaths", () => {
       );
       expect(result).toHaveLength(3);
     });
+
+    it("summarizes deep equality reads of the document root", () => {
+      expect(extractPaths('$ = {"name": "root-name"}')).toEqual([
+        { path: "**", confidence: "static" },
+      ]);
+      expect(extractPaths('{"name": "root-name"} != $$')).toEqual([
+        { path: "**", confidence: "static" },
+      ]);
+    });
   });
 
   // ---------- EXPR-02: Conditional expression paths ----------
@@ -378,6 +387,7 @@ describe("extractPaths", () => {
     it('resolves $each value: "$each(data, function($v, $k) { $v })"', () => {
       expect(extractPaths("$each(data, function($v, $k) { $v })")).toEqual([
         { path: "data", confidence: "static" },
+        { path: "data.*", confidence: "static" },
       ]);
     });
   });
@@ -387,7 +397,10 @@ describe("extractPaths", () => {
     it('resolves $sift value: "$sift(record, function($v, $k) { $v > 10 })"', () => {
       expect(
         extractPaths("$sift(record, function($v, $k) { $v > 10 })"),
-      ).toEqual([{ path: "record", confidence: "static" }]);
+      ).toEqual([
+        { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+      ]);
     });
   });
 
@@ -537,7 +550,7 @@ describe("extractPaths", () => {
     it('focus variable binding: "items@$v[type = \\"A\\"]"', () => {
       const result = extractPaths('items@$v[type = "A"]');
       expect(result).toContainEqual({ path: "items", confidence: "static" });
-      expect(result).toContainEqual({ path: "items.type", confidence: "static" });
+      expect(result).toContainEqual({ path: "type", confidence: "static" });
     });
   });
 

@@ -10,6 +10,17 @@ describe("transform semantics", () => {
     });
   });
 
+  it("preserves inline transform procedures while normalizing calls and partials", () => {
+    expect(parse('|first|{"seen": name}|(record)')).toMatchObject({
+      type: "function",
+      procedure: { type: "transform" },
+    });
+    expect(parse('|first|{"seen": name}|(?)')).toMatchObject({
+      type: "partial",
+      procedure: { type: "transform" },
+    });
+  });
+
   it("extracts piped transform input, location, and update reads", () => {
     expect(
       sortPaths(
@@ -20,6 +31,616 @@ describe("transform semantics", () => {
         { path: "payload", confidence: "static" },
         { path: "payload.Account.Order.Product", confidence: "static" },
         { path: "payload.Account.Order.Product.Price", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves the whole document dependency when transforming the root", () => {
+    expect(
+      sortPaths(extractPaths('$ ~> |Account|{"name": name}|')),
+    ).toEqual(
+      sortPaths([
+        { path: "**", confidence: "static" },
+        { path: "Account", confidence: "static" },
+        { path: "Account.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not execute a transform when it is only bound as a value", () => {
+    expect(extractPaths('($t := |first|{"seen": name}|; 1)')).toEqual([]);
+  });
+
+  it("executes a variable-bound transform against its call argument", () => {
+    expect(
+      sortPaths(
+        extractPaths('($t := |first|{"seen": name}|; $t(record).first.seen)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves the whole document when a variable-bound transform receives root", () => {
+    expect(
+      sortPaths(extractPaths('($t := |record.first|{"seen": name}|; $t($))')),
+    ).toEqual(
+      sortPaths([
+        { path: "**", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("rebases a variable-bound transform used as a path function step", () => {
+    expect(
+      sortPaths(extractPaths('($t := |first|{"seen": name}|; account.$t($))')),
+    ).toEqual(
+      sortPaths([
+        { path: "account", confidence: "static" },
+        { path: "account.first", confidence: "static" },
+        { path: "account.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps reads of unchanged fields selected from a transform result", () => {
+    expect(
+      sortPaths(
+        extractPaths('($t := |first|{"seen": name}|; $t(record).second.name)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.second.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps captured transform reads absolute at the call site", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($suffix := config.suffix; $t := |first|{"seen": $suffix}|; $t(record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.suffix", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps a suffix on a written transform value back to its source", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($t := |first|{"seen": detail}|; $t(record).first.seen.rank)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps a suffix through an object constructed by a transform update", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($t := |first|{"seen": {"rank": detail.rank}}|; $t(record).first.seen.rank)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a variable-bound transform used as a map callback", () => {
+    expect(
+      sortPaths(
+        extractPaths('($t := |first|{"seen": name}|; $map([record], $t))'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("traces a transform callback through a map result selection", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($t := |first|{"seen": name}|; $map([record], $t).first.seen)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps a deep map-transform result selection back to its update source", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($t := |first|{"seen": detail}|; $map([record], $t).first.seen.rank)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a transform callback in a piped map call", () => {
+    expect(
+      sortPaths(
+        extractPaths('($t := |first|{"seen": name}|; [record] ~> $map($t))'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes inline and selected transform values as map callbacks", () => {
+    for (const expression of [
+      '$map([record], |first|{"seen": name}|).first.seen',
+      '[record] ~> $map(|first|{"seen": name}|).first.seen',
+      '($ts := [|first|{"seen": name}|]; $map([record], $ts[0]).first.seen)',
+      '$map([record], $lookup({"apply": |first|{"seen": name}|}, "apply")).first.seen',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "record", confidence: "static" },
+          { path: "record.first", confidence: "static" },
+          { path: "record.first.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("traces all transform-only conditional map callback branches", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], config.enabled ? |first|{"seen": name}| : |first|{"seen": detail}|).first.seen',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("traces mixed transform and lambda map callback branches", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], config.enabled ? |first|{"seen": name}| : function($x){$x.first.detail.rank})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps deep inline transform callback results to their update sources", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], |first|{"seen": detail}|).first.seen.rank',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes inline and bound transform partials as map callbacks", () => {
+    for (const expression of [
+      '$map([record], |first|{"seen": name}|(?)).first.seen',
+      '($p := |first|{"seen": name}|(?); $map([record], $p).first.seen)',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "record", confidence: "static" },
+          { path: "record.first", confidence: "static" },
+          { path: "record.first.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$map([record], |first|{"seen": detail}|(?)).first.seen.rank',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes an inline transform function", () => {
+    expect(
+      sortPaths(extractPaths('|first|{"seen": name}|(record)')),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a parenthesized inline transform function", () => {
+    expect(
+      sortPaths(extractPaths('(|first|{"seen": name}|)(record)')),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes an inline transform through partial application", () => {
+    expect(
+      sortPaths(
+        extractPaths('($p := |first|{"seen": name}|(?); $p(record))'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps a written result selected from an inline transform", () => {
+    expect(
+      sortPaths(
+        extractPaths('|first|{"seen": name}|(record).first.seen'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps a written result selected from an inline transform partial", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($p := |first|{"seen": name}|(?); $p(record).first.seen)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("traces a transform selected by a conditional procedure", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '(config.enabled ? |first|{"seen": name}| : function($x){$x})(record)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps output selections through every transform-only conditional branch", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '(config.enabled ? |first|{"seen": detail}| : |first|{"seen": name}|)(record).first.seen.rank',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.detail", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.first.name.rank", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("traces a conditional transform through partial application", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($p := (config.enabled ? |first|{"seen": name}| : function($x){$x})(?); $p(record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("reads a conditional procedure when creating an unused partial", () => {
+    expect(
+      extractPaths(
+        '($p := (config.enabled ? |first|{"seen": name}| : function($x){$x})(?); 1)',
+      ),
+    ).toEqual([{ path: "config.enabled", confidence: "static" }]);
+  });
+
+  it("does not execute a transform merely returned by a function", () => {
+    expect(
+      extractPaths('($maker := function(){|first|{"seen": name}|}; $maker())'),
+    ).toEqual([]);
+  });
+
+  it("executes a transform returned by a custom function", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($maker := function(){|first|{"seen": name}|}; $maker()(record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a transform returned by an inline function", () => {
+    expect(
+      sortPaths(
+        extractPaths('(function(){|first|{"seen": name}|})()(record)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("traces selection used to return a transform", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($maker := function($flag){$flag ? |first|{"seen": name}| : function($x){$x}}; $maker(config.enabled)(record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.enabled", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("does not execute transforms stored in an unused array", () => {
+    expect(
+      extractPaths('($transforms := [|first|{"seen": name}|]; 1)'),
+    ).toEqual([]);
+  });
+
+  it("does not execute transforms while constructing callable containers", () => {
+    expect(extractPaths('[|first|{"seen": name}|]')).toEqual([]);
+    expect(extractPaths('{"apply": |first|{"seen": name}|}')).toEqual([]);
+  });
+
+  it("does not execute callable branches when only selecting a function value", () => {
+    expect(
+      extractPaths(
+        'config.enabled ? |first|{"seen": name}| : function($x){$x.first.name}',
+      ),
+    ).toEqual([{ path: "config.enabled", confidence: "static" }]);
+  });
+
+  it("executes a transform selected from a stored array", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($transforms := [|first|{"seen": name}|]; $transforms[0](record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("reads a dynamic index used to select a stored transform", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($transforms := [|first|{"seen": name}|]; $transforms[config.index](record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.index", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a transform selected from an inline object", () => {
+    expect(
+      sortPaths(
+        extractPaths('({"apply": |first|{"seen": name}|}.apply)(record)'),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a transform selected from a stored object", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := {"apply": |first|{"seen": name}|}; $operations.apply(record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a transform selected by static lookup", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$lookup({"apply": |first|{"seen": name}|}, "apply")(record)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("executes a stored transform selected by dynamic lookup", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := {"apply": |first|{"seen": name}|}; $lookup($operations, config.operation)(record))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.operation", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("maps stored-object transform output fields back to their update sources", () => {
+    for (const expression of [
+      '({"apply": |first|{"seen": name}|}.apply)(record).first.seen',
+      '($operations := {"apply": |first|{"seen": name}|}; $operations.apply(record).first.seen)',
+      '$lookup({"apply": |first|{"seen": name}|}, "apply")(record).first.seen',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "record", confidence: "static" },
+          { path: "record.first", confidence: "static" },
+          { path: "record.first.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("maps dynamically looked-up transform output fields back to their update sources", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := {"apply": |first|{"seen": name}|}; $lookup($operations, config.operation)(record).first.seen)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.operation", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
       ]),
     );
   });
@@ -245,7 +866,7 @@ describe("transform semantics", () => {
     ]);
   });
 
-  it("extracts nested transform reads under the piped input", () => {
+  it("does not execute a nested transform stored by a piped update", () => {
     expect(
       sortPaths(
         extractPaths('payload ~> |Account|{"order": |Order|{"total": Price * Qty}|}|'),
@@ -254,9 +875,6 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "payload", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
-        { path: "payload.Account.Order", confidence: "static" },
-        { path: "payload.Account.Order.Price", confidence: "static" },
-        { path: "payload.Account.Order.Qty", confidence: "static" },
       ]),
     );
   });

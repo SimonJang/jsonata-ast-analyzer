@@ -252,7 +252,6 @@ describe("Data Export", () => {
           { path: "items", confidence: "static" },
           { path: "items.category", confidence: "static" },
           { path: "items.price", confidence: "static" },
-          { path: "record", confidence: "static" },
         ],
       },
     ];
