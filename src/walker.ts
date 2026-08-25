@@ -7824,16 +7824,18 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   const builtinPaths =
     dataArg && accumulatorArg
       ? builtinCallbacks.flatMap((name) =>
-          getFunctionResultBasePaths(
-            {
-              type: "function",
-              value: "(",
-              position: 0,
-              procedure: { type: "variable", value: name, position: 0 },
-              arguments: [accumulatorArg, dataArg],
-            },
-            scope,
-          ),
+          PATH_PRESERVING_RESULT_FUNCTIONS.has(name)
+            ? [...accumulatorPaths, ...dataArgPaths]
+            : getFunctionResultBasePaths(
+                {
+                  type: "function",
+                  value: "(",
+                  position: 0,
+                  procedure: { type: "variable", value: name, position: 0 },
+                  arguments: [accumulatorArg, dataArg],
+                },
+                scope,
+              ),
         )
       : [];
   return [...lambdaPaths, ...builtinPaths];
