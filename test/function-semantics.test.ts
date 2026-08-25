@@ -744,6 +744,19 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves group reads from a path-context lookup result", () => {
+    expect(
+      sortPaths(extractPaths('record.$lookup("first"){name:detail.rank}')),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves explicit root object reads", () => {
     for (const expression of [
       "$keys($)",

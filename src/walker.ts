@@ -3091,7 +3091,7 @@ function walkPath(node: PathNode, scope: ScopeTracker): string[] {
       rhs: lookup,
     };
     const suffixSteps = node.steps.slice(contextDefaultLookupIndex + 1);
-    return suffixSteps.length === 0
+    return suffixSteps.length === 0 && !node.group
       ? walkApply(apply, scope)
       : walkPath({ ...node, steps: [apply, ...suffixSteps] }, scope);
   }
