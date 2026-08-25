@@ -6520,8 +6520,23 @@ function higherOrderCallbackDataPaths(
 function higherOrderCallbackDataNodes(
   funcName: "map" | "each",
   dataArg: AstNode | undefined,
+  scope: ScopeTracker,
+  resolvingVariables = new Set<string>(),
 ): AstNode[] {
   if (!dataArg) return [];
+  if (funcName === "each" && dataArg.type === "variable") {
+    const name = (dataArg as VariableNode).value;
+    if (resolvingVariables.has(name)) return [dataArg];
+    const binding = resolveValue(scope, name);
+    if (binding) {
+      return higherOrderCallbackDataNodes(
+        funcName,
+        binding.node,
+        binding.scope,
+        new Set([...resolvingVariables, name]),
+      );
+    }
+  }
   if (funcName === "each" && dataArg.type === "object") {
     return (dataArg as ObjectNode).entries.map(([, value]) => value);
   }
@@ -7370,7 +7385,7 @@ function getCallbackResultObjectAlias(
           )
         : []),
       ...builtinCallbacks.flatMap((name) =>
-        higherOrderCallbackDataNodes(funcName, dataArg).map((callbackDataArg) =>
+        higherOrderCallbackDataNodes(funcName, dataArg, scope).map((callbackDataArg) =>
           getFunctionResultObjectAlias(
             {
               type: "function",
@@ -7429,7 +7444,7 @@ function getCallbackResultDynamicObjectAlias(
           )
         : []),
       ...builtinCallbacks.flatMap((name) =>
-        higherOrderCallbackDataNodes(funcName, dataArg).map((callbackDataArg) =>
+        higherOrderCallbackDataNodes(funcName, dataArg, scope).map((callbackDataArg) =>
           getFunctionResultDynamicObjectAlias(
             {
               type: "function",
@@ -8216,7 +8231,7 @@ function getCallbackResultSuffixBasePaths(
         )
       : []),
     ...builtinCallbacks.flatMap((name) =>
-      higherOrderCallbackDataNodes(funcName, dataArg).flatMap((callbackDataArg) =>
+      higherOrderCallbackDataNodes(funcName, dataArg, scope).flatMap((callbackDataArg) =>
           getFunctionResultSuffixBasePaths(
             {
               type: "function",
