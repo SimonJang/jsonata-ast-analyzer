@@ -6636,8 +6636,9 @@ function higherOrderCallbackDataNodes(
       );
     }
     if (
-      functionNode.procedure.type === "variable" &&
-      ["clone", "sift"].includes(functionNode.procedure.value) &&
+      resolveBuiltinCallableNames(functionNode.procedure, scope).some((name) =>
+        ["clone", "sift"].includes(name),
+      ) &&
       functionNode.arguments[0]
     ) {
       return higherOrderCallbackDataNodes(
