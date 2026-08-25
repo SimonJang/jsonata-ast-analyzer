@@ -1112,19 +1112,25 @@ function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | n
   if (node.type === "path") return objectAliasFromPathProjection(node as PathNode, scope);
   if (node.type === "array") {
     return mergeObjectAliases(
-      (node as ArrayNode).expressions.map((expr) => objectAliasForNode(expr, scope)),
+      (node as ArrayNode).expressions.map((expr) =>
+        groupResultObjectAliasForNode(expr, scope),
+      ),
     );
   }
   if (node.type === "condition") {
     const condition = node as ConditionNode;
     return mergeObjectAliases([
-      objectAliasForNode(condition.then, scope),
-      condition.else ? objectAliasForNode(condition.else, scope) : null,
+      groupResultObjectAliasForNode(condition.then, scope),
+      condition.else
+        ? groupResultObjectAliasForNode(condition.else, scope)
+        : null,
     ]);
   }
   if (node.type === "lambda") {
     const lambda = node as LambdaNode;
-    return lambda.thunk ? objectAliasForNode(lambda.body, scope) : null;
+    return lambda.thunk
+      ? groupResultObjectAliasForNode(lambda.body, scope)
+      : null;
   }
   if (node.type === "function") {
     return getFunctionResultObjectAlias(node as FunctionNode, scope);
@@ -1170,9 +1176,9 @@ function objectAliasFromBlock(node: BlockNode, scope: ScopeTracker): ObjectAlias
         bindNode.rhs,
         closureScope,
       );
-      result = objectAliasForNode(bindNode.rhs, closureScope);
+      result = groupResultObjectAliasForNode(bindNode.rhs, closureScope);
     } else {
-      result = objectAliasForNode(expr, currentScope);
+      result = groupResultObjectAliasForNode(expr, currentScope);
     }
   }
 
@@ -1960,7 +1966,7 @@ function dynamicObjectSource(node: AstNode, scope: ScopeTracker): DynamicObjectA
     if (isLast) {
       return expr.type === "object"
         ? dynamicObjectAliasFromObject(expr as ObjectNode, currentScope)
-        : dynamicObjectAliasForNode(expr, currentScope);
+        : groupResultDynamicObjectAliasForNode(expr, currentScope);
     }
 
     if (expr.type === "bind") {
@@ -2014,20 +2020,24 @@ function dynamicObjectAliasForNode(
   if (node.type === "condition") {
     const condition = node as ConditionNode;
     return mergeDynamicObjectAliases([
-      dynamicObjectAliasForNode(condition.then, scope),
-      condition.else ? dynamicObjectAliasForNode(condition.else, scope) : null,
+      groupResultDynamicObjectAliasForNode(condition.then, scope),
+      condition.else
+        ? groupResultDynamicObjectAliasForNode(condition.else, scope)
+        : null,
     ]);
   }
   if (node.type === "array") {
     return mergeDynamicObjectAliases(
       (node as ArrayNode).expressions.map((expr) =>
-        dynamicObjectAliasForNode(expr, scope),
+        groupResultDynamicObjectAliasForNode(expr, scope),
       ),
     );
   }
   if (node.type === "lambda") {
     const lambda = node as LambdaNode;
-    return lambda.thunk ? dynamicObjectAliasForNode(lambda.body, scope) : null;
+    return lambda.thunk
+      ? groupResultDynamicObjectAliasForNode(lambda.body, scope)
+      : null;
   }
   if (node.type === "function") {
     return getFunctionResultDynamicObjectAlias(node as FunctionNode, scope);
@@ -2090,6 +2100,15 @@ function groupResultSuffixBasePaths(
   return (node as AstNode & { group?: GroupByNode }).group
     ? []
     : getResultSuffixBasePaths(node, scope);
+}
+
+function groupResultSuffixableBasePaths(
+  node: AstNode,
+  scope: ScopeTracker,
+): string[] {
+  return (node as AstNode & { group?: GroupByNode }).group
+    ? []
+    : getSuffixableResultBasePaths(node, scope);
 }
 
 function bindObjectAliasIfPresent(
@@ -7678,7 +7697,9 @@ function getFunctionResultObjectAlias(
     );
   }
   if (node.procedure.type === "transform") {
-    return node.arguments[0] ? objectAliasForNode(node.arguments[0], scope) : null;
+    return node.arguments[0]
+      ? groupResultObjectAliasForNode(node.arguments[0], scope)
+      : null;
   }
   if (node.procedure.type === "condition") {
     return mergeObjectAliases(
@@ -7704,7 +7725,7 @@ function getFunctionResultObjectAlias(
         }
         if (callable.kind === "transform") {
           return node.arguments[0]
-            ? objectAliasForNode(node.arguments[0], scope)
+            ? groupResultObjectAliasForNode(node.arguments[0], scope)
             : null;
         }
         return getFunctionResultObjectAlias(
@@ -7767,7 +7788,7 @@ function getFunctionResultObjectAlias(
   }
 
   if (resolveTransform(argScope, funcName)) {
-    return args[0] ? objectAliasForNode(args[0], argScope) : null;
+    return args[0] ? groupResultObjectAliasForNode(args[0], argScope) : null;
   }
 
   if (funcName === "eval") {
@@ -7787,9 +7808,13 @@ function getFunctionResultObjectAlias(
 
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return null;
   if (funcName === "append" || funcName === "zip") {
-    return mergeObjectAliases(args.map((arg) => objectAliasForNode(arg, argScope)));
+    return mergeObjectAliases(
+      args.map((arg) => groupResultObjectAliasForNode(arg, argScope)),
+    );
   }
-  return args.length > 0 ? objectAliasForNode(args[0], argScope) : null;
+  return args.length > 0
+    ? groupResultObjectAliasForNode(args[0], argScope)
+    : null;
 }
 
 function getFunctionResultDynamicObjectAlias(
@@ -7805,7 +7830,7 @@ function getFunctionResultDynamicObjectAlias(
   }
   if (node.procedure.type === "transform") {
     return node.arguments[0]
-      ? dynamicObjectAliasForNode(node.arguments[0], scope)
+      ? groupResultDynamicObjectAliasForNode(node.arguments[0], scope)
       : null;
   }
   if (node.procedure.type === "condition") {
@@ -7832,7 +7857,7 @@ function getFunctionResultDynamicObjectAlias(
         }
         if (callable.kind === "transform") {
           return node.arguments[0]
-            ? dynamicObjectAliasForNode(node.arguments[0], scope)
+            ? groupResultDynamicObjectAliasForNode(node.arguments[0], scope)
             : null;
         }
         return getFunctionResultDynamicObjectAlias(
@@ -7895,7 +7920,9 @@ function getFunctionResultDynamicObjectAlias(
   }
 
   if (resolveTransform(argScope, funcName)) {
-    return args[0] ? dynamicObjectAliasForNode(args[0], argScope) : null;
+    return args[0]
+      ? groupResultDynamicObjectAliasForNode(args[0], argScope)
+      : null;
   }
 
   if (funcName === "eval") {
@@ -7916,10 +7943,12 @@ function getFunctionResultDynamicObjectAlias(
   if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return null;
   if (funcName === "append" || funcName === "zip") {
     return mergeDynamicObjectAliases(
-      args.map((arg) => dynamicObjectAliasForNode(arg, argScope)),
+      args.map((arg) => groupResultDynamicObjectAliasForNode(arg, argScope)),
     );
   }
-  return args.length > 0 ? dynamicObjectAliasForNode(args[0], argScope) : null;
+  return args.length > 0
+    ? groupResultDynamicObjectAliasForNode(args[0], argScope)
+    : null;
 }
 
 function getCustomFunctionResultObjectAlias(
@@ -8743,7 +8772,7 @@ function getFunctionResultSuffixBasePaths(
   }
 
   if (resolveTransform(argScope, funcName)) {
-    return args[0] ? getResultSuffixBasePaths(args[0], argScope) : [];
+    return args[0] ? groupResultSuffixBasePaths(args[0], argScope) : [];
   }
 
   if (funcName === "eval") {
@@ -8770,10 +8799,12 @@ function getFunctionResultSuffixBasePaths(
   }
 
   if (funcName === "append" || funcName === "zip") {
-    return args.flatMap((arg) => getSuffixableResultBasePaths(arg, argScope));
+    return args.flatMap((arg) =>
+      groupResultSuffixableBasePaths(arg, argScope),
+    );
   }
 
-  return args[0] ? getResultSuffixBasePaths(args[0], argScope) : [];
+  return args[0] ? groupResultSuffixBasePaths(args[0], argScope) : [];
 }
 
 function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
@@ -8789,8 +8820,10 @@ function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] 
   if (node.type === "condition") {
     const condition = node as ConditionNode;
     return [
-      ...getSuffixableResultBasePaths(condition.then, scope),
-      ...(condition.else ? getSuffixableResultBasePaths(condition.else, scope) : []),
+      ...groupResultSuffixableBasePaths(condition.then, scope),
+      ...(condition.else
+        ? groupResultSuffixableBasePaths(condition.else, scope)
+        : []),
     ];
   }
 
@@ -8809,7 +8842,7 @@ function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] 
 
   if (node.type === "array") {
     return (node as ArrayNode).expressions.flatMap((expr) =>
-      getResultSuffixBasePaths(expr, scope),
+      groupResultSuffixBasePaths(expr, scope),
     );
   }
 
@@ -8823,7 +8856,7 @@ function getReduceInitialSuffixBasePaths(
   const accumulatorArg = args[2] ?? args[0];
   if (!accumulatorArg) return [];
 
-  return getSuffixableResultBasePaths(accumulatorArg, scope);
+  return groupResultSuffixableBasePaths(accumulatorArg, scope);
 }
 
 function getReduceCallbackResultSuffixBasePaths(
@@ -9105,7 +9138,7 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
 
   paths.push(...pathValueAliasBases);
 
-  const objectAlias = objectAliasForNode(objectArg, scope);
+  const objectAlias = groupResultObjectAliasForNode(objectArg, scope);
   const objectPaths =
     objectArg.type === "variable" && pathValueAliasBases.length === 0 && objectAlias
       ? selectObjectAliasPaths(objectAlias, selectorSteps)
@@ -9119,7 +9152,7 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   const suffixBasePaths =
     objectArg.type === "variable"
       ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
-      : getResultSuffixBasePaths(objectArg, scope);
+      : groupResultSuffixBasePaths(objectArg, scope);
   if (objectArg.type !== "object" && suffixBasePaths.length > 0 && suffix) {
     paths.push(
       ...suffixBasePaths
@@ -9130,7 +9163,10 @@ function getLookupResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
     );
   }
 
-  const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
+  const dynamicObjectAlias = groupResultDynamicObjectAliasForNode(
+    objectArg,
+    scope,
+  );
   if (dynamicObjectAlias) {
     paths.push(...selectLookupDynamicObjectAliasPaths(dynamicObjectAlias, []));
   }
@@ -9164,15 +9200,18 @@ function getLookupResultSuffixBasePaths(
   const staticSelector =
     args[1]?.type === "string" ? buildPathString(selectorSteps) : null;
   const pathValueAliasBases = lookupPathValueAliasBasePaths(args, scope);
-  const objectAlias = objectAliasForNode(objectArg, scope);
-  const dynamicObjectAlias = dynamicObjectAliasForNode(objectArg, scope);
+  const objectAlias = groupResultObjectAliasForNode(objectArg, scope);
+  const dynamicObjectAlias = groupResultDynamicObjectAliasForNode(
+    objectArg,
+    scope,
+  );
   const objectAliasBases = new Set(
     objectAlias ? [...objectAlias.values()].flatMap((basePaths) => [...basePaths]) : [],
   );
   const suffixBasePaths =
     objectArg.type === "variable"
       ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
-      : getResultSuffixBasePaths(objectArg, scope);
+      : groupResultSuffixBasePaths(objectArg, scope);
   const pathLikeBases =
     objectArg.type === "object"
       ? []

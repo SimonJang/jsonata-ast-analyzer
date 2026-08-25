@@ -247,6 +247,43 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves grouped aliases through direct and builtin result channels", () => {
+    for (const expression of [
+      "(items{category: detail}).a.rank",
+      '$lookup(items{category: detail}, "a").rank',
+      "$filter(items{category: detail}, function($v){true}).a.rank",
+      "$sort(items{category: detail}, function($l,$r){0}).a.rank",
+      "$sift(items{category: detail}, function($v){true}).a.rank",
+      "$spread(items{category: detail}).a.rank",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "items", confidence: "static" },
+          { path: "items.category", confidence: "static" },
+          { path: "items.detail", confidence: "static" },
+          { path: "items.detail.rank", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "$append(items{category: detail}, fallback).a.rank",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.a.rank", confidence: "static" },
+        { path: "items", confidence: "static" },
+        { path: "items.category", confidence: "static" },
+        { path: "items.detail", confidence: "static" },
+        { path: "items.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("injects path context into built-ins with remaining explicit arguments", () => {
     for (const expression of [
       "record.first.name.$substring(1)",
