@@ -727,6 +727,23 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves group reads from a path-context sift result", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "record.$sift(function($value){true}){first.name:first.detail.rank}",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
+        { path: "record.first.name", confidence: "static" },
+        { path: "record.first.detail.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves explicit root object reads", () => {
     for (const expression of [
       "$keys($)",

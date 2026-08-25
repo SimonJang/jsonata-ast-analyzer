@@ -4353,37 +4353,54 @@ function walkGroupBy(
     const contextPrefix = hasPendingProjectionFocusReset(prefixSteps)
       ? parentPath(structuralContextPrefix)
       : structuralContextPrefix;
+    const usesContextDefault =
+      resultAliasStep.type === "function" &&
+      (resultAliasStep as FunctionNode).procedure.type === "variable" &&
+      builtinUsesContextDefault(
+        ((resultAliasStep as FunctionNode).procedure as VariableNode).value,
+        (resultAliasStep as FunctionNode).arguments,
+      );
+    const resultScope =
+      contextPrefix && usesContextDefault
+        ? bindVariable(childScope(scope), "", [contextPrefix])
+        : scope;
     const objectAlias =
       resultAliasStep.type === "object"
         ? objectConstructorContextAlias(
             resultAliasStep as ObjectNode,
             prefixSteps,
-            scope,
+            resultScope,
           )
         : resultAliasStep.type === "block"
-          ? prefixObjectAlias(objectAliasForNode(resultAliasStep, scope), contextPrefix)
-        : objectAliasForNode(resultAliasStep, scope);
-    const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
+          ? prefixObjectAlias(
+              objectAliasForNode(resultAliasStep, resultScope),
+              contextPrefix,
+            )
+          : objectAliasForNode(resultAliasStep, resultScope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(
+      resultAliasStep,
+      resultScope,
+    );
     const resultBasePaths =
       resultAliasStep.type === "array"
         ? arrayConstructorContextBasePaths(
             resultAliasStep as ArrayNode,
             contextPrefix,
-            scope,
+            resultScope,
           )
         : resultAliasStep.type === "object"
           ? objectConstructorContextBasePaths(
               resultAliasStep as ObjectNode,
               contextPrefix,
-              scope,
+              resultScope,
             )
           : resultAliasStep.type === "block"
             ? blockContextBasePaths(
                 resultAliasStep as BlockNode,
                 contextPrefix,
-                scope,
+                resultScope,
               )
-            : bindingAliasPaths(resultAliasStep, scope);
+            : bindingAliasPaths(resultAliasStep, resultScope);
     const focusStep =
       resultAliasStep.type === "apply"
         ? appliedFunctionFromApply(resultAliasStep as ApplyNode)
@@ -4395,10 +4412,10 @@ function walkGroupBy(
           : null;
     const focusBinding = focusStep?.focusBinding;
     const indexBinding = focusStep?.indexBinding;
-    let groupScope = scope;
+    let groupScope = resultScope;
     if (focusBinding) {
       groupScope = bindFocusObjectAliasScope(
-        scope,
+        resultScope,
         focusBinding.name,
         objectAlias,
         dynamicObjectAlias,
@@ -4407,7 +4424,7 @@ function walkGroupBy(
       );
     }
     if (indexBinding) {
-      if (groupScope === scope) groupScope = childScope(scope);
+      if (groupScope === resultScope) groupScope = childScope(resultScope);
       groupScope = bindVariable(groupScope, indexBinding.name, []);
     }
     if (objectAlias || dynamicObjectAlias) {
