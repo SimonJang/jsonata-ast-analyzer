@@ -1127,6 +1127,25 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves mixed suffix bases and predicate reads from $single results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "$single([detail, fallback.x], function($v){$v.active}).children.name",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.active", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from a path-context stored builtin", () => {
     expect(
       sortPaths(
