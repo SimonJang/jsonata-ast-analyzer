@@ -1,6 +1,6 @@
 {
   "name": "jsonata-ast-analyzer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Static analysis of JSONata expressions to extract data paths",
   "type": "module",
   "main": "./dist/index.js",
