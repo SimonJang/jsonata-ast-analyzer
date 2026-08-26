@@ -1546,6 +1546,43 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves focus bindings captured by projected callables", () => {
+    for (const [source, focusName, expectedSourcePaths] of [
+      ["items", "item", ["items", "items.name"]],
+      ["record.*", "entry", ["record.*", "record.*.name"]],
+    ] as const) {
+      for (const separator of [".", ""]) {
+        for (const invocation of [
+          "($operations.apply)(detail)",
+          "$lookup($operations, $$.config.operation)(detail)",
+        ]) {
+          expect(
+            sortPaths(
+              extractPaths(
+                `($operations := ${source}@$${focusName}[0]${separator}` +
+                  `{"apply":function($x){$${focusName}.name & ` +
+                  "$x.children.name}}; " +
+                  `${invocation})`,
+              ),
+            ),
+          ).toEqual(
+            sortPaths([
+              ...expectedSourcePaths.map((path) => ({
+                path,
+                confidence: "static" as const,
+              })),
+              ...(invocation.startsWith("$lookup")
+                ? [{ path: "config.operation", confidence: "static" as const }]
+                : []),
+              { path: "detail", confidence: "static" },
+              { path: "detail.children.name", confidence: "static" },
+            ]),
+          );
+        }
+      }
+    }
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [

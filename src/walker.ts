@@ -6142,9 +6142,33 @@ function pathProjectionCallableScope(
         { type: "path", steps: prefixSteps } as PathNode,
         scope,
       );
+  let projectionScope = childScope(scope);
+  for (const [index, step] of prefixSteps.entries()) {
+    const bindingStep = step as AstNode & {
+      focusBinding?: { name: string };
+      indexBinding?: { name: string };
+    };
+    const bindingPrefix = buildProjectionContextPath(
+      prefixSteps.slice(0, index + 1),
+    );
+    if (bindingStep.focusBinding && bindingPrefix) {
+      projectionScope = bindVariable(
+        projectionScope,
+        bindingStep.focusBinding.name,
+        markAbsolute([bindingPrefix]),
+      );
+    }
+    if (bindingStep.indexBinding) {
+      projectionScope = bindVariable(
+        projectionScope,
+        bindingStep.indexBinding.name,
+        [],
+      );
+    }
+  }
   return contextPaths.length > 0
-    ? bindVariable(childScope(scope), "", contextPaths)
-    : scope;
+    ? bindVariable(projectionScope, "", contextPaths)
+    : projectionScope;
 }
 
 function pathProjectionCallableValues(
@@ -6187,10 +6211,7 @@ function groupedPathCallableScope(
   path: PathNode,
   scope: ScopeTracker,
 ): ScopeTracker {
-  const contextPrefix = buildProjectionContextPath(path.steps);
-  return contextPrefix
-    ? bindVariable(childScope(scope), "", [contextPrefix])
-    : scope;
+  return pathProjectionCallableScope(path, path.steps.length, scope);
 }
 
 function groupedPathCallableValues(
