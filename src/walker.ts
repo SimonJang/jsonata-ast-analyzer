@@ -7960,6 +7960,16 @@ function getFunctionResultObjectAlias(
       ),
     );
   }
+  if (node.procedure.type === "variable") {
+    const partialBinding = resolvePartial(scope, node.procedure.value);
+    if (partialBinding) {
+      return getPartialFunctionResultObjectAlias(
+        partialBinding,
+        node.arguments,
+        scope,
+      );
+    }
+  }
   if (
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
@@ -8093,6 +8103,16 @@ function getFunctionResultDynamicObjectAlias(
       ),
     );
   }
+  if (node.procedure.type === "variable") {
+    const partialBinding = resolvePartial(scope, node.procedure.value);
+    if (partialBinding) {
+      return getPartialFunctionResultDynamicObjectAlias(
+        partialBinding,
+        node.arguments,
+        scope,
+      );
+    }
+  }
   if (
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
@@ -8203,6 +8223,110 @@ function getFunctionResultDynamicObjectAlias(
   return args.length > 0
     ? groupResultDynamicObjectAliasForNode(args[0], argScope)
     : null;
+}
+
+function getPartialFunctionResultObjectAlias(
+  binding: NonNullable<ReturnType<typeof resolvePartial>>,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): ObjectAlias | null {
+  const appliedArgs = applyPartialArguments(binding.partial, callArgs);
+  const aliases = resolveCallableValues(
+    binding.partial.procedure,
+    binding.scope,
+  ).map((callable) => {
+    if (callable.kind === "lambda") {
+      return getCustomFunctionResultObjectAlias(
+        callable.binding,
+        appliedArgs,
+        callScope,
+      );
+    }
+    if (callable.kind === "transform") {
+      return appliedArgs[0]
+        ? groupResultObjectAliasForNode(appliedArgs[0], callScope)
+        : null;
+    }
+    return getPartialFunctionResultObjectAlias(
+      callable.binding,
+      appliedArgs,
+      callScope,
+    );
+  });
+  for (const name of resolveBuiltinCallableNames(
+    binding.partial.procedure,
+    binding.scope,
+  )) {
+    aliases.push(
+      getFunctionResultObjectAlias(
+        {
+          type: "function",
+          value: "(",
+          position: binding.partial.position,
+          procedure: {
+            type: "variable",
+            value: name,
+            position: binding.partial.position,
+          },
+          arguments: appliedArgs,
+        },
+        callScope,
+      ),
+    );
+  }
+  return mergeObjectAliases(aliases);
+}
+
+function getPartialFunctionResultDynamicObjectAlias(
+  binding: NonNullable<ReturnType<typeof resolvePartial>>,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): DynamicObjectAlias | null {
+  const appliedArgs = applyPartialArguments(binding.partial, callArgs);
+  const aliases = resolveCallableValues(
+    binding.partial.procedure,
+    binding.scope,
+  ).map((callable) => {
+    if (callable.kind === "lambda") {
+      return getCustomFunctionResultDynamicObjectAlias(
+        callable.binding,
+        appliedArgs,
+        callScope,
+      );
+    }
+    if (callable.kind === "transform") {
+      return appliedArgs[0]
+        ? groupResultDynamicObjectAliasForNode(appliedArgs[0], callScope)
+        : null;
+    }
+    return getPartialFunctionResultDynamicObjectAlias(
+      callable.binding,
+      appliedArgs,
+      callScope,
+    );
+  });
+  for (const name of resolveBuiltinCallableNames(
+    binding.partial.procedure,
+    binding.scope,
+  )) {
+    aliases.push(
+      getFunctionResultDynamicObjectAlias(
+        {
+          type: "function",
+          value: "(",
+          position: binding.partial.position,
+          procedure: {
+            type: "variable",
+            value: name,
+            position: binding.partial.position,
+          },
+          arguments: appliedArgs,
+        },
+        callScope,
+      ),
+    );
+  }
+  return mergeDynamicObjectAliases(aliases);
 }
 
 function getCustomFunctionResultObjectAlias(
@@ -8606,6 +8730,16 @@ function getFunctionResultBasePaths(
       getFunctionResultBasePaths(call, scope),
     );
   }
+  if (node.procedure.type === "variable") {
+    const partialBinding = resolvePartial(scope, node.procedure.value);
+    if (partialBinding) {
+      return getPartialFunctionResultBasePaths(
+        partialBinding,
+        node.arguments,
+        scope,
+      );
+    }
+  }
   if (
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
@@ -8733,6 +8867,58 @@ function getFunctionResultBasePaths(
         ...getResultSuffixBasePaths(args[0], argScope),
       ]
     : [];
+}
+
+function getPartialFunctionResultBasePaths(
+  binding: NonNullable<ReturnType<typeof resolvePartial>>,
+  callArgs: AstNode[],
+  callScope: ScopeTracker,
+): string[] {
+  const appliedArgs = applyPartialArguments(binding.partial, callArgs);
+  const paths = resolveCallableValues(
+    binding.partial.procedure,
+    binding.scope,
+  ).flatMap((callable) => {
+    if (callable.kind === "lambda") {
+      return getCustomFunctionResultBasePaths(
+        callable.binding,
+        appliedArgs,
+        callScope,
+      );
+    }
+    if (callable.kind === "transform") {
+      return appliedArgs[0]
+        ? getResultBasePathsFromArg(appliedArgs[0], callScope)
+        : [];
+    }
+    return getPartialFunctionResultBasePaths(
+      callable.binding,
+      appliedArgs,
+      callScope,
+    );
+  });
+  for (const name of resolveBuiltinCallableNames(
+    binding.partial.procedure,
+    binding.scope,
+  )) {
+    paths.push(
+      ...getFunctionResultBasePaths(
+        {
+          type: "function",
+          value: "(",
+          position: binding.partial.position,
+          procedure: {
+            type: "variable",
+            value: name,
+            position: binding.partial.position,
+          },
+          arguments: appliedArgs,
+        },
+        callScope,
+      ),
+    );
+  }
+  return paths;
 }
 
 function getCustomFunctionResultBasePaths(

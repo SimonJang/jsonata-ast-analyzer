@@ -612,6 +612,58 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves caller-local result aliases through partial applications", () => {
+    for (const expression of [
+      "($invoke := function($x){$helper($x).children.name}; " +
+        "$helper := $clone(?); $invoke(detail))",
+      "($invoke := function($x){$helper($x).children.name}; " +
+        "$identity := function($v){$v}; $helper := $identity(?); " +
+        "$invoke(detail))",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("preserves caller-local object aliases through partial applications", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($invoke := function($x){$helper($x).selected.name}; " +
+            '$builder := function($v){{"selected":$v.children}}; ' +
+            "$helper := $builder(?); $invoke(detail))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($invoke := function($x){$helper($x).a.name}; " +
+            "$builder := function($v){{$v.category:$v.children}}; " +
+            "$helper := $builder(?); $invoke(item))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "item", confidence: "static" },
+        { path: "item.category", confidence: "static" },
+        { path: "item.children", confidence: "static" },
+        { path: "item.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("clears stale lambda bindings when rebound to partials", () => {
     expect(
       sortPaths(
