@@ -300,6 +300,52 @@ describe("function semantics", () => {
     }
   });
 
+  it("resolves data values bound later in the same closure frame", () => {
+    for (const expression of [
+      "($f := function(){$later.children.name}; " +
+        "$later := detail; $f())",
+      "($f := function($x){$later.children.name & $x.name}; " +
+        "$later := detail; $f(record.first))",
+      "($callback := function($x){$later.children.name}; " +
+        "$later := detail; $map([record.first],$callback))",
+    ]) {
+      const paths = sortPaths(extractPaths(expression));
+      expect(paths).toContainEqual({
+        path: "detail.children.name",
+        confidence: "static",
+      });
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function(){$later.selected.name}; " +
+            '$later := {"selected":detail.children}; $f())',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($f := function(){$later.a.name}; " +
+            "$later := {config.key:detail.children}; $f())",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.key", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("invokes callables passed through custom function parameters", () => {
     for (const expression of [
       "($apply := function($fn,$x){$fn($x)}; " +
