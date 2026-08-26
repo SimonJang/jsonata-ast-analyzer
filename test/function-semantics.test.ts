@@ -642,6 +642,41 @@ describe("function semantics", () => {
     );
   });
 
+  it("uses a callable rebound after a caller closure is created", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($fn := function($x){$x.old.name}; " +
+            "$apply := function(){$fn(detail)}; " +
+            "$fn := function($x){$x.new.name}; $apply())",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.new.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("keeps a callable shadowed in a nested closure frame", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($fn := function($x){$x.outer.name}; " +
+            "$apply := ($fn := function($x){$x.inner.name}; " +
+            "function(){$fn(detail)}); " +
+            "$fn := function($x){$x.new.name}; $apply())",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.inner.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves bound and later read effects for partial applications", () => {
     expect(
       sortPaths(

@@ -42,6 +42,7 @@ import {
   resolvePartial,
   resolveTransform,
   resolveValue,
+  resolveValueFrame,
   resolveVariable,
   resolveSuffixBasePaths,
   resolveObjectAlias,
@@ -5571,6 +5572,9 @@ function bindForwardCallableReferences(
   let resultScope = scope;
   for (const name of callableProcedureVariableNames(lambda.body)) {
     const value = resolveValue(callScope, name);
+    const capturedValue = resolveValue(resultScope, name);
+    const capturedFrame = resolveValueFrame(resultScope, name);
+    const currentFrame = resolveValueFrame(callScope, name);
     const entersCurrentCycle =
       currentFunctionName !== undefined &&
       value != null &&
@@ -5597,7 +5601,7 @@ function bindForwardCallableReferences(
           new Set([currentFunctionName]),
         )) ||
       entersCurrentCycle ||
-      resolveValue(resultScope, name)
+      (capturedValue !== null && capturedFrame !== currentFrame)
     ) {
       continue;
     }
@@ -5671,7 +5675,7 @@ function unwrapCallableContainerNode(
   }
   if (node.type === "block") {
     const block = node as BlockNode;
-    let blockScope = scope;
+    let blockScope = childScope(scope);
     for (const [index, expression] of block.expressions.entries()) {
       if (index === block.expressions.length - 1) {
         return unwrapCallableContainerNode(
@@ -5844,7 +5848,7 @@ function resolveCallableValues(
   }
   if (node.type === "block") {
     const block = node as BlockNode;
-    let blockScope = scope;
+    let blockScope = childScope(scope);
     for (const [index, expression] of block.expressions.entries()) {
       if (index === block.expressions.length - 1) {
         return resolveCallableValues(expression, blockScope);

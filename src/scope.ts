@@ -51,6 +51,8 @@ export interface DynamicObjectAlias {
  * for custom function call tracing (SCOPE-05).
  */
 export interface ScopeTracker {
+  /** Stable identity shared by immutable revisions of one lexical frame. */
+  readonly frame: object;
   readonly bindings: ReadonlyMap<string, readonly string[]>;
   readonly lambdas: ReadonlyMap<string, LambdaBinding>;
   readonly partials: ReadonlyMap<string, PartialBinding>;
@@ -63,6 +65,7 @@ export interface ScopeTracker {
 }
 
 const EMPTY_SCOPE: ScopeTracker = {
+  frame: {},
   bindings: new Map(),
   lambdas: new Map(),
   partials: new Map(),
@@ -82,6 +85,7 @@ export function createScope(): ScopeTracker {
 /** Create a child scope inheriting from parent. */
 export function childScope(parent: ScopeTracker): ScopeTracker {
   return {
+    frame: {},
     bindings: new Map(),
     lambdas: new Map(),
     partials: new Map(),
@@ -121,6 +125,7 @@ export function bindVariable(
   newDynamicObjectAliases.delete(name);
   newSuffixBaseBindings.delete(name);
   return {
+    frame: scope.frame,
     bindings: newBindings,
     lambdas: newLambdas,
     partials: newPartials,
@@ -143,6 +148,7 @@ export function bindSuffixBasePaths(
   const newSuffixBaseBindings = new Map(scope.suffixBaseBindings);
   newSuffixBaseBindings.set(name, paths);
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
@@ -165,6 +171,7 @@ export function bindObjectAlias(
   newObjectAliases.set(name, alias);
   newDynamicObjectAliases.delete(name);
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
@@ -185,6 +192,7 @@ export function bindDynamicObjectAlias(
   const newDynamicObjectAliases = new Map(scope.dynamicObjectAliases);
   newDynamicObjectAliases.set(name, alias);
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
@@ -211,6 +219,7 @@ export function bindLambda(
   const newLambdas = new Map(scope.lambdas);
   newLambdas.set(name, { lambda, scope: closureScope, name });
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: newLambdas,
     partials: scope.partials,
@@ -236,6 +245,7 @@ export function bindLambdaReference(
     forwardScope,
   });
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: newLambdas,
     partials: scope.partials,
@@ -257,6 +267,7 @@ export function bindPartial(
   const newPartials = new Map(scope.partials);
   newPartials.set(name, { partial, scope: closureScope });
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: newPartials,
@@ -278,6 +289,7 @@ export function bindTransform(
   const newTransforms = new Map(scope.transforms);
   newTransforms.set(name, { transform, scope: closureScope });
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
@@ -299,6 +311,7 @@ export function bindValue(
   const newValues = new Map(scope.values);
   newValues.set(name, { node, scope: closureScope });
   return {
+    frame: scope.frame,
     bindings: scope.bindings,
     lambdas: scope.lambdas,
     partials: scope.partials,
@@ -373,6 +386,20 @@ export function resolveValue(
   let current: ScopeTracker | null = scope;
   while (current !== null) {
     if (current.values.has(name)) return current.values.get(name)!;
+    if (current.bindings.has(name)) return null;
+    current = current.parent;
+  }
+  return null;
+}
+
+/** Return the lexical frame that owns a resolvable stored value. */
+export function resolveValueFrame(
+  scope: ScopeTracker,
+  name: string,
+): object | null {
+  let current: ScopeTracker | null = scope;
+  while (current !== null) {
+    if (current.values.has(name)) return current.frame;
     if (current.bindings.has(name)) return null;
     current = current.parent;
   }
