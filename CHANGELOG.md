@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Added repository, homepage, and issue tracker metadata so npm links back to the GitHub project.
+
 ## 1.0.2 - 2026-08-26
 
 ### Security

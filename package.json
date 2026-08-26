@@ -2,6 +2,14 @@
   "name": "jsonata-ast-analyzer",
   "version": "1.0.2",
   "description": "Static analysis of JSONata expressions to extract data paths",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SimonJang/jsonata-ast-analyzer.git"
+  },
+  "homepage": "https://github.com/SimonJang/jsonata-ast-analyzer#readme",
+  "bugs": {
+    "url": "https://github.com/SimonJang/jsonata-ast-analyzer/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
