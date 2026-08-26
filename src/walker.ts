@@ -5505,7 +5505,10 @@ function bindForwardDataReferences(
       value: name,
       position: lambda.position,
     };
+    const capturedFrame = resolveValueFrame(resultScope, name);
+    const currentFrame = resolveValueFrame(callScope, name);
     if (
+      (capturedFrame !== null && capturedFrame !== currentFrame) ||
       resolveCallableValues(referenceNode, callScope).length > 0 ||
       resolveBuiltinCallableNames(referenceNode, callScope).length > 0
     ) {

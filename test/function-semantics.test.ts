@@ -750,6 +750,26 @@ describe("function semantics", () => {
     }
   });
 
+  it("keeps a callable shadowed from a later outer data binding", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($x := detail; " +
+            "$apply := ($x := function($v){$v.children.name}; " +
+            "function(){$x(fallback)}); " +
+            "$x := other; $apply())",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "other", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves bound and later read effects for partial applications", () => {
     expect(
       sortPaths(
