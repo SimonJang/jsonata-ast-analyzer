@@ -114,6 +114,23 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves contextual $eval object values in $each callbacks", () => {
+    const cases = [
+      '$each($eval("{\\\"a\\\": children}", detail), function($value){$value.name})',
+      '($object := $eval("{\\\"a\\\": children}", detail); $each($object, function($value){$value.name}))',
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves contextual dynamic object aliases from static $eval programs", () => {
     expect(
       sortPaths(

@@ -7991,6 +7991,15 @@ function higherOrderCallbackDataPaths(
       bindingAliasPaths(value, scope),
     );
   }
+  const objectAlias = dataArg ? objectAliasForNode(dataArg, scope) : null;
+  if (
+    objectAlias &&
+    objectAlias.size > 0 &&
+    dataArg &&
+    resolvesStaticEvalResult(dataArg, scope)
+  ) {
+    return [...objectAlias.values()].flatMap((paths) => [...paths]);
+  }
   if ((funcName === "each" || funcName === "sift") && dataArg) {
     const callbackDataNodes = higherOrderCallbackDataNodes("each", dataArg, scope);
     if (callbackDataNodes.length !== 1 || callbackDataNodes[0] !== dataArg) {
@@ -7999,11 +8008,54 @@ function higherOrderCallbackDataPaths(
         : callbackDataNodes.flatMap((node) => bindingAliasPaths(node, scope));
     }
   }
-  const objectAlias = dataArg ? objectAliasForNode(dataArg, scope) : null;
   if (objectAlias && objectAlias.size > 0) {
     return [...objectAlias.values()].flatMap((paths) => [...paths]);
   }
   return basePaths.map((path) => appendPath(path, "*"));
+}
+
+function resolvesStaticEvalResult(
+  node: AstNode,
+  scope: ScopeTracker,
+  resolvingVariables = new Set<string>(),
+): boolean {
+  if (node.type === "function") {
+    const functionNode = node as FunctionNode;
+    return (
+      functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "eval" &&
+      getStaticEvalExpression(functionNode.arguments) !== null
+    );
+  }
+  if (node.type === "variable") {
+    const name = (node as VariableNode).value;
+    if (resolvingVariables.has(name)) return false;
+    const binding = resolveValue(scope, name);
+    return binding
+      ? resolvesStaticEvalResult(
+          binding.node,
+          binding.scope,
+          new Set([...resolvingVariables, name]),
+        )
+      : false;
+  }
+  if (node.type === "block") {
+    let blockScope = scope;
+    let resolvesEval = false;
+    for (const expression of (node as BlockNode).expressions) {
+      if (expression.type === "bind") {
+        blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
+      } else {
+        resolvesEval = resolvesStaticEvalResult(
+          expression,
+          blockScope,
+          resolvingVariables,
+        );
+      }
+    }
+    return resolvesEval;
+  }
+  return false;
 }
 
 function eachInputNeedsWildcardValues(
