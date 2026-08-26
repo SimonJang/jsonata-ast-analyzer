@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 1.0.3 - 2026-08-26
+
+### Changed
+
+- Split the analyzer walker into focused modules while preserving the public API and analysis behavior.
+- Moved repository-only performance tooling and historical measurements into a dedicated `benchmark/` directory.
+
+### Performance
+
+- Reworked immutable scope updates as constant-time revisions and memoized variable and data-value resolution to avoid repeated map copies and lookup walks.
+- Added fast paths for plain property chains and known data paths while preserving existing callable analysis behavior.
+- Added reproducible smoke and scaling benchmarks with before-and-after snapshots. On the recorded 400-element fixtures, many-binding analysis improved by 13.6x and alias-chain analysis by 51.5x.
 
 ### Fixed
 

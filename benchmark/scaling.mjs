@@ -1,5 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { extractPaths } from "../dist/index.js";
+import { scalingFixtures } from "./fixtures.mjs";
 
 const defaultSizes = [10, 25, 50, 100, 200, 400];
 const sizes = (process.env.JSONATA_BENCH_SIZES ?? defaultSizes.join(","))
@@ -7,35 +8,6 @@ const sizes = (process.env.JSONATA_BENCH_SIZES ?? defaultSizes.join(","))
   .map(Number)
   .filter((size) => Number.isInteger(size) && size > 0);
 const targetDurationMs = Number(process.env.JSONATA_BENCH_TARGET_MS ?? 50);
-
-const fixtures = {
-  "long-path": (size) =>
-    Array.from({ length: size }, (_, index) => `f${index}`).join("."),
-  "wide-binary": (size) =>
-    Array.from({ length: size }, (_, index) => `f${index}`).join(" + "),
-  "wide-object": (size) =>
-    `{${Array.from(
-      { length: size },
-      (_, index) => `"k${index}": f${index}`,
-    ).join(",")}}`,
-  "many-bindings": (size) =>
-    `(${Array.from(
-      { length: size },
-      (_, index) => `$v${index} := root.f${index}`,
-    ).join(";")}; $v${size - 1})`,
-  "alias-chain": (size) =>
-    `($v0 := root; ${Array.from(
-      { length: size - 1 },
-      (_, index) => `$v${index + 1} := $v${index}.f${index}`,
-    ).join(";")}; $v${size - 1})`,
-  "wide-filter": (size) =>
-    `items[${Array.from(
-      { length: size },
-      (_, index) => `f${index}`,
-    ).join(" and ")}]`,
-  "repeated-path": (size) =>
-    Array.from({ length: size }, () => "root.same").join(" + "),
-};
 
 function median(values) {
   const sorted = [...values].sort((left, right) => left - right);
@@ -86,7 +58,7 @@ function measure(expression) {
 }
 
 console.log("case,size,chars,paths,median_ms");
-for (const [name, createExpression] of Object.entries(fixtures)) {
+for (const [name, createExpression] of Object.entries(scalingFixtures)) {
   for (const size of sizes) {
     const expression = createExpression(size);
     const result = measure(expression);

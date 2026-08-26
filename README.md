@@ -202,6 +202,14 @@ pnpm bench
 
 Each benchmark reports parse-plus-analyze time plus raw path count before dedupe and unique path count after dedupe.
 
+Run the synthetic scaling suite to exercise long paths, bindings, aliases, filters, and wide expressions:
+
+```sh
+pnpm bench:scaling
+```
+
+The benchmark tools, methodology, and historical result data live in `benchmark/` in the repository. They are development-only assets and are not included in the npm package.
+
 Run the release gate used by CI:
 
 ```sh
