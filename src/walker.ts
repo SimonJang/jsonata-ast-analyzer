@@ -7885,20 +7885,26 @@ function walkHigherOrderCall(
         value: "*",
         position: node.position,
       } as WildcardNode);
+    const partialCallbackInputs =
+      dataArg && (funcName === "each" || funcName === "sift")
+        ? higherOrderCallbackDataNodes("each", dataArg, scope)
+        : [callbackInput];
     for (const binding of callback.partials) {
-      paths.push(
-        ...walkPartialCall(
-          binding,
-          higherOrderCallbackCallArguments(
-            funcName,
-            callbackInput,
-            dataArg ?? callbackInput,
-            args,
-            node.position,
+      for (const partialCallbackInput of partialCallbackInputs) {
+        paths.push(
+          ...walkPartialCall(
+            binding,
+            higherOrderCallbackCallArguments(
+              funcName,
+              partialCallbackInput,
+              dataArg ?? partialCallbackInput,
+              args,
+              node.position,
+            ),
+            scope,
           ),
-          scope,
-        ),
-      );
+        );
+      }
     }
   }
 

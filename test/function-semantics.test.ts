@@ -1159,6 +1159,24 @@ describe("function semantics", () => {
     }
   });
 
+  it("binds object values to the remaining parameter of partial $each callbacks", () => {
+    const cases = [
+      '$each({"x": record.first}, function($captured, $value){$value.children.name}(detail, ?))',
+      '($callback := function($captured, $value){$value.children.name}(detail, ?); $each({"x": record.first}, $callback))',
+      '$sift({"x": record.first}, function($captured, $value){$value.children.name}(detail, ?))',
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "record.first", confidence: "static" },
+          { path: "record.first.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("threads apply-chain callbacks", () => {
     expect(extractPaths("items ~> $map(function($v) { $v.price }) ~> $sum()")).toEqual([
       { path: "items", confidence: "static" },
