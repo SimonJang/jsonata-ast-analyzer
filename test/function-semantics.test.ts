@@ -2804,6 +2804,34 @@ describe("function semantics", () => {
     );
   });
 
+  it("injects path context into looked-up function defaults", () => {
+    for (const [key, keyPaths] of [
+      ['"apply"', []],
+      [
+        "$$.config.operation",
+        [{ path: "config.operation", confidence: "static" as const }],
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            "($operations := items[0].{" +
+              '"apply":function($x)<o-:x>{$x.children.name & name}}; ' +
+              `detail.$lookup($operations, ${key})())`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "items", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          ...keyPaths,
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves static context-default lookup keys", () => {
     expect(sortPaths(extractPaths('$lookup("items")'))).toEqual(
       sortPaths([{ path: "items", confidence: "static" }]),

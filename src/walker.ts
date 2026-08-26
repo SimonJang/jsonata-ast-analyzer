@@ -189,9 +189,18 @@ function functionUsesContextDefault(
   scope: ScopeTracker,
 ): boolean {
   const builtins = resolveBuiltinCallableNames(node.procedure, scope);
+  const lambdas = resolveCallableValues(node.procedure, scope).flatMap(
+    (callable) => (callable.kind === "lambda" ? [callable.binding.lambda] : []),
+  );
   return (
-    builtins.length > 0 &&
-    builtins.every((name) => builtinUsesContextDefault(name, node.arguments))
+    (builtins.length > 0 &&
+      builtins.every((name) => builtinUsesContextDefault(name, node.arguments))) ||
+    (lambdas.length > 0 &&
+      lambdas.every(
+        (lambda) =>
+          contextDefaultParameterIndex(lambda) >= 0 &&
+          node.arguments.length < lambda.arguments.length,
+      ))
   );
 }
 
