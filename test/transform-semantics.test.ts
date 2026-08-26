@@ -574,6 +574,22 @@ describe("transform semantics", () => {
     }
   });
 
+  it("does not execute transforms while sorting grouped callable carriers", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := [|$|{"seen": children.name}|]^($$.config.rank){"apply": $reverse($)}; ($operations.apply[0])(detail))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.rank", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("executes an inline transform through partial application", () => {
     expect(
       sortPaths(

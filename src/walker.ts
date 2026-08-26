@@ -7128,12 +7128,24 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
           scope,
           suffixSteps,
         ).length > 0);
+    const groupSource = { ...path, group: undefined } as PathNode;
+    const groupedCallableSource =
+      producedByGroup &&
+      (resolveCallableValues(groupSource, scope).length > 0 ||
+        resolveBuiltinCallableNames(groupSource, scope).length > 0);
     const producerPaths =
       producedByTransform || producedByHigherOrder || producedByCustomFunction
         ? walkFunction(first as FunctionNode, scope)
         : [];
-    const projectionPaths =
-      producedByProjection || producedByGroup ? walkPath(path, scope) : [];
+    const projectionPaths = producedByProjection ||
+      (producedByGroup && !groupedCallableSource)
+      ? walkPath(path, scope)
+      : groupedCallableSource && path.group
+        ? walkSourceLessGroupEntries(
+            path.group,
+            groupedPathCallableScope(path, scope),
+          )
+        : [];
     return [...producerPaths, ...projectionPaths, ...path.steps.flatMap((step, index) => {
       if (["array", "object", "block"].includes(step.type)) {
         return walkCallableSelection(step, scope);
