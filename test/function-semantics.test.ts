@@ -1335,6 +1335,25 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes every callable kind from mixed higher-order results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callbacks := $map(items, function($v){" +
+            "$v.active ? function($x){$x.children.name} : $clone}); " +
+            "$callbacks[0](detail))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.active", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("traces a partial returned by a custom function", () => {
     expect(
       extractPaths(

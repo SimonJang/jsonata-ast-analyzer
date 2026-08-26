@@ -6670,25 +6670,9 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
   }
 
   const funcName = node.procedure.value;
-  if (!BUILTIN_FUNCTIONS.has(funcName)) {
-    const storedBuiltins = resolveBuiltinCallableNames(node.procedure, scope);
-    if (storedBuiltins.length > 0) {
-      return withFunctionStages([
-        ...walkCallableSelection(node.procedure, scope),
-        ...storedBuiltins.flatMap((name) =>
-          walkFunction(
-            {
-              ...node,
-              procedure: { type: "variable", value: name, position: node.position },
-              predicate: [],
-              group: undefined,
-            },
-            scope,
-          ),
-        ),
-      ]);
-    }
-  }
+  const storedBuiltinNames = !BUILTIN_FUNCTIONS.has(funcName)
+    ? resolveBuiltinCallableNames(node.procedure, scope)
+    : [];
   const capturedCurrent = resolveVariable(scope, "");
   const args =
     capturedCurrent !== null && builtinUsesContextDefault(funcName, node.arguments)
@@ -6771,7 +6755,7 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
   }
 
   const storedCallables = resolveCallableValues(node.procedure, scope);
-  if (storedCallables.length > 0) {
+  if (storedCallables.length > 0 || storedBuiltinNames.length > 0) {
     const storedPaths = walkCallableSelection(node.procedure, scope);
     for (const callable of storedCallables) {
       if (callable.kind === "transform") {
@@ -6781,6 +6765,20 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
       } else {
         storedPaths.push(...walkPartialCall(callable.binding, args, scope));
       }
+    }
+    for (const name of storedBuiltinNames) {
+      storedPaths.push(
+        ...walkFunction(
+          {
+            ...node,
+            procedure: { type: "variable", value: name, position: node.position },
+            arguments: args,
+            predicate: [],
+            group: undefined,
+          },
+          scope,
+        ),
+      );
     }
     return withFunctionStages(storedPaths);
   }
