@@ -300,6 +300,23 @@ describe("function semantics", () => {
     }
   });
 
+  it("uses a higher-order callback rebound after a caller closure is created", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($cb := function($x){$x.old.name}; " +
+            "$apply := function(){$map([detail], $cb)}; " +
+            "$cb := function($x){$x.new.name}; $apply())",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.new.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves data values bound later in the same closure frame", () => {
     for (const expression of [
       "($f := function(){$later.children.name}; " +

@@ -5570,7 +5570,23 @@ function bindForwardCallableReferences(
 ): ScopeTracker {
   const parameterNames = new Set(lambda.arguments.map((arg) => arg.value));
   let resultScope = scope;
-  for (const name of callableProcedureVariableNames(lambda.body)) {
+  const referencedNames = new Set([
+    ...callableProcedureVariableNames(lambda.body),
+    ...collectVariableNames(lambda.body),
+  ]);
+  for (const name of referencedNames) {
+    const referenceNode: VariableNode = {
+      type: "variable",
+      value: name,
+      position: lambda.position,
+    };
+    const isCallableReference =
+      resolveCallableValues(referenceNode, resultScope).length > 0 ||
+      resolveCallableValues(referenceNode, callScope).length > 0 ||
+      resolveBuiltinCallableNames(referenceNode, resultScope).length > 0 ||
+      resolveBuiltinCallableNames(referenceNode, callScope).length > 0;
+    if (!isCallableReference) continue;
+
     const value = resolveValue(callScope, name);
     const capturedValue = resolveValue(resultScope, name);
     const capturedFrame = resolveValueFrame(resultScope, name);
