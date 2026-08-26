@@ -1305,6 +1305,36 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("invokes callable results produced by higher-order callbacks", () => {
+    for (const [producer, source] of [
+      [
+        "$map(items, function($v){function($x){$x.children.name}})",
+        "items",
+      ],
+      [
+        "$each(record, function($v){function($x){$x.children.name}})",
+        "record",
+      ],
+      ["$map(items, function($v){$clone})", "items"],
+    ] as const) {
+      const resultSuffix = producer.includes("$clone") ? ".children.name" : "";
+      expect(
+        sortPaths(
+          extractPaths(
+            `($callbacks := ${producer}; ` +
+              `$callbacks[0](detail)${resultSuffix})`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: source, confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("traces a partial returned by a custom function", () => {
     expect(
       extractPaths(

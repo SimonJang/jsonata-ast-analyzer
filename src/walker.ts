@@ -5931,6 +5931,75 @@ function transformUpdateBuiltinCallableNames(
   });
 }
 
+function higherOrderCallableResultBodies(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): Array<{ node: AstNode; scope: ScopeTracker }> {
+  const funcNames = resolveBuiltinCallableNames(node.procedure, scope).filter(
+    (name): name is "map" | "each" => name === "map" || name === "each",
+  );
+  const dataArg = node.arguments[0];
+  const callbackArg = node.arguments[1];
+  if (funcNames.length === 0 || !dataArg || !callbackArg) return [];
+
+  const callbackCallables = resolveCallableValues(callbackArg, scope);
+  const bindings = callbackCallables.flatMap((callable) =>
+    callable.kind === "lambda" ? [callable.binding] : [],
+  );
+  const partials = callbackCallables.flatMap((callable) =>
+    callable.kind === "partial" && partialCanInvokeLambda(callable.binding)
+      ? [callable.binding]
+      : [],
+  );
+
+  return funcNames.flatMap((funcName) => {
+    const dataArgPaths = higherOrderCallbackDataPaths(
+      funcName,
+      dataArg,
+      scope,
+    );
+    const directBodies = bindings.map((binding) => ({
+      node: binding.lambda.body,
+      scope: bindHigherOrderLambdaCallbackScope(
+        funcName,
+        binding,
+        dataArgPaths,
+        dataArg,
+        scope,
+      ),
+    }));
+    const partialBodies = higherOrderPartialLambdaCalls(
+      funcName,
+      { index: 1, bindings: [], partials },
+      dataArg,
+      scope,
+      node.arguments,
+    ).map((call) => ({
+      node: call.binding.lambda.body,
+      scope: lambdaCallScope(call.binding, call.arguments, scope),
+    }));
+    return [...directBodies, ...partialBodies];
+  });
+}
+
+function higherOrderResultCallableValues(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): ResolvedCallable[] {
+  return higherOrderCallableResultBodies(node, scope).flatMap((body) =>
+    resolveCallableValues(body.node, body.scope),
+  );
+}
+
+function higherOrderResultBuiltinCallableNames(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): string[] {
+  return higherOrderCallableResultBodies(node, scope).flatMap((body) =>
+    resolveBuiltinCallableNames(body.node, body.scope),
+  );
+}
+
 function resolveCallableValues(
   node: AstNode,
   scope: ScopeTracker,
@@ -6140,6 +6209,12 @@ function resolveCallableValues(
         : [],
     );
   }
+  const higherOrderResults = higherOrderResultCallableValues(
+    functionNode,
+    scope,
+  );
+  if (higherOrderResults.length > 0) return higherOrderResults;
+
   const lambdaBinding =
     functionNode.procedure.type === "lambda"
       ? { lambda: functionNode.procedure, scope }
@@ -6366,6 +6441,12 @@ function resolveBuiltinCallableNames(
           : [],
       );
     }
+
+    const higherOrderResults = higherOrderResultBuiltinCallableNames(
+      functionNode,
+      scope,
+    );
+    if (higherOrderResults.length > 0) return higherOrderResults;
 
     const lambdaBinding =
       functionNode.procedure.type === "lambda"
