@@ -6357,7 +6357,8 @@ function resolveCallableValues(
     if (groupedValues.length > 0) return groupedValues;
     const projectionValues = pathProjectionCallableValues(path, scope);
     if (projectionValues.length > 0) return projectionValues;
-    const [first, ...suffixSteps] = path.steps;
+    const [first, ...rawSuffixSteps] = path.steps;
+    const suffixSteps = rawSuffixSteps.filter((step) => step.type !== "sort");
     if (!first) return [];
 
     const { node: sourceNode, scope: sourceScope } =
@@ -6658,7 +6659,8 @@ function resolveBuiltinCallableNames(
     if (groupedNames.length > 0) return groupedNames;
     const projectionNames = pathProjectionBuiltinCallableNames(path, scope);
     if (projectionNames.length > 0) return projectionNames;
-    const [first, ...suffixSteps] = path.steps;
+    const [first, ...rawSuffixSteps] = path.steps;
+    const suffixSteps = rawSuffixSteps.filter((step) => step.type !== "sort");
     if (!first) return [];
 
     const { node: sourceNode, scope: sourceScope } =
@@ -7043,9 +7045,16 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
         : [];
     const projectionPaths =
       producedByProjection || producedByGroup ? walkPath(path, scope) : [];
-    return [...producerPaths, ...projectionPaths, ...path.steps.flatMap((step) => {
+    return [...producerPaths, ...projectionPaths, ...path.steps.flatMap((step, index) => {
       if (["array", "object", "block"].includes(step.type)) {
         return walkCallableSelection(step, scope);
+      }
+      if (step.type === "sort") {
+        return walkSortTerms(
+          step as SortNode,
+          buildPathString(path.steps.slice(0, index)) ?? "",
+          scope,
+        );
       }
       return walkSourceLessFilterStages(
         (step as AstNode & { predicate?: AstNode[] }).predicate ?? [],

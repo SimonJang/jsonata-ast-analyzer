@@ -2065,6 +2065,55 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves callable values through path sort stages", () => {
+    const cases = [
+      "(([function($x){$x.children.name}])^($$.config.rank)[0])(detail)",
+      "($ops := [function($x){$x.children.name}]^($$.config.rank); ($ops[0])(detail))",
+      '((({"apply": function($x){$x.children.name}}).*)^($$.config.rank)[0])(detail)',
+      "(([function($captured, $x){$x.children.name}(config.rank, ?)])^($$.config.rank)[0])(detail)",
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "config.rank", confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '(([$lookup])^($$.config.rank)[0])(record, "first").children.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.rank", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '(([|children|{"seen": name}|])^($$.config.rank)[0])(detail).children.seen',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.rank", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves result aliases from filtered callable variables", () => {
     for (const expression of [
       "($functions := [function($x){$x}]; " +
