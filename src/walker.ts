@@ -5506,9 +5506,7 @@ function bindForwardDataReferences(
       position: lambda.position,
     };
     if (
-      resolveCallableValues(referenceNode, resultScope).length > 0 ||
       resolveCallableValues(referenceNode, callScope).length > 0 ||
-      resolveBuiltinCallableNames(referenceNode, resultScope).length > 0 ||
       resolveBuiltinCallableNames(referenceNode, callScope).length > 0
     ) {
       continue;

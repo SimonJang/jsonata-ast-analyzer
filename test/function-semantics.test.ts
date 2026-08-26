@@ -728,6 +728,28 @@ describe("function semantics", () => {
     }
   });
 
+  it("uses data rebound over a callable in a captured frame", () => {
+    for (const [initial, current] of [
+      ["function($v){$v.old}", "detail"],
+      ["$clone", "detail"],
+      ["$lookup(detail, ?)", "fallback"],
+      ['|children|{"seen":name}|', "detail"],
+    ] as const) {
+      const expression =
+        `($x := ${initial}; $apply := function(){$x.children.name}; ` +
+        `$x := ${current}; $apply())`;
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          ...(initial.startsWith("$lookup")
+            ? [{ path: "detail", confidence: "static" as const }]
+            : []),
+          { path: current, confidence: "static" },
+          { path: `${current}.children.name`, confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves bound and later read effects for partial applications", () => {
     expect(
       sortPaths(
