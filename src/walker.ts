@@ -5815,14 +5815,31 @@ function staticTransformPatternAlternatives(node: AstNode): string[][] {
       staticTransformPatternAlternatives(expression),
     );
   }
-  const steps = node.type === "path" ? (node as PathNode).steps : [node];
-  return steps.every((step) => ["name", "wildcard"].includes(step.type))
-    ? [
-        steps.map((step) =>
-          step.type === "wildcard" ? "*" : (step as NameNode).value,
-        ),
-      ]
-    : [];
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [condition.then, condition.else].flatMap((branch) =>
+      branch ? staticTransformPatternAlternatives(branch) : [],
+    );
+  }
+  if (node.type === "block") {
+    const expressions = (node as BlockNode).expressions;
+    const result = expressions[expressions.length - 1];
+    return result ? staticTransformPatternAlternatives(result) : [];
+  }
+  if (node.type === "path") {
+    let alternatives: string[][] = [[]];
+    for (const step of (node as PathNode).steps) {
+      const stepAlternatives = staticTransformPatternAlternatives(step);
+      if (stepAlternatives.length === 0) return [];
+      alternatives = alternatives.flatMap((prefix) =>
+        stepAlternatives.map((suffix) => [...prefix, ...suffix]),
+      );
+    }
+    return alternatives;
+  }
+  if (node.type === "name") return [[(node as NameNode).value]];
+  if (node.type === "wildcard") return [["*"]];
+  return [];
 }
 
 function transformUpdateMatches(

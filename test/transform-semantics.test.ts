@@ -103,6 +103,44 @@ describe("transform semantics", () => {
     }
   });
 
+  it("invokes callable fields produced at projected and conditional locations", () => {
+    for (const [pattern, expectedLocations] of [
+      ["record.(first)", ["payload.record.first"]],
+      [
+        "(config.enabled ? record.first : record.second)",
+        ["payload.record.first", "payload.record.second"],
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($t := |${pattern}|` +
+              '{"apply":function($x){$x.children.name}}|; ' +
+              "($t(payload).record.first.apply)(detail))",
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          ...(pattern.includes("config")
+            ? [
+                {
+                  path: "payload.config.enabled",
+                  confidence: "static" as const,
+                },
+              ]
+            : []),
+          { path: "payload", confidence: "static" },
+          ...expectedLocations.map((path) => ({
+            path,
+            confidence: "static" as const,
+          })),
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("resolves data values bound later in the transform closure frame", () => {
     expect(
       sortPaths(
