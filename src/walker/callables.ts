@@ -6,6 +6,62 @@ import { markAbsolute, collectVariableNames, buildProjectionContextPath } from "
 import type { CallableOperations, WalkerRuntime, ResolvedCallable } from "./runtime.js";
 
 export function createCallableOperations(runtime: WalkerRuntime): CallableOperations {
+  const definitelyDataCache = new WeakMap<
+    AstNode,
+    WeakMap<ScopeTracker, boolean>
+  >();
+
+  function isDefinitelyDataValue(node: AstNode, scope: ScopeTracker): boolean {
+    let scopeCache = definitelyDataCache.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      definitelyDataCache.set(node, scopeCache);
+    }
+    const cached = scopeCache.get(scope);
+    if (cached !== undefined) return cached;
+
+    // A false placeholder safely terminates recursive value bindings.
+    scopeCache.set(scope, false);
+    let result = false;
+    if (node.type === "name") {
+      result = true;
+    } else if (node.type === "variable") {
+      const variable = node as VariableNode;
+      const name = variable.value;
+      if (variable.group || variable.predicate?.length) {
+        result = false;
+      } else if (["", "$"].includes(name)) {
+        result = true;
+      } else if (
+        !resolveLambda(scope, name) &&
+        !resolvePartial(scope, name) &&
+        !resolveTransform(scope, name)
+      ) {
+        const value = resolveValue(scope, name);
+        result = value
+          ? isDefinitelyDataValue(value.node, value.scope)
+          : resolveVariable(scope, name) !== null;
+      }
+    } else if (node.type === "path") {
+      const path = node as PathNode;
+      const [first, ...suffix] = path.steps;
+      result =
+        !path.group &&
+        Boolean(first) &&
+        suffix.every(
+          (step) =>
+            step.type === "name" &&
+            !(step as NameNode).stages?.length &&
+            !(step as NameNode).focusBinding &&
+            !(step as NameNode).indexBinding,
+        ) &&
+        isDefinitelyDataValue(first, scope);
+    }
+
+    scopeCache.set(scope, result);
+    return result;
+  }
+
   function isFunctionProcedureNode(
     node: AstNode,
   ): node is FunctionNode["procedure"] {
@@ -791,6 +847,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
+    if (node.type === "path" && isDefinitelyDataValue(node, scope)) return [];
     if (node.type !== "path" && callableGroup(node)) {
       return groupedNodeCallableValues(node, scope);
     }

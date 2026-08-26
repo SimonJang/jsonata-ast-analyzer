@@ -25,6 +25,7 @@
   "scripts": {
     "build": "tsup",
     "bench": "pnpm build && node scripts/benchmark.mjs",
+    "bench:scaling": "pnpm build && node scripts/benchmark-scaling.mjs",
     "release:check": "pnpm typecheck && pnpm build && pnpm test && node scripts/benchmark.mjs",
     "test": "vitest run",
     "test:corpus": "vitest run test/corpus/jsonata-corpus.test.ts",

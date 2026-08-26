@@ -189,6 +189,19 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     if (node.steps.length === 0) return [];
+
+    if (
+      !node.group &&
+      node.steps.every(
+        (step) =>
+          step.type === "name" &&
+          !(step as NameNode).stages?.length &&
+          !(step as NameNode).focusBinding &&
+          !(step as NameNode).indexBinding,
+      )
+    ) {
+      return [node.steps.map((step) => (step as NameNode).value).join(".")];
+    }
   
     const transparentBlockCount = node.steps.filter(isTransparentPathBlock).length;
     const transparentSteps = flattenTransparentPathBlocks(node.steps);
