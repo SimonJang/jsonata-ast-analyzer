@@ -694,6 +694,40 @@ describe("function semantics", () => {
     );
   });
 
+  it("clears stale captured lambdas when rebound to another callable kind", () => {
+    for (const [expression, expected] of [
+      [
+        "($fn := function($x){$x.old.name}; " +
+          "$apply := function(){$fn(detail).new.name}; " +
+          "$fn := $clone; $apply())",
+        ["detail", "detail.new.name"],
+      ],
+      [
+        "($fn := function($x){$x.old.name}; " +
+          "$apply := function(){$fn(config.key).price}; " +
+          "$fn := $lookup(catalog, ?); $apply())",
+        ["catalog", "catalog[*]", "catalog[*].price", "config.key"],
+      ],
+      [
+        "($fn := function($x){$x.old.name}; " +
+          "$apply := function(){$fn(record).children.seen}; " +
+          '$fn := |children|{"seen":name}|; $apply())',
+        ["record", "record.children", "record.children.name"],
+      ],
+    ] as const) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths(
+          expected.map((path) => ({
+            path,
+            confidence: path.includes("[*]")
+              ? ("dynamic" as const)
+              : ("static" as const),
+          })),
+        ),
+      );
+    }
+  });
+
   it("preserves bound and later read effects for partial applications", () => {
     expect(
       sortPaths(

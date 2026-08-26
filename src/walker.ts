@@ -5628,6 +5628,11 @@ function bindForwardCallableReferences(
       continue;
     }
     if (value) {
+      resultScope = bindVariable(
+        resultScope,
+        name,
+        resolveVariable(resultScope, name) ?? [],
+      );
       resultScope = bindCallableValue(
         resultScope,
         name,
