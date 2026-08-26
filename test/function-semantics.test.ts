@@ -63,6 +63,7 @@ describe("function semantics", () => {
         { path: "detail.children.name", confidence: "static" },
       ]),
     );
+
   });
 
   it("preserves object aliases from statically known $eval programs", () => {
@@ -169,6 +170,7 @@ describe("function semantics", () => {
         { path: "detail.children.name", confidence: "static" },
       ]),
     );
+
   });
 
   it("invokes built-ins returned by statically known $eval programs", () => {
@@ -1695,6 +1697,66 @@ describe("function semantics", () => {
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
+  it("preserves grouped callable sequences through value carriers", () => {
+    const cases = [
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $reverse($)}; ($operations.apply[0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": [$]}; ($operations.apply[0][0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": {"nested": $}}; ($operations.apply.nested[0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $map($, function($operation){$operation})}; ($operations.apply[0])(detail))',
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "config.rank", confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := [function($x){$x.children.name}]{"apply": $reverse($)}; ($operations.apply[0])(detail))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := [$lookup]{"apply": $reverse($)}; ($operations.apply[0])(record, "first").children.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := [function($captured, $x){$x.children.name}(config.rank, ?)]{"apply": [$]}; ($operations.apply[0][0])(detail))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.rank", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
       ]),
     );
   });

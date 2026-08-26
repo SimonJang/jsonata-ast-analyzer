@@ -6223,15 +6223,35 @@ function groupedPathCallableScope(
   return pathProjectionCallableScope(path, path.steps.length, scope);
 }
 
-function groupedPathCallableValues(
-  path: PathNode,
+function callableGroup(node: AstNode): GroupByNode | undefined {
+  return (node as AstNode & { group?: GroupByNode }).group;
+}
+
+function groupedNodeCallableScope(
+  node: AstNode,
+  scope: ScopeTracker,
+): ScopeTracker {
+  return node.type === "path"
+    ? groupedPathCallableScope(node as PathNode, scope)
+    : scope;
+}
+
+function groupedNodeCallableValues(
+  node: AstNode,
   scope: ScopeTracker,
   suffixSteps: AstNode[] = [],
 ): ResolvedCallable[] {
-  if (!path.group) return [];
+  const group = callableGroup(node);
+  if (!group) return [];
   const [selector, ...rest] = suffixSteps;
-  const groupScope = groupedPathCallableScope(path, scope);
-  return path.group.entries.flatMap(([key, value]) => {
+  const groupInput = { ...node, group: undefined } as AstNode;
+  const groupScope = bindCallableValue(
+    groupedNodeCallableScope(node, scope),
+    "",
+    groupInput,
+    scope,
+  );
+  return group.entries.flatMap(([key, value]) => {
     const staticKey = staticObjectKey(key);
     const selected =
       !selector ||
@@ -6239,16 +6259,21 @@ function groupedPathCallableValues(
       (selector.type === "name" &&
         (staticKey === null || staticKey === (selector as NameNode).value));
     if (!selected) return [];
-    const callableValue = isRootReference(value)
-      ? ({ ...path, group: undefined } as PathNode)
-      : value;
     return resolveCallableValues(
       rest.length > 0
-        ? ({ type: "path", steps: [callableValue, ...rest] } as PathNode)
-        : callableValue,
+        ? ({ type: "path", steps: [value, ...rest] } as PathNode)
+        : value,
       groupScope,
     );
   });
+}
+
+function groupedPathCallableValues(
+  path: PathNode,
+  scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
+): ResolvedCallable[] {
+  return groupedNodeCallableValues(path, scope, suffixSteps);
 }
 
 function groupedPathBuiltinCallableNames(
@@ -6256,10 +6281,25 @@ function groupedPathBuiltinCallableNames(
   scope: ScopeTracker,
   suffixSteps: AstNode[] = [],
 ): string[] {
-  if (!path.group) return [];
+  return groupedNodeBuiltinCallableNames(path, scope, suffixSteps);
+}
+
+function groupedNodeBuiltinCallableNames(
+  node: AstNode,
+  scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
+): string[] {
+  const group = callableGroup(node);
+  if (!group) return [];
   const [selector, ...rest] = suffixSteps;
-  const groupScope = groupedPathCallableScope(path, scope);
-  return path.group.entries.flatMap(([key, value]) => {
+  const groupInput = { ...node, group: undefined } as AstNode;
+  const groupScope = bindCallableValue(
+    groupedNodeCallableScope(node, scope),
+    "",
+    groupInput,
+    scope,
+  );
+  return group.entries.flatMap(([key, value]) => {
     const staticKey = staticObjectKey(key);
     const selected =
       !selector ||
@@ -6267,13 +6307,10 @@ function groupedPathBuiltinCallableNames(
       (selector.type === "name" &&
         (staticKey === null || staticKey === (selector as NameNode).value));
     if (!selected) return [];
-    const callableValue = isRootReference(value)
-      ? ({ ...path, group: undefined } as PathNode)
-      : value;
     return resolveBuiltinCallableNames(
       rest.length > 0
-        ? ({ type: "path", steps: [callableValue, ...rest] } as PathNode)
-        : callableValue,
+        ? ({ type: "path", steps: [value, ...rest] } as PathNode)
+        : value,
       groupScope,
     );
   });
@@ -6283,6 +6320,9 @@ function resolveCallableValues(
   node: AstNode,
   scope: ScopeTracker,
 ): ResolvedCallable[] {
+  if (node.type !== "path" && callableGroup(node)) {
+    return groupedNodeCallableValues(node, scope);
+  }
   if (node.type === "lambda") {
     const lambda = node as LambdaNode;
     return lambda.thunk
@@ -6369,6 +6409,10 @@ function resolveCallableValues(
 
     const { node: sourceNode, scope: sourceScope } =
       unwrapCallableContainerNode(first, scope);
+
+    if (callableGroup(sourceNode)) {
+      return groupedNodeCallableValues(sourceNode, sourceScope, suffixSteps);
+    }
 
     if (sourceNode.type === "condition") {
       const condition = sourceNode as ConditionNode;
@@ -6607,6 +6651,9 @@ function resolveBuiltinCallableNames(
   node: AstNode,
   scope: ScopeTracker,
 ): string[] {
+  if (node.type !== "path" && callableGroup(node)) {
+    return groupedNodeBuiltinCallableNames(node, scope);
+  }
   if (node.type === "variable") {
     const variable = node as VariableNode;
     const value = resolveValue(scope, variable.value);
@@ -6671,6 +6718,14 @@ function resolveBuiltinCallableNames(
 
     const { node: sourceNode, scope: sourceScope } =
       unwrapCallableContainerNode(first, scope);
+
+    if (callableGroup(sourceNode)) {
+      return groupedNodeBuiltinCallableNames(
+        sourceNode,
+        sourceScope,
+        suffixSteps,
+      );
+    }
 
     if (sourceNode.type === "condition") {
       const condition = sourceNode as ConditionNode;
