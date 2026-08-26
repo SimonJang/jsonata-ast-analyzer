@@ -7300,6 +7300,55 @@ function higherOrderPartialLambdaCalls(
   );
 }
 
+function higherOrderPartialResultBasePaths(
+  funcName: "map" | "each",
+  args: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  return higherOrderPartialCalls(funcName, args, scope).flatMap((call) =>
+    getPartialFunctionResultBasePaths(
+      call.binding,
+      call.arguments,
+      scope,
+    ),
+  );
+}
+
+interface ResolvedPartialCall {
+  readonly binding: NonNullable<ReturnType<typeof resolvePartial>>;
+  readonly arguments: AstNode[];
+}
+
+function higherOrderPartialCalls(
+  funcName: "map" | "each",
+  args: AstNode[],
+  scope: ScopeTracker,
+): ResolvedPartialCall[] {
+  const dataArg = args[0];
+  const callbackArg = args[1];
+  if (!dataArg || !callbackArg) return [];
+
+  const partials = resolveCallableValues(callbackArg, scope).flatMap(
+    (callable) => (callable.kind === "partial" ? [callable.binding] : []),
+  );
+  return partials.flatMap((binding) =>
+    higherOrderCallbackDataNodes(funcName, dataArg, scope).flatMap(
+      (callbackDataArg) => [
+        {
+          binding,
+          arguments: higherOrderCallbackCallArguments(
+            funcName,
+            callbackDataArg,
+            dataArg,
+            args,
+            (callbackDataArg as { position?: number }).position ?? 0,
+          ),
+        },
+      ],
+    ),
+  );
+}
+
 function higherOrderCallbackCallArguments(
   funcName: string,
   valueArg: AstNode,
@@ -8471,7 +8520,24 @@ function getCallbackResultObjectAlias(
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && builtinCallbacks.length === 0) return null;
+  const partialCallbackAliases = higherOrderPartialCalls(
+    funcName,
+    args,
+    scope,
+  ).map((call) =>
+    getPartialFunctionResultObjectAlias(
+      call.binding,
+      call.arguments,
+      scope,
+    ),
+  );
+  if (
+    !callback &&
+    builtinCallbacks.length === 0 &&
+    partialCallbackAliases.every((alias) => alias === null)
+  ) {
+    return null;
+  }
 
   const dataArg = args[0];
   const dataArgPaths = higherOrderCallbackDataPaths(
@@ -8481,6 +8547,7 @@ function getCallbackResultObjectAlias(
   );
   return mergeObjectAliases(
     [
+      ...partialCallbackAliases,
       ...(callback?.bindings ?? []).map((binding) => {
         const lambdaScope = bindHigherOrderLambdaCallbackScope(
           funcName,
@@ -8533,7 +8600,24 @@ function getCallbackResultDynamicObjectAlias(
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && builtinCallbacks.length === 0) return null;
+  const partialCallbackAliases = higherOrderPartialCalls(
+    funcName,
+    args,
+    scope,
+  ).map((call) =>
+    getPartialFunctionResultDynamicObjectAlias(
+      call.binding,
+      call.arguments,
+      scope,
+    ),
+  );
+  if (
+    !callback &&
+    builtinCallbacks.length === 0 &&
+    partialCallbackAliases.every((alias) => alias === null)
+  ) {
+    return null;
+  }
 
   const dataArg = args[0];
   const dataArgPaths = higherOrderCallbackDataPaths(
@@ -8543,6 +8627,7 @@ function getCallbackResultDynamicObjectAlias(
   );
   return mergeDynamicObjectAliases(
     [
+      ...partialCallbackAliases,
       ...(callback?.bindings ?? []).map((binding) => {
         const lambdaScope = bindHigherOrderLambdaCallbackScope(
           funcName,
@@ -9043,7 +9128,18 @@ function getCallbackResultBasePaths(
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && builtinCallbacks.length === 0) return [];
+  const partialCallbackPaths = higherOrderPartialResultBasePaths(
+    funcName,
+    args,
+    scope,
+  );
+  if (
+    !callback &&
+    builtinCallbacks.length === 0 &&
+    partialCallbackPaths.length === 0
+  ) {
+    return [];
+  }
 
   const dataArg = args[0];
   const dataArgPaths = higherOrderCallbackDataPaths(
@@ -9052,6 +9148,7 @@ function getCallbackResultBasePaths(
     scope,
   );
   return [
+    ...partialCallbackPaths,
     ...(callback?.bindings ?? []).flatMap((binding) => {
       const lambdaScope = bindHigherOrderLambdaCallbackScope(
         funcName,

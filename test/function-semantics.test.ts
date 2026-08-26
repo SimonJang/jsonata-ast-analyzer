@@ -1595,6 +1595,50 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves result aliases from builtin partial map callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callback := $clone(?); $map([detail],$callback).children.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callback := $clone(?); " +
+            '$map([{"selected":detail}],$callback).selected.children.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callback := $clone(?); " +
+            "$map([{key:detail}],$callback).a.children.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves suffix reads from builtin reduce callback results", () => {
     expect(
       sortPaths(extractPaths("$reduce(records, $append, []).first.name")),
