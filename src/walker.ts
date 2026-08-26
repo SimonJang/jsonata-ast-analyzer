@@ -7885,10 +7885,35 @@ function walkHigherOrderCall(
         value: "*",
         position: node.position,
       } as WildcardNode);
-    const partialCallbackInputs =
+    let partialCallbackInputs =
       dataArg && (funcName === "each" || funcName === "sift")
         ? higherOrderCallbackDataNodes("each", dataArg, scope)
         : [callbackInput];
+    let partialCallbackScope = scope;
+    let syntheticPartialValuePaths: string[] = [];
+    if (dataArg && (funcName === "each" || funcName === "sift")) {
+      const valuePaths = higherOrderCallbackDataPaths(funcName, dataArg, scope);
+      const resolvedInputPaths = partialCallbackInputs.flatMap((input) =>
+        bindingAliasPaths(input, scope),
+      );
+      const representsObjectValues =
+        new Set(valuePaths).size === new Set(resolvedInputPaths).size &&
+        valuePaths.every((path) => resolvedInputPaths.includes(path));
+      if (!representsObjectValues) {
+        const valueVariable: VariableNode = {
+          type: "variable",
+          value: `\0higherOrderCallbackValue${node.position}`,
+          position: node.position,
+        };
+        partialCallbackScope = bindVariable(
+          partialCallbackScope,
+          valueVariable.value,
+          valuePaths,
+        );
+        syntheticPartialValuePaths = valuePaths;
+        partialCallbackInputs = [valueVariable];
+      }
+    }
     for (const binding of callback.partials) {
       for (const partialCallbackInput of partialCallbackInputs) {
         paths.push(
@@ -7901,8 +7926,8 @@ function walkHigherOrderCall(
               args,
               node.position,
             ),
-            scope,
-          ),
+            partialCallbackScope,
+          ).filter((path) => !syntheticPartialValuePaths.includes(path)),
         );
       }
     }
@@ -7969,7 +7994,9 @@ function higherOrderCallbackDataPaths(
   if (funcName === "each" && dataArg) {
     const callbackDataNodes = higherOrderCallbackDataNodes("each", dataArg, scope);
     if (callbackDataNodes.length !== 1 || callbackDataNodes[0] !== dataArg) {
-      return callbackDataNodes.flatMap((node) => bindingAliasPaths(node, scope));
+      return eachInputNeedsWildcardValues(dataArg, scope)
+        ? basePaths.map((path) => appendPath(path, "*"))
+        : callbackDataNodes.flatMap((node) => bindingAliasPaths(node, scope));
     }
   }
   const objectAlias = dataArg ? objectAliasForNode(dataArg, scope) : null;
@@ -7977,6 +8004,54 @@ function higherOrderCallbackDataPaths(
     return [...objectAlias.values()].flatMap((paths) => [...paths]);
   }
   return basePaths.map((path) => appendPath(path, "*"));
+}
+
+function eachInputNeedsWildcardValues(
+  node: AstNode,
+  scope: ScopeTracker,
+  resolvingVariables = new Set<string>(),
+): boolean {
+  if (objectAliasForNode(node, scope)?.size) return false;
+  if (node.type === "variable") {
+    const name = (node as VariableNode).value;
+    if (resolvingVariables.has(name)) return true;
+    const binding = resolveValue(scope, name);
+    return binding
+      ? eachInputNeedsWildcardValues(
+          binding.node,
+          binding.scope,
+          new Set([...resolvingVariables, name]),
+        )
+      : true;
+  }
+  if (node.type === "block") {
+    let blockScope = scope;
+    let needsWildcard = true;
+    for (const expression of (node as BlockNode).expressions) {
+      if (expression.type === "bind") {
+        blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
+      } else {
+        needsWildcard = eachInputNeedsWildcardValues(
+          expression,
+          blockScope,
+          resolvingVariables,
+        );
+      }
+    }
+    return needsWildcard;
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [condition.then, condition.else].some(
+      (branch) =>
+        !!branch &&
+        eachInputNeedsWildcardValues(branch, scope, resolvingVariables),
+    );
+  }
+  if (node.type === "function" || node.type === "apply") return true;
+  if (node.type === "object") return false;
+  const callbackDataNodes = higherOrderCallbackDataNodes("each", node, scope);
+  return callbackDataNodes.length === 1 && callbackDataNodes[0] === node;
 }
 
 function higherOrderCallbackDataNodes(

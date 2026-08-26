@@ -1177,6 +1177,39 @@ describe("function semantics", () => {
     }
   });
 
+  it("binds wildcard object values to partial $each and $sift callbacks", () => {
+    const cases = [
+      "$each(record, function($captured, $value){$value.children.name}(detail, ?))",
+      "$sift(record, function($value, $captured){$value.children.name}(?, detail))",
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "record", confidence: "static" },
+          { path: "record.*.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("binds wildcard values from path objects returned to $each", () => {
+    const cases = [
+      "($maker := function(){record}; $each($maker(), function($value){$value.children.name}))",
+      "($maker := function(){record}; $object := $maker(); $each($object, function($value){$value.children.name}))",
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "record", confidence: "static" },
+          { path: "record.*.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("threads apply-chain callbacks", () => {
     expect(extractPaths("items ~> $map(function($v) { $v.price }) ~> $sum()")).toEqual([
       { path: "items", confidence: "static" },
