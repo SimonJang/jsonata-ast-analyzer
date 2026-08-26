@@ -982,8 +982,8 @@ function resolveParentPathSegments(path: string): string {
   return segments.join(".");
 }
 
-function isRootReference(node: AstNode): boolean {
-  return node.type === "variable" && ["", "$"].includes((node as VariableNode).value);
+function isRootReference(node: AstNode | undefined): boolean {
+  return node?.type === "variable" && ["", "$"].includes((node as VariableNode).value);
 }
 
 function identityReferencePaths(

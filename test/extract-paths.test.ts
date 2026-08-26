@@ -840,6 +840,25 @@ describe("extractPaths", () => {
     });
   });
 
+  describe("root-current paths bound through blocks", () => {
+    it("preserves array projection reads when a root-current path is bound", () => {
+      expect(extractPaths("($x := ($.[value, epochSeconds]); $x)")).toEqual([
+        { path: "value", confidence: "static" },
+        { path: "epochSeconds", confidence: "static" },
+      ]);
+    });
+
+    it("accepts object projections when a root-current path is bound", () => {
+      expect(extractPaths('($x := ($.{"Hello": "World"}); $x)')).toEqual([]);
+    });
+
+    it("accepts tuple and index stages when a root-current path is bound", () => {
+      expect(extractPaths("($x := ($#$pos[$pos < 3]); $x)")).toEqual([]);
+      expect(extractPaths("($x := ($.$#$pos[$pos < 3]); $x)")).toEqual([]);
+      expect(extractPaths("($x := ($[[1..4]]#$pos[$pos >= 2]); $x)")).toEqual([]);
+    });
+  });
+
   // ---------- Phase 7: CLI error formatting ----------
   describe("Phase 7: CLI error formatting", () => {
     it('CLI displays actual error message for jsonata parse errors, not [object Object]', () => {
