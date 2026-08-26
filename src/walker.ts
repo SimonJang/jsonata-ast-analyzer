@@ -802,7 +802,7 @@ function transformOutputSelectionSourcePaths(
     const localSourcePaths = walkTransformContextExpression(
       selection.matchedPattern.join("."),
       selectedUpdateValue,
-      selection.binding.scope,
+      transformInvocationScope(selection.binding, scope),
     );
     return inputPrefixes.flatMap((prefix) =>
       prefixPaths(prefix, localSourcePaths),
@@ -6524,7 +6524,8 @@ function walkTransformCall(
   }
   if (!input) return paths;
 
-  const transformPaths = walkTransform(binding.transform, binding.scope);
+  const transformScope = transformInvocationScope(binding, callScope);
+  const transformPaths = walkTransform(binding.transform, transformScope);
   const inputPaths =
     identityReferencePaths(input, callScope) ?? walkNode(input, callScope);
   const transformBasePaths = extractBasePaths(input, callScope);
@@ -6547,6 +6548,22 @@ function walkTransformCall(
     ...transformPrefixes.flatMap((prefix) => prefixPaths(prefix, transformPaths)),
   );
   return paths;
+}
+
+function transformInvocationScope(
+  binding: TransformBinding,
+  callScope: ScopeTracker,
+): ScopeTracker {
+  return bindForwardReferences(
+    childScope(binding.scope),
+    {
+      type: "lambda",
+      position: binding.transform.position ?? 0,
+      arguments: [],
+      body: binding.transform,
+    },
+    callScope,
+  );
 }
 
 function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {

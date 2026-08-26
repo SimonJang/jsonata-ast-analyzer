@@ -4,6 +4,42 @@ import { parse } from "../src/parser.js";
 import { sortPaths } from "./integration/helpers.js";
 
 describe("transform semantics", () => {
+  it("resolves data values bound later in the transform closure frame", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($transform := |children|{\"seen\":$later.name}|; " +
+            "$later := detail; $transform(record).children.seen)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.name", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.children", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($transform := |children|{\"seen\":$later.children}|; " +
+            "$later := detail; " +
+            "$transform(record).children.seen.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.children", confidence: "static" },
+      ]),
+    );
+  });
+
   it("normalizes transform expressions", () => {
     expect(parse('| account | {"status": "active"} |')).toMatchObject({
       type: "transform",
