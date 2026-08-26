@@ -4,6 +4,51 @@ import { parse } from "../src/parser.js";
 import { sortPaths } from "./integration/helpers.js";
 
 describe("transform semantics", () => {
+  it("invokes callable fields produced by transform updates", () => {
+    for (const [update, selector] of [
+      ['{"apply":function($x){$x.children.name}}', "apply"],
+      [
+        '{"ops":{"apply":function($x){$x.children.name}}}',
+        "ops.apply",
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($t := |node|${update}|; ($t(record).node.${selector})(detail))`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "record", confidence: "static" },
+          { path: "record.node", confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("captures transform match context in produced callable fields", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($t := |node|" +
+            '{"apply":function($x){name & $x.children.name}}|; ' +
+            "($t(record).node.apply)(detail))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.node", confidence: "static" },
+        { path: "record.node.name", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves data values bound later in the transform closure frame", () => {
     expect(
       sortPaths(
