@@ -7991,7 +7991,7 @@ function higherOrderCallbackDataPaths(
       bindingAliasPaths(value, scope),
     );
   }
-  if (funcName === "each" && dataArg) {
+  if ((funcName === "each" || funcName === "sift") && dataArg) {
     const callbackDataNodes = higherOrderCallbackDataNodes("each", dataArg, scope);
     if (callbackDataNodes.length !== 1 || callbackDataNodes[0] !== dataArg) {
       return eachInputNeedsWildcardValues(dataArg, scope)
@@ -8138,16 +8138,7 @@ function higherOrderCallbackDataNodes(
     const pathNode = dataArg as PathNode;
     const [first, ...selectorSteps] = pathNode.steps;
     if (first && selectorSteps.length > 0) {
-      const firstBinding =
-        first.type === "variable"
-          ? resolveValue(scope, (first as VariableNode).value)
-          : null;
-      let candidates: Array<{ node: AstNode; scope: ScopeTracker }> = [
-        {
-          node: firstBinding?.node ?? first,
-          scope: firstBinding?.scope ?? scope,
-        },
-      ];
+      let candidates = pathContainerCandidates(first, scope);
       for (const selector of selectorSteps) {
         if (selector.type !== "name") {
           candidates = [];
@@ -8265,6 +8256,50 @@ function higherOrderCallbackDataNodes(
     return (dataArg as ObjectNode).entries.map(([, value]) => value);
   }
   return [dataArg];
+}
+
+function pathContainerCandidates(
+  node: AstNode,
+  scope: ScopeTracker,
+  resolvingVariables = new Set<string>(),
+): Array<{ node: AstNode; scope: ScopeTracker }> {
+  if (node.type === "variable") {
+    const name = (node as VariableNode).value;
+    if (resolvingVariables.has(name)) return [{ node, scope }];
+    const binding = resolveValue(scope, name);
+    if (binding) {
+      return pathContainerCandidates(
+        binding.node,
+        binding.scope,
+        new Set([...resolvingVariables, name]),
+      );
+    }
+  }
+  if (node.type === "block") {
+    let blockScope = scope;
+    let candidates: Array<{ node: AstNode; scope: ScopeTracker }> = [];
+    for (const expression of (node as BlockNode).expressions) {
+      if (expression.type === "bind") {
+        blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
+      } else {
+        candidates = pathContainerCandidates(
+          expression,
+          blockScope,
+          resolvingVariables,
+        );
+      }
+    }
+    return candidates;
+  }
+  if (node.type === "condition") {
+    const condition = node as ConditionNode;
+    return [condition.then, condition.else].flatMap((branch) =>
+      branch
+        ? pathContainerCandidates(branch, scope, resolvingVariables)
+        : [],
+    );
+  }
+  return [{ node, scope }];
 }
 
 function bindHigherOrderLambdaCallbackScope(

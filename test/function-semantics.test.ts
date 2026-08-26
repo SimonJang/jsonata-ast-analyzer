@@ -3777,6 +3777,29 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $each value aliases through parenthesized object selections", () => {
+    const cases = [
+      '$each(({"group": {"a": detail, "b": fallback.x}}).group, function($value){$value.children.name})',
+      '$each(({"group": {"a": detail, "b": fallback.x}}).group, function($captured, $value){$value.children.name}(config.suffix, ?))',
+      '$sift(({"group": {"a": detail, "b": fallback.x}}).group, function($value){$value.children.name})',
+      '$sift(({"group": {"a": detail, "b": fallback.x}}).group, function($captured, $value){$value.children.name}(config.suffix, ?))',
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+          { path: "fallback.x", confidence: "static" },
+          { path: "fallback.x.children.name", confidence: "static" },
+          ...(expression.includes("config.suffix")
+            ? [{ path: "config.suffix", confidence: "static" as const }]
+            : []),
+        ]),
+      );
+    }
+  });
+
   it("preserves builtin $each callback suffixes through selected array objects", () => {
     expect(
       sortPaths(
