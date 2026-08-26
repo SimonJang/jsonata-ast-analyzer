@@ -5438,6 +5438,94 @@ function bindCallableBlockValue(
   );
 }
 
+function callableProcedureVariableNames(
+  node: AstNode,
+  names = new Set<string>(),
+): Set<string> {
+  if (node.type === "function") {
+    for (const name of collectVariableNames((node as FunctionNode).procedure)) {
+      names.add(name);
+    }
+  }
+  if (
+    node.type === "path" &&
+    (node as PathNode).steps.some((step) => step.type === "function")
+  ) {
+    for (const step of (node as PathNode).steps) {
+      if (step.type === "variable") {
+        names.add((step as VariableNode).value);
+      }
+      if (step.type === "function") break;
+    }
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "source") continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item && typeof item === "object") {
+          callableProcedureVariableNames(item as AstNode, names);
+        }
+      }
+    } else if (value && typeof value === "object") {
+      callableProcedureVariableNames(value as AstNode, names);
+    }
+  }
+  return names;
+}
+
+function bindForwardCallableReferences(
+  scope: ScopeTracker,
+  lambda: LambdaNode,
+  callScope: ScopeTracker,
+  currentFunctionName?: string,
+): ScopeTracker {
+  const parameterNames = new Set(lambda.arguments.map((arg) => arg.value));
+  let resultScope = scope;
+  for (const name of callableProcedureVariableNames(lambda.body)) {
+    const value = resolveValue(callScope, name);
+    const entersCurrentCycle =
+      currentFunctionName !== undefined &&
+      value != null &&
+      resolveCallableValues(value.node, value.scope)
+        .flatMap((callable) => resolvedCallableNames(callable))
+        .some(
+          (calledName) =>
+            calledName === currentFunctionName ||
+            lambdaCallGraphReaches(
+              calledName,
+              currentFunctionName,
+              callScope,
+              new Set([currentFunctionName]),
+            ),
+        );
+    if (
+      parameterNames.has(name) ||
+      name === currentFunctionName ||
+      (currentFunctionName !== undefined &&
+        lambdaCallGraphReaches(
+          name,
+          currentFunctionName,
+          callScope,
+          new Set([currentFunctionName]),
+        )) ||
+      entersCurrentCycle ||
+      resolveValue(resultScope, name)
+    ) {
+      continue;
+    }
+    if (value) {
+      resultScope = bindCallableValue(
+        resultScope,
+        name,
+        value.node,
+        value.scope,
+      );
+    }
+  }
+  return resultScope;
+}
+
 function lambdaCallScope(
   binding: LambdaBinding,
   callArgs: AstNode[],
@@ -5460,7 +5548,12 @@ function lambdaCallScope(
       );
     }
   }
-  return resultScope;
+  return bindForwardCallableReferences(
+    resultScope,
+    binding.lambda,
+    callScope,
+    binding.name,
+  );
 }
 
 function unwrapCallableContainerNode(
@@ -7027,7 +7120,12 @@ function bindHigherOrderLambdaCallbackScope(
       dataArgScope,
     );
   }
-  return lambdaScope;
+  return bindForwardCallableReferences(
+    lambdaScope,
+    binding.lambda,
+    dataArgScope,
+    binding.name,
+  );
 }
 
 function walkReduceLambdaWithBindings(
@@ -7070,6 +7168,11 @@ function walkReduceLambdaWithBindings(
             dataArgScope,
           );
   }
+  lambdaScope = bindForwardCallableReferences(
+    lambdaScope,
+    lambda,
+    dataArgScope,
+  );
 
   return resolveCallbackParentPaths(walkNode(lambda.body, lambdaScope), dataArgPaths);
 }
@@ -7271,6 +7374,11 @@ function walkLambdaWithBindings(
       dataArgScope,
     );
   }
+  lambdaScope = bindForwardCallableReferences(
+    lambdaScope,
+    lambda,
+    dataArgScope,
+  );
 
   return resolveCallbackParentPaths(walkNode(lambda.body, lambdaScope), dataArgPaths);
 }
@@ -7519,6 +7627,12 @@ function walkCustomFunctionCall(
         ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
         : bindVariable(lambdaScope, param.value, argPaths);
   }
+  lambdaScope = bindForwardCallableReferences(
+    lambdaScope,
+    lambda,
+    callScope,
+    binding.name,
+  );
 
   // Walk the lambda body with parameter bindings
   const parentBasePaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
@@ -8041,6 +8155,12 @@ function getCustomFunctionResultObjectAlias(
         ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
         : bindVariable(lambdaScope, param.value, argPaths);
   }
+  lambdaScope = bindForwardCallableReferences(
+    lambdaScope,
+    lambda,
+    callScope,
+    binding.name,
+  );
 
   const alias = groupResultObjectAliasForNode(lambda.body, lambdaScope);
   const firstArgPaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
@@ -8079,6 +8199,12 @@ function getCustomFunctionResultDynamicObjectAlias(
         ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
         : bindVariable(lambdaScope, param.value, argPaths);
   }
+  lambdaScope = bindForwardCallableReferences(
+    lambdaScope,
+    lambda,
+    callScope,
+    binding.name,
+  );
 
   const alias = groupResultDynamicObjectAliasForNode(lambda.body, lambdaScope);
   const firstArgPaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
@@ -8560,6 +8686,12 @@ function getCustomFunctionResultBasePaths(
         ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
         : bindVariable(lambdaScope, param.value, argPaths);
   }
+  lambdaScope = bindForwardCallableReferences(
+    lambdaScope,
+    lambda,
+    callScope,
+    binding.name,
+  );
 
   const firstArgPaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
   return resolveCallbackParentPaths(
@@ -9019,6 +9151,12 @@ function getCustomFunctionResultSuffixBasePaths(
         ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
         : bindVariable(lambdaScope, param.value, argPaths);
   }
+  lambdaScope = bindForwardCallableReferences(
+    lambdaScope,
+    lambda,
+    callScope,
+    binding.name,
+  );
 
   return groupResultSuffixBasePaths(lambda.body, lambdaScope);
 }

@@ -264,6 +264,42 @@ describe("function semantics", () => {
     }
   });
 
+  it("resolves callable values bound later in the same block", () => {
+    for (const expression of [
+      "($f := function($x){$helper($x)}; " +
+        "$helper := function($x){$x.children.name}; $f(detail))",
+      '($f := function($x){$ops.go($x)}; ' +
+        '$ops := {"go":function($x){$x.children.name}}; $f(detail))',
+      "($f := function($x){$helper($x)}; " +
+        "$helper := $reverse; $f([detail]).children.name)",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("resolves later callable values inside higher-order callbacks", () => {
+    for (const expression of [
+      "($cb := function($x){$helper($x)}; " +
+        "$helper := function($x){$x.children.name}; $map([detail], $cb))",
+      "($cb := function($acc,$x){$helper($x)}; " +
+        '$helper := function($x){$x.children.name}; $reduce([detail], $cb, ""))',
+      "($cb := function($x){$helper($x)}; " +
+        "$helper := $clone; $map([detail], $cb).children.name)",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves grouped result aliases across function boundaries", () => {
     for (const expression of [
       "(function($x){$x{key:value}})(items).x.name",
