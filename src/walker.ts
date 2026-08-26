@@ -6539,7 +6539,39 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
   }
 
   // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
-  for (const arg of args) {
+  for (const [argIndex, arg] of args.entries()) {
+    const callableArguments =
+      funcName === "replace" && argIndex === 2
+        ? resolveCallableValues(arg, scope)
+        : [];
+    if (callableArguments.length > 0) {
+      paths.push(...walkCallableSelection(arg, scope));
+      const generatedArgument: AstNode = {
+        type: "value",
+        value: null,
+        position: node.position,
+      };
+      for (const callable of callableArguments) {
+        if (callable.kind === "lambda") {
+          paths.push(
+            ...walkCustomFunctionCall(
+              callable.binding,
+              [generatedArgument],
+              scope,
+            ),
+          );
+        } else if (callable.kind === "partial") {
+          paths.push(
+            ...walkPartialCall(
+              callable.binding,
+              [generatedArgument],
+              scope,
+            ),
+          );
+        }
+      }
+      continue;
+    }
     if (arg.type === "lambda") {
       // Walk lambda body with current scope (closure capture)
       const lambda = arg as LambdaNode;

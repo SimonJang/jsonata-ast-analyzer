@@ -41,4 +41,20 @@ describe("regex semantics", () => {
       { path: "description", confidence: "static" },
     ]);
   });
+
+  it("extracts captured reads from variable-bound replacement callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($replacer := function($match){$match.match & config.suffix}; " +
+            "$replace(text, /x/, $replacer))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "text", confidence: "static" },
+        { path: "config.suffix", confidence: "static" },
+      ]),
+    );
+  });
 });
