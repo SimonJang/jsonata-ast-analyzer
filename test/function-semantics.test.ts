@@ -1666,6 +1666,39 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes callable fields from sorted grouped results", () => {
+    const cases = [
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $}; ($operations.apply[0])(detail))',
+      '($operations := {"one": function($x){$x.children.name}}.*^($$.config.rank){"apply": $}; ($operations.apply[0])(detail))',
+      '($operations := [function($captured, $x){$x.children.name}(config.rank, ?)]^($$.config.rank){"apply": $}; ($operations.apply[0])(detail))',
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "config.rank", confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := [$lookup]^($$.config.rank){"apply": $}; ($operations.apply[0])(record, "first").children.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.rank", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves focus bindings captured by projected callables", () => {
     for (const [source, focusName, expectedSourcePaths] of [
       ["items", "item", ["items", "items.name"]],

@@ -6239,10 +6239,13 @@ function groupedPathCallableValues(
       (selector.type === "name" &&
         (staticKey === null || staticKey === (selector as NameNode).value));
     if (!selected) return [];
+    const callableValue = isRootReference(value)
+      ? ({ ...path, group: undefined } as PathNode)
+      : value;
     return resolveCallableValues(
       rest.length > 0
-        ? ({ type: "path", steps: [value, ...rest] } as PathNode)
-        : value,
+        ? ({ type: "path", steps: [callableValue, ...rest] } as PathNode)
+        : callableValue,
       groupScope,
     );
   });
@@ -6264,10 +6267,13 @@ function groupedPathBuiltinCallableNames(
       (selector.type === "name" &&
         (staticKey === null || staticKey === (selector as NameNode).value));
     if (!selected) return [];
+    const callableValue = isRootReference(value)
+      ? ({ ...path, group: undefined } as PathNode)
+      : value;
     return resolveBuiltinCallableNames(
       rest.length > 0
-        ? ({ type: "path", steps: [value, ...rest] } as PathNode)
-        : value,
+        ? ({ type: "path", steps: [callableValue, ...rest] } as PathNode)
+        : callableValue,
       groupScope,
     );
   });
