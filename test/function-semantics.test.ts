@@ -1707,6 +1707,52 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves result aliases from builtin partial reduce callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callback := $append(?,?); " +
+            "$reduce([detail],$callback,[]).children.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callback := $append(?,?); " +
+            '$reduce([{"selected":detail}],$callback,[])' +
+            ".selected.children.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callback := $append(?,?); " +
+            "$reduce([{key:detail}],$callback,[]).a.children.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "key", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves mixed suffix bases from builtin reduce callback results", () => {
     expect(
       sortPaths(

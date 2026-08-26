@@ -7488,7 +7488,7 @@ interface ResolvedPartialCall {
 }
 
 function higherOrderPartialCalls(
-  funcName: "map" | "each",
+  funcName: "map" | "each" | "reduce",
   args: AstNode[],
   scope: ScopeTracker,
 ): ResolvedPartialCall[] {
@@ -7499,8 +7499,12 @@ function higherOrderPartialCalls(
   const partials = resolveCallableValues(callbackArg, scope).flatMap(
     (callable) => (callable.kind === "partial" ? [callable.binding] : []),
   );
+  const callbackDataArgs =
+    funcName === "reduce"
+      ? [dataArg]
+      : higherOrderCallbackDataNodes(funcName, dataArg, scope);
   return partials.flatMap((binding) =>
-    higherOrderCallbackDataNodes(funcName, dataArg, scope).flatMap(
+    callbackDataArgs.flatMap(
       (callbackDataArg) => [
         {
           binding,
@@ -8848,7 +8852,23 @@ function getReduceResultObjectAlias(
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && !resolvedCallback?.partials.length && builtinCallbacks.length === 0) {
+  const partialCallbackAliases = higherOrderPartialCalls(
+    "reduce",
+    args,
+    scope,
+  ).map((call) =>
+    getPartialFunctionResultObjectAlias(
+      call.binding,
+      call.arguments,
+      scope,
+    ),
+  );
+  if (
+    !callback &&
+    !resolvedCallback?.partials.length &&
+    builtinCallbacks.length === 0 &&
+    partialCallbackAliases.every((alias) => alias === null)
+  ) {
     return null;
   }
 
@@ -8892,6 +8912,7 @@ function getReduceResultObjectAlias(
     bodyAlias = groupResultObjectAliasForNode(callback.lambda.body, lambdaScope);
   }
   return mergeObjectAliases([
+    ...partialCallbackAliases,
     bodyAlias ? resolveCallbackObjectAliasParentPaths(bodyAlias, dataArgPaths) : null,
     ...(resolvedCallback && dataArg
       ? higherOrderPartialLambdaCalls(
@@ -8931,7 +8952,23 @@ function getReduceResultDynamicObjectAlias(
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && !resolvedCallback?.partials.length && builtinCallbacks.length === 0) {
+  const partialCallbackAliases = higherOrderPartialCalls(
+    "reduce",
+    args,
+    scope,
+  ).map((call) =>
+    getPartialFunctionResultDynamicObjectAlias(
+      call.binding,
+      call.arguments,
+      scope,
+    ),
+  );
+  if (
+    !callback &&
+    !resolvedCallback?.partials.length &&
+    builtinCallbacks.length === 0 &&
+    partialCallbackAliases.every((alias) => alias === null)
+  ) {
     return null;
   }
 
@@ -8978,6 +9015,7 @@ function getReduceResultDynamicObjectAlias(
     );
   }
   return mergeDynamicObjectAliases([
+    ...partialCallbackAliases,
     callbackAlias
       ? resolveCallbackDynamicObjectAliasParentPaths(callbackAlias, dataArgPaths)
       : null,
@@ -9368,7 +9406,23 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
-  if (!callback && !resolvedCallback?.partials.length && builtinCallbacks.length === 0) {
+  const builtinPartialPaths = higherOrderPartialCalls(
+    "reduce",
+    args,
+    scope,
+  ).flatMap((call) =>
+    getPartialFunctionResultBasePaths(
+      call.binding,
+      call.arguments,
+      scope,
+    ),
+  );
+  if (
+    !callback &&
+    !resolvedCallback?.partials.length &&
+    builtinCallbacks.length === 0 &&
+    builtinPartialPaths.length === 0
+  ) {
     return [];
   }
 
@@ -9466,7 +9520,12 @@ function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[
           getCustomFunctionResultBasePaths(call.binding, call.arguments, scope),
         )
       : [];
-  return [...lambdaPaths, ...partialPaths, ...builtinPaths];
+  return [
+    ...lambdaPaths,
+    ...partialPaths,
+    ...builtinPartialPaths,
+    ...builtinPaths,
+  ];
 }
 
 function getFunctionResultSuffixBasePaths(
