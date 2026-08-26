@@ -7969,6 +7969,19 @@ function getFunctionResultObjectAlias(
         scope,
       );
     }
+    const storedPartials = resolveCallableValues(
+      node.procedure,
+      scope,
+    ).flatMap((callable) =>
+      callable.kind === "partial" ? [callable.binding] : [],
+    );
+    if (storedPartials.length > 0) {
+      return mergeObjectAliases(
+        storedPartials.map((binding) =>
+          getPartialFunctionResultObjectAlias(binding, node.arguments, scope),
+        ),
+      );
+    }
   }
   if (
     node.procedure.type === "function" ||
@@ -8110,6 +8123,23 @@ function getFunctionResultDynamicObjectAlias(
         partialBinding,
         node.arguments,
         scope,
+      );
+    }
+    const storedPartials = resolveCallableValues(
+      node.procedure,
+      scope,
+    ).flatMap((callable) =>
+      callable.kind === "partial" ? [callable.binding] : [],
+    );
+    if (storedPartials.length > 0) {
+      return mergeDynamicObjectAliases(
+        storedPartials.map((binding) =>
+          getPartialFunctionResultDynamicObjectAlias(
+            binding,
+            node.arguments,
+            scope,
+          ),
+        ),
       );
     }
   }
@@ -8737,6 +8767,17 @@ function getFunctionResultBasePaths(
         partialBinding,
         node.arguments,
         scope,
+      );
+    }
+    const storedPartials = resolveCallableValues(
+      node.procedure,
+      scope,
+    ).flatMap((callable) =>
+      callable.kind === "partial" ? [callable.binding] : [],
+    );
+    if (storedPartials.length > 0) {
+      return storedPartials.flatMap((binding) =>
+        getPartialFunctionResultBasePaths(binding, node.arguments, scope),
       );
     }
   }

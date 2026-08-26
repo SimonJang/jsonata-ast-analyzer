@@ -664,6 +664,57 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves partial result aliases through custom function parameters", () => {
+    for (const [expression, includesChildrenBase] of [
+      [
+        "($apply := function($fn,$x){$fn($x).children.name}; " +
+          "$builder := function($v){$v}; $partial := $builder(?); " +
+          "$apply($partial,detail))",
+        false,
+      ],
+      [
+        "($apply := function($fn,$x){$fn($x).name}; " +
+          "$builder := function($v){$v.children}; $partial := $builder(?); " +
+          "$apply($partial,detail))",
+        true,
+      ],
+    ] as const) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          ...(includesChildrenBase
+            ? [{ path: "detail.children", confidence: "static" as const }]
+            : []),
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    for (const [body, suffix] of [
+      ['{"selected":$v.children}', ".selected.name"],
+      ["{$v.category:$v.children}", ".a.name"],
+    ]) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($apply := function($fn,$x){$fn($x)${suffix}}; ` +
+              `$builder := function($v){${body}}; ` +
+              "$partial := $builder(?); $apply($partial,detail))",
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          ...(body.startsWith("{$v")
+            ? [{ path: "detail.category", confidence: "static" as const }]
+            : []),
+          { path: "detail.children", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("clears stale lambda bindings when rebound to partials", () => {
     expect(
       sortPaths(
