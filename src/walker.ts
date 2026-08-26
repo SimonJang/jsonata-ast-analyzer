@@ -6934,17 +6934,21 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
         : [],
     );
   }
-  if (["lambda", "transform"].includes(node.type)) return [];
+  if (node.type === "lambda") return walkLambda(node as LambdaNode, scope);
+  if (node.type === "transform") {
+    const transform = node as TransformNode;
+    return [
+      ...walkSourceLessFilterStages(transform.predicate ?? [], scope),
+      ...(transform.group
+        ? walkSourceLessGroupEntries(transform.group, scope)
+        : []),
+    ];
+  }
   if (node.type === "array") {
     return walkArray(node as ArrayNode, scope);
   }
   if (node.type === "object") {
-    return (node as ObjectNode).entries.flatMap(([key, value]) => [
-      ...walkNode(key, scope),
-      ...(resolveCallableValues(value, scope).length > 0
-        ? walkCallableSelection(value, scope)
-        : walkNode(value, scope)),
-    ]);
+    return walkObject(node as ObjectNode, scope);
   }
   if (node.type === "condition") {
     const condition = node as ConditionNode;
@@ -6970,6 +6974,12 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
         paths.push(...walkNode(expression, blockScope));
       }
     }
+    paths.push(
+      ...walkSourceLessFilterStages(block.predicate ?? [], blockScope),
+      ...(block.group
+        ? walkSourceLessGroupEntries(block.group, blockScope)
+        : []),
+    );
     return paths;
   }
   if (node.type === "path") {

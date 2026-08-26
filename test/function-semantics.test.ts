@@ -1825,6 +1825,36 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves predicates attached to callable literals", () => {
+    for (const [expression, invocationPaths] of [
+      [
+        "($op := (function($x){$x.children.name})" +
+          "[$$.config.enabled]; $op(detail))",
+        ["detail", "detail.children.name"],
+      ],
+      [
+        '($op := {"apply":function($x){$x.children.name}}' +
+          "[$$.config.enabled]; ($op.apply)(detail))",
+        ["detail", "detail.children.name"],
+      ],
+      [
+        '($op := (|children|{"seen":name}|)' +
+          "[$$.config.enabled]; $op(detail).children.seen)",
+        ["detail", "detail.children", "detail.children.name"],
+      ],
+    ] as const) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "config.enabled", confidence: "static" },
+          ...invocationPaths.map((path) => ({
+            path,
+            confidence: "static" as const,
+          })),
+        ]),
+      );
+    }
+  });
+
   it("preserves result aliases from filtered callable variables", () => {
     for (const expression of [
       "($functions := [function($x){$x}]; " +
