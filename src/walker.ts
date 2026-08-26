@@ -7969,17 +7969,28 @@ function getFunctionResultObjectAlias(
         scope,
       );
     }
-    const storedPartials = resolveCallableValues(
-      node.procedure,
-      scope,
-    ).flatMap((callable) =>
-      callable.kind === "partial" ? [callable.binding] : [],
-    );
-    if (storedPartials.length > 0) {
+    const storedCallables = resolveCallableValues(node.procedure, scope);
+    if (storedCallables.length > 0) {
       return mergeObjectAliases(
-        storedPartials.map((binding) =>
-          getPartialFunctionResultObjectAlias(binding, node.arguments, scope),
-        ),
+        storedCallables.map((callable) => {
+          if (callable.kind === "lambda") {
+            return getCustomFunctionResultObjectAlias(
+              callable.binding,
+              node.arguments,
+              scope,
+            );
+          }
+          if (callable.kind === "transform") {
+            return node.arguments[0]
+              ? groupResultObjectAliasForNode(node.arguments[0], scope)
+              : null;
+          }
+          return getPartialFunctionResultObjectAlias(
+            callable.binding,
+            node.arguments,
+            scope,
+          );
+        }),
       );
     }
   }
@@ -8125,21 +8136,28 @@ function getFunctionResultDynamicObjectAlias(
         scope,
       );
     }
-    const storedPartials = resolveCallableValues(
-      node.procedure,
-      scope,
-    ).flatMap((callable) =>
-      callable.kind === "partial" ? [callable.binding] : [],
-    );
-    if (storedPartials.length > 0) {
+    const storedCallables = resolveCallableValues(node.procedure, scope);
+    if (storedCallables.length > 0) {
       return mergeDynamicObjectAliases(
-        storedPartials.map((binding) =>
-          getPartialFunctionResultDynamicObjectAlias(
-            binding,
+        storedCallables.map((callable) => {
+          if (callable.kind === "lambda") {
+            return getCustomFunctionResultDynamicObjectAlias(
+              callable.binding,
+              node.arguments,
+              scope,
+            );
+          }
+          if (callable.kind === "transform") {
+            return node.arguments[0]
+              ? groupResultDynamicObjectAliasForNode(node.arguments[0], scope)
+              : null;
+          }
+          return getPartialFunctionResultDynamicObjectAlias(
+            callable.binding,
             node.arguments,
             scope,
-          ),
-        ),
+          );
+        }),
       );
     }
   }
@@ -8769,16 +8787,27 @@ function getFunctionResultBasePaths(
         scope,
       );
     }
-    const storedPartials = resolveCallableValues(
-      node.procedure,
-      scope,
-    ).flatMap((callable) =>
-      callable.kind === "partial" ? [callable.binding] : [],
-    );
-    if (storedPartials.length > 0) {
-      return storedPartials.flatMap((binding) =>
-        getPartialFunctionResultBasePaths(binding, node.arguments, scope),
-      );
+    const storedCallables = resolveCallableValues(node.procedure, scope);
+    if (storedCallables.length > 0) {
+      return storedCallables.flatMap((callable) => {
+        if (callable.kind === "lambda") {
+          return getCustomFunctionResultBasePaths(
+            callable.binding,
+            node.arguments,
+            scope,
+          );
+        }
+        if (callable.kind === "transform") {
+          return node.arguments[0]
+            ? getResultBasePathsFromArg(node.arguments[0], scope)
+            : [];
+        }
+        return getPartialFunctionResultBasePaths(
+          callable.binding,
+          node.arguments,
+          scope,
+        );
+      });
     }
   }
   if (

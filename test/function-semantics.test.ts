@@ -715,6 +715,54 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves selected callable result aliases through parameters", () => {
+    for (const expression of [
+      "($apply := function($fn,$x){$fn($x).children.name}; " +
+        "$ops := [function($v){$v}]; $apply($ops[0],detail))",
+      "($apply := function($fn,$x){$fn($x).children.name}; " +
+        '$ops := {"go":function($v){$v}}; $apply($ops.go,detail))',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    for (const [container, suffix, includesDynamicKey] of [
+      [
+        '[function($v){{"selected":$v.children}}]',
+        ".selected.name",
+        false,
+      ],
+      [
+        '{"go":function($v){{$v.category:$v.children}}}',
+        ".a.name",
+        true,
+      ],
+    ] as const) {
+      const selector = container.startsWith("[") ? "$ops[0]" : "$ops.go";
+      expect(
+        sortPaths(
+          extractPaths(
+            `($apply := function($fn,$x){$fn($x)${suffix}}; ` +
+              `$ops := ${container}; $apply(${selector},detail))`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          ...(includesDynamicKey
+            ? [{ path: "detail.category", confidence: "static" as const }]
+            : []),
+          { path: "detail.children", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("clears stale lambda bindings when rebound to partials", () => {
     expect(
       sortPaths(
