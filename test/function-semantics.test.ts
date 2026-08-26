@@ -1458,6 +1458,67 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes callable fields from path projection results", () => {
+    for (const [source, expectedSourcePaths] of [
+      ["items[0]", ["items", "items.name"]],
+      [
+        "items[active][0]",
+        ["items", "items.active", "items.name"],
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($ops := ${source}.` +
+              '{"apply":function($x){name & $x.children.name}}; ' +
+              "($ops.apply)(detail))",
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          ...expectedSourcePaths.map((path) => ({
+            path,
+            confidence: "static" as const,
+          })),
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("invokes dynamically selected callables from path projections", () => {
+    for (const [projection, expectedSourcePaths] of [
+      [
+        '{"apply":function($x){name & $x.children.name}}',
+        ["items", "items.name"],
+      ],
+      [
+        '($captured := name; {"apply":function($x){$captured & $x.children.name}})',
+        ["items.name"],
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($ops := items[0].${projection}; ` +
+              "$lookup($ops, $$.config.operation)(detail))",
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          ...expectedSourcePaths.map((path) => ({
+            path,
+            confidence: "static" as const,
+          })),
+          { path: "config.operation", confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [

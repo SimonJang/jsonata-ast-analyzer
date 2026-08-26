@@ -988,10 +988,27 @@ function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
   if (identityPaths) return identityPaths;
 
   switch (node.type) {
-    case "name":
-      return [(node as NameNode).value];
-    case "path":
-      return getResultBasePathsFromArg(node, scope);
+    case "name": {
+      const currentPaths = resolveVariable(scope, "");
+      return currentPaths?.length
+        ? markAbsolute(
+            currentPaths.map((path) =>
+              appendPath(path, (node as NameNode).value),
+            ),
+          )
+        : [(node as NameNode).value];
+    }
+    case "path": {
+      const paths = getResultBasePathsFromArg(node, scope);
+      const currentPaths = resolveVariable(scope, "");
+      return currentPaths?.length && (node as PathNode).steps[0]?.type === "name"
+        ? markAbsolute(
+            currentPaths.flatMap((currentPath) =>
+              paths.map((path) => appendPath(currentPath, path)),
+            ),
+          )
+        : paths;
+    }
     case "variable":
       return [...(resolveVariable(scope, (node as VariableNode).value) ?? [])];
     case "array":
@@ -2200,7 +2217,14 @@ function bindSuffixBasePathsIfPresent(
   node: AstNode,
   aliasScope: ScopeTracker,
 ): ScopeTracker {
-  return bindSuffixBasePaths(scope, name, groupResultSuffixBasePaths(node, aliasScope));
+  const currentPaths = resolveVariable(aliasScope, "");
+  const paths =
+    currentPaths?.length &&
+    node.type === "path" &&
+    (node as PathNode).steps[0]?.type === "name"
+      ? bindingAliasPaths(node, aliasScope)
+      : groupResultSuffixBasePaths(node, aliasScope);
+  return bindSuffixBasePaths(scope, name, paths);
 }
 
 function isResultAliasStep(step: AstNode): boolean {
@@ -6105,6 +6129,60 @@ function higherOrderResultBuiltinCallableNames(
   );
 }
 
+function pathProjectionCallableScope(
+  path: PathNode,
+  projectionIndex: number,
+  scope: ScopeTracker,
+): ScopeTracker {
+  const prefixSteps = path.steps.slice(0, projectionIndex);
+  const contextPrefix = buildProjectionContextPath(prefixSteps);
+  const contextPaths = contextPrefix
+    ? [contextPrefix]
+    : extractBasePaths(
+        { type: "path", steps: prefixSteps } as PathNode,
+        scope,
+      );
+  return contextPaths.length > 0
+    ? bindVariable(childScope(scope), "", contextPaths)
+    : scope;
+}
+
+function pathProjectionCallableValues(
+  path: PathNode,
+  scope: ScopeTracker,
+): ResolvedCallable[] {
+  const projectionIndex = path.steps.findIndex(
+    (step, index) =>
+      index > 0 && ["object", "array", "block", "condition"].includes(step.type),
+  );
+  if (projectionIndex < 0) return [];
+  return resolveCallableValues(
+    {
+      type: "path",
+      steps: path.steps.slice(projectionIndex),
+    } as PathNode,
+    pathProjectionCallableScope(path, projectionIndex, scope),
+  );
+}
+
+function pathProjectionBuiltinCallableNames(
+  path: PathNode,
+  scope: ScopeTracker,
+): string[] {
+  const projectionIndex = path.steps.findIndex(
+    (step, index) =>
+      index > 0 && ["object", "array", "block", "condition"].includes(step.type),
+  );
+  if (projectionIndex < 0) return [];
+  return resolveBuiltinCallableNames(
+    {
+      type: "path",
+      steps: path.steps.slice(projectionIndex),
+    } as PathNode,
+    pathProjectionCallableScope(path, projectionIndex, scope),
+  );
+}
+
 function resolveCallableValues(
   node: AstNode,
   scope: ScopeTracker,
@@ -6185,6 +6263,8 @@ function resolveCallableValues(
   }
   if (node.type === "path") {
     const path = node as PathNode;
+    const projectionValues = pathProjectionCallableValues(path, scope);
+    if (projectionValues.length > 0) return projectionValues;
     const [first, ...suffixSteps] = path.steps;
     if (!first) return [];
 
@@ -6227,6 +6307,15 @@ function resolveCallableValues(
             sourceScope,
           )
         : [];
+    }
+    if (sourceNode.type === "path" && suffixSteps.length > 0) {
+      return resolveCallableValues(
+        {
+          ...sourceNode,
+          steps: [...(sourceNode as PathNode).steps, ...suffixSteps],
+        } as PathNode,
+        sourceScope,
+      );
     }
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
@@ -6458,6 +6547,8 @@ function resolveBuiltinCallableNames(
   }
   if (node.type === "path") {
     const path = node as PathNode;
+    const projectionNames = pathProjectionBuiltinCallableNames(path, scope);
+    if (projectionNames.length > 0) return projectionNames;
     const [first, ...suffixSteps] = path.steps;
     if (!first) return [];
 
@@ -6500,6 +6591,15 @@ function resolveBuiltinCallableNames(
             sourceScope,
           )
         : [];
+    }
+    if (sourceNode.type === "path" && suffixSteps.length > 0) {
+      return resolveBuiltinCallableNames(
+        {
+          ...sourceNode,
+          steps: [...(sourceNode as PathNode).steps, ...suffixSteps],
+        } as PathNode,
+        sourceScope,
+      );
     }
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
@@ -6765,6 +6865,9 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
   if (node.type === "path") {
     const path = node as PathNode;
     const [first, ...suffixSteps] = path.steps;
+    const producedByProjection =
+      pathProjectionCallableValues(path, scope).length > 0 ||
+      pathProjectionBuiltinCallableNames(path, scope).length > 0;
     const producedByTransform =
       first?.type === "function" &&
       (transformUpdateCallableValues(
@@ -6805,7 +6908,8 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
       producedByTransform || producedByHigherOrder || producedByCustomFunction
         ? walkFunction(first as FunctionNode, scope)
         : [];
-    return [...producerPaths, ...path.steps.flatMap((step) => {
+    const projectionPaths = producedByProjection ? walkPath(path, scope) : [];
+    return [...producerPaths, ...projectionPaths, ...path.steps.flatMap((step) => {
       if (["array", "object", "block"].includes(step.type)) {
         return walkCallableSelection(step, scope);
       }
@@ -8531,7 +8635,6 @@ function walkCustomFunctionCall(
     binding.forwardScope ?? callScope,
     binding.name,
   );
-
   // Walk the lambda body with parameter bindings
   const parentBasePaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
   const capturedContextPaths = resolveVariable(scope, "");
