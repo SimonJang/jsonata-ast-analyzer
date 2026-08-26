@@ -5936,7 +5936,8 @@ function higherOrderCallableResultBodies(
   scope: ScopeTracker,
 ): Array<{ node: AstNode; scope: ScopeTracker }> {
   const funcNames = resolveBuiltinCallableNames(node.procedure, scope).filter(
-    (name): name is "map" | "each" => name === "map" || name === "each",
+    (name): name is "map" | "each" | "reduce" =>
+      name === "map" || name === "each" || name === "reduce",
   );
   const dataArg = node.arguments[0];
   const callbackArg = node.arguments[1];
@@ -5960,13 +5961,26 @@ function higherOrderCallableResultBodies(
     );
     const directBodies = bindings.map((binding) => ({
       node: binding.lambda.body,
-      scope: bindHigherOrderLambdaCallbackScope(
-        funcName,
-        binding,
-        dataArgPaths,
-        dataArg,
-        scope,
-      ),
+      scope:
+        funcName === "reduce"
+          ? lambdaCallScope(
+              binding,
+              higherOrderCallbackCallArguments(
+                funcName,
+                dataArg,
+                dataArg,
+                node.arguments,
+                node.position,
+              ),
+              scope,
+            )
+          : bindHigherOrderLambdaCallbackScope(
+              funcName,
+              binding,
+              dataArgPaths,
+              dataArg,
+              scope,
+            ),
     }));
     const partialBodies = higherOrderPartialLambdaCalls(
       funcName,

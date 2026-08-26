@@ -1354,6 +1354,23 @@ describe("function semantics", () => {
     );
   });
 
+  it("invokes callable results produced by reduce callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callback := $reduce(items, function($acc, $value){" +
+            "function($x){$x.children.name}}); $callback(detail))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("traces a partial returned by a custom function", () => {
     expect(
       extractPaths(
