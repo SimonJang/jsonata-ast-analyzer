@@ -5613,6 +5613,33 @@ function unwrapCallableContainerNode(
   return { node, scope };
 }
 
+function callableContainerProducerInputs(node: FunctionNode): AstNode[] {
+  if (node.procedure.type !== "variable") return [];
+  const funcName = node.procedure.value;
+  if (funcName === "append" || funcName === "zip") return node.arguments;
+  if (
+    funcName !== "lookup" &&
+    PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)
+  ) {
+    return node.arguments[0] ? [node.arguments[0]] : [];
+  }
+  return [];
+}
+
+function callableArrayEntries(node: ArrayNode): AstNode[] {
+  const numericFilter = (node.predicate ?? []).find(
+    (stage) =>
+      stage.type === "filter" &&
+      (stage as unknown as FilterStage).expr.type === "number",
+  ) as unknown as FilterStage | undefined;
+  if (!numericFilter) return node.expressions;
+
+  const index = Number(
+    ((numericFilter as unknown as FilterStage).expr as { value: number }).value,
+  );
+  return node.expressions[index] ? [node.expressions[index]] : [];
+}
+
 function compositionProcedure(
   node: AstNode,
   scope: ScopeTracker,
@@ -5756,6 +5783,27 @@ function resolveCallableValues(
           : [],
       );
     }
+    if (sourceNode.type === "array") {
+      return callableArrayEntries(sourceNode as ArrayNode).flatMap((entry) =>
+        resolveCallableValues(
+          suffixSteps.length > 0
+            ? ({ type: "path", steps: [entry, ...suffixSteps] } as PathNode)
+            : entry,
+          sourceScope,
+        ),
+      );
+    }
+    if (sourceNode.type === "function") {
+      return callableContainerProducerInputs(sourceNode as FunctionNode).flatMap(
+        (input) =>
+          resolveCallableValues(
+            suffixSteps.length > 0
+              ? ({ type: "path", steps: [input, ...suffixSteps] } as PathNode)
+              : input,
+            sourceScope,
+          ),
+      );
+    }
 
     const [selector, ...rest] = suffixSteps;
     if (sourceNode.type === "object" && selector?.type === "name") {
@@ -5798,6 +5846,22 @@ function resolveCallableValues(
   ) {
     const objectArg = functionNode.arguments[0];
     if (!objectArg) return [];
+    const keyArg = functionNode.arguments[1];
+    const staticKey = keyArg?.type === "string"
+      ? (keyArg as { value: string }).value
+      : null;
+    if (staticKey !== null) {
+      return resolveCallableValues(
+        {
+          type: "path",
+          steps: [
+            objectArg,
+            { type: "name", value: staticKey, position: functionNode.position },
+          ],
+        } as PathNode,
+        scope,
+      );
+    }
     const { node: objectNode, scope: objectScope } =
       unwrapCallableContainerNode(objectArg, scope);
     if (objectNode.type === "condition") {
@@ -5816,10 +5880,6 @@ function resolveCallableValues(
     }
     if (objectNode.type !== "object") return [];
 
-    const keyArg = functionNode.arguments[1];
-    const staticKey = keyArg?.type === "string"
-      ? (keyArg as { value: string }).value
-      : null;
     return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
       staticKey === null || staticObjectKey(key) === staticKey
         ? resolveCallableValues(value, objectScope)
@@ -5916,6 +5976,27 @@ function resolveBuiltinCallableNames(
           : [],
       );
     }
+    if (sourceNode.type === "array") {
+      return callableArrayEntries(sourceNode as ArrayNode).flatMap((entry) =>
+        resolveBuiltinCallableNames(
+          suffixSteps.length > 0
+            ? ({ type: "path", steps: [entry, ...suffixSteps] } as PathNode)
+            : entry,
+          sourceScope,
+        ),
+      );
+    }
+    if (sourceNode.type === "function") {
+      return callableContainerProducerInputs(sourceNode as FunctionNode).flatMap(
+        (input) =>
+          resolveBuiltinCallableNames(
+            suffixSteps.length > 0
+              ? ({ type: "path", steps: [input, ...suffixSteps] } as PathNode)
+              : input,
+            sourceScope,
+          ),
+      );
+    }
 
     const [selector, ...rest] = suffixSteps;
     if (sourceNode.type === "object" && selector?.type === "name") {
@@ -5983,6 +6064,23 @@ function resolveBuiltinCallableNames(
     ) {
       const objectArg = functionNode.arguments[0];
       if (!objectArg) return [];
+      const keyArg = functionNode.arguments[1];
+      const staticKey =
+        keyArg?.type === "string"
+          ? (keyArg as { value: string }).value
+          : null;
+      if (staticKey !== null) {
+        return resolveBuiltinCallableNames(
+          {
+            type: "path",
+            steps: [
+              objectArg,
+              { type: "name", value: staticKey, position: functionNode.position },
+            ],
+          } as PathNode,
+          scope,
+        );
+      }
       const { node: objectNode, scope: objectScope } =
         unwrapCallableContainerNode(objectArg, scope);
       if (objectNode.type === "condition") {
@@ -6001,11 +6099,6 @@ function resolveBuiltinCallableNames(
       }
       if (objectNode.type !== "object") return [];
 
-      const keyArg = functionNode.arguments[1];
-      const staticKey =
-        keyArg?.type === "string"
-          ? (keyArg as { value: string }).value
-          : null;
       return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
         staticKey === null || staticObjectKey(key) === staticKey
           ? resolveBuiltinCallableNames(value, objectScope)

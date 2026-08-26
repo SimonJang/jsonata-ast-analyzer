@@ -1214,6 +1214,28 @@ describe("function semantics", () => {
     }
   });
 
+  it("traces callable fields through collection container producers", () => {
+    for (const producer of [
+      '([{"go":function($x){$x}}][0]).go',
+      '$merge([{"go":function($x){$x}}]).go',
+      '$lookup($merge([{"go":function($x){$x}}]),"go")',
+      '$append({}, {"go":function($x){$x}}).go',
+    ]) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($project := ${producer}; $project(detail).children.name)`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("resolves variable-bound callbacks in filtered path chains", () => {
     expect(
       sortPaths(
