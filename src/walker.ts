@@ -8048,6 +8048,22 @@ function eachInputNeedsWildcardValues(
         eachInputNeedsWildcardValues(branch, scope, resolvingVariables),
     );
   }
+  if (node.type === "function") {
+    const functionNode = node as FunctionNode;
+    if (
+      functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "eval"
+    ) {
+      const expression = getStaticEvalExpression(functionNode.arguments);
+      if (expression) {
+        return eachInputNeedsWildcardValues(
+          expression,
+          getStaticEvalScope(functionNode.arguments, scope),
+          resolvingVariables,
+        );
+      }
+    }
+  }
   if (node.type === "function" || node.type === "apply") return true;
   if (node.type === "object") return false;
   const callbackDataNodes = higherOrderCallbackDataNodes("each", node, scope);
@@ -8192,6 +8208,20 @@ function higherOrderCallbackDataNodes(
         lambdaCallScope(lambdaBinding, functionNode.arguments, scope),
         resolvingVariables,
       );
+    }
+    if (
+      functionNode.procedure.type === "variable" &&
+      functionNode.procedure.value === "eval"
+    ) {
+      const expression = getStaticEvalExpression(functionNode.arguments);
+      if (expression) {
+        return higherOrderCallbackDataNodes(
+          funcName,
+          expression,
+          getStaticEvalScope(functionNode.arguments, scope),
+          resolvingVariables,
+        );
+      }
     }
     if (
       functionNode.procedure.type === "variable" &&

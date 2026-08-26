@@ -96,6 +96,24 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves $each value aliases from static $eval objects", () => {
+    const cases = [
+      '($object := $eval("{\\\"a\\\": detail, \\\"b\\\": fallback.x}"); $each($object, function($value){$value.children.name}))',
+      '$each($eval("({\\\"group\\\": {\\\"a\\\": detail, \\\"b\\\": fallback.x}}).group"), function($value){$value.children.name})',
+    ];
+
+    for (const expression of cases) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+          { path: "fallback.x", confidence: "static" },
+          { path: "fallback.x.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves contextual dynamic object aliases from static $eval programs", () => {
     expect(
       sortPaths(
