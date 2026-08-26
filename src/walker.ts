@@ -6223,8 +6223,12 @@ function resolveCallableValues(
     }
 
     const [selector, ...rest] = suffixSteps;
-    if (sourceNode.type === "object" && selector?.type === "name") {
+    if (
+      sourceNode.type === "object" &&
+      (selector?.type === "name" || selector?.type === "wildcard")
+    ) {
       return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
+        selector.type === "wildcard" ||
         staticObjectKey(key) === (selector as NameNode).value
           ? resolveCallableValues(
               rest.length > 0
@@ -6458,8 +6462,12 @@ function resolveBuiltinCallableNames(
     }
 
     const [selector, ...rest] = suffixSteps;
-    if (sourceNode.type === "object" && selector?.type === "name") {
+    if (
+      sourceNode.type === "object" &&
+      (selector?.type === "name" || selector?.type === "wildcard")
+    ) {
       return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
+        selector.type === "wildcard" ||
         staticObjectKey(key) === (selector as NameNode).value
           ? resolveBuiltinCallableNames(
               rest.length > 0
@@ -10873,6 +10881,23 @@ function walkApply(node: ApplyNode, scope: ScopeTracker): string[] {
   if (appliedFunction) {
     // walkFunction will re-walk the lhs arg, but dedup in extractPaths handles it
     paths.push(...walkFunction(appliedFunction, scope));
+  } else if (
+    ["path", "block"].includes(node.rhs.type) &&
+    (resolveCallableValues(node.rhs, scope).length > 0 ||
+      resolveBuiltinCallableNames(node.rhs, scope).length > 0)
+  ) {
+    paths.push(
+      ...walkFunction(
+        {
+          type: "function",
+          value: "(",
+          position: node.position,
+          procedure: node.rhs as FunctionNode["procedure"],
+          arguments: [node.lhs],
+        },
+        scope,
+      ),
+    );
   } else if (node.rhs.type === "path") {
     const pathNode = node.rhs as PathNode;
     if (pathNode.steps[0]?.type === "function") {

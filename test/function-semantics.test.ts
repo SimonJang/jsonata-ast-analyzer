@@ -1346,6 +1346,32 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes structured custom-function callables through apply chains", () => {
+    for (const callable of ["$maker().apply", "($maker().apply)"]) {
+      expect(
+        extractPaths(
+          '($maker := function(){{"apply":function($x){$x.children.name}}}; ' +
+            `detail ~> ${callable})`,
+        ),
+      ).toEqual([
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]);
+    }
+  });
+
+  it("invokes wildcard-selected callables from custom-function results", () => {
+    expect(
+      extractPaths(
+        '($maker := function(){{"apply":function($x){$x.children.name}}}; ' +
+          "($maker().*)(detail))",
+      ),
+    ).toEqual([
+      { path: "detail", confidence: "static" },
+      { path: "detail.children.name", confidence: "static" },
+    ]);
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [
