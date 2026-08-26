@@ -5765,6 +5765,26 @@ function callableArrayEntries(node: ArrayNode): AstNode[] {
   return node.expressions[index] ? [node.expressions[index]] : [];
 }
 
+function dynamicCallableLookupSelection(
+  node: AstNode,
+  position: number,
+): PathNode {
+  const wildcard: WildcardNode = {
+    type: "wildcard",
+    value: "*",
+    position,
+  };
+  if (node.type === "path") {
+    const path = node as PathNode;
+    return {
+      ...path,
+      steps: [...path.steps, wildcard],
+      group: undefined,
+    };
+  }
+  return { type: "path", steps: [node, wildcard] };
+}
+
 function compositionProcedure(
   node: AstNode,
   scope: ScopeTracker,
@@ -5846,24 +5866,33 @@ function transformUpdateMatches(
   pattern: AstNode,
   suffixSteps: AstNode[],
 ): Array<{ locationNames: string[]; updateSuffix: AstNode[] }> {
-  const suffixNames = suffixSteps.every((step) => step.type === "name")
-    ? suffixSteps.map((step) => (step as NameNode).value)
-    : null;
-  if (!suffixNames) return [];
-
   return staticTransformPatternAlternatives(pattern).flatMap(
-    (patternNames) =>
-      patternNames.length <= suffixNames.length &&
-      patternNames.every(
-        (name, index) => name === "*" || suffixNames[index] === name,
-      )
-        ? [
-            {
-              locationNames: suffixNames.slice(0, patternNames.length),
-              updateSuffix: suffixSteps.slice(patternNames.length),
-            },
-          ]
-        : [],
+    (patternNames) => {
+      const locationSteps = suffixSteps.slice(0, patternNames.length);
+      if (locationSteps.length !== patternNames.length) return [];
+      const locationNames = locationSteps.map((step) =>
+        step.type === "name"
+          ? (step as NameNode).value
+          : step.type === "wildcard"
+            ? "*"
+            : null,
+      );
+      if (
+        locationNames.some((name) => name === null) ||
+        patternNames.some(
+          (name, index) =>
+            name !== "*" && locationNames[index] !== name,
+        )
+      ) {
+        return [];
+      }
+      return [
+        {
+          locationNames: locationNames as string[],
+          updateSuffix: suffixSteps.slice(patternNames.length),
+        },
+      ];
+    },
   );
 }
 
@@ -6288,6 +6317,11 @@ function resolveCallableValues(
         scope,
       );
     }
+    const selectedValues = resolveCallableValues(
+      dynamicCallableLookupSelection(objectArg, functionNode.position),
+      scope,
+    );
+    if (selectedValues.length > 0) return selectedValues;
     const directValues = resolveCallableValues(objectArg, scope);
     if (directValues.length > 0) return directValues;
     const { node: objectNode, scope: objectScope } =
@@ -6576,6 +6610,11 @@ function resolveBuiltinCallableNames(
           scope,
         );
       }
+      const selectedNames = resolveBuiltinCallableNames(
+        dynamicCallableLookupSelection(objectArg, functionNode.position),
+        scope,
+      );
+      if (selectedNames.length > 0) return selectedNames;
       const directNames = resolveBuiltinCallableNames(objectArg, scope);
       if (directNames.length > 0) return directNames;
       const { node: objectNode, scope: objectScope } =

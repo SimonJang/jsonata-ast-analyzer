@@ -29,6 +29,25 @@ describe("transform semantics", () => {
     }
   });
 
+  it("invokes dynamically looked-up callable fields from transform updates", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($t := |node|{"apply":function($x){$x.children.name}}|; ' +
+            "$lookup($t(payload).node, $$.config.operation)(detail))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "payload", confidence: "static" },
+        { path: "payload.node", confidence: "static" },
+        { path: "config.operation", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("captures transform match context in produced callable fields", () => {
     expect(
       sortPaths(
