@@ -10,6 +10,7 @@ export interface LambdaBinding {
   readonly lambda: LambdaNode;
   readonly scope: ScopeTracker;
   readonly name?: string;
+  readonly forwardScope?: ScopeTracker;
 }
 
 export interface PartialBinding {
@@ -209,6 +210,31 @@ export function bindLambda(
 ): ScopeTracker {
   const newLambdas = new Map(scope.lambdas);
   newLambdas.set(name, { lambda, scope: closureScope, name });
+  return {
+    bindings: scope.bindings,
+    lambdas: newLambdas,
+    partials: scope.partials,
+    transforms: scope.transforms,
+    values: scope.values,
+    objectAliases: scope.objectAliases,
+    dynamicObjectAliases: scope.dynamicObjectAliases,
+    suffixBaseBindings: scope.suffixBaseBindings,
+    parent: scope.parent,
+  };
+}
+
+export function bindLambdaReference(
+  scope: ScopeTracker,
+  name: string,
+  binding: LambdaBinding,
+  forwardScope: ScopeTracker,
+): ScopeTracker {
+  const newLambdas = new Map(scope.lambdas);
+  newLambdas.set(name, {
+    ...binding,
+    name: binding.name ?? name,
+    forwardScope,
+  });
   return {
     bindings: scope.bindings,
     lambdas: newLambdas,

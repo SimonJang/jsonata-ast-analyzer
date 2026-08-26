@@ -300,6 +300,31 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes callables passed through custom function parameters", () => {
+    for (const expression of [
+      "($apply := function($fn,$x){$fn($x)}; " +
+        "$project := function($x){$x.children.name}; $apply($project,detail))",
+      "($project := function($x){$helper($x)}; " +
+        "$helper := function($x){$x.children.name}; " +
+        "$apply := function($fn,$x){$fn($x)}; $apply($project,detail))",
+      "($apply := function($fn,$x){$fn($x)}; " +
+        "$project := function($x){$helper($x)}; " +
+        "$helper := function($x){$x.children.name}; $apply($project,detail))",
+      "($apply := function($fn,$x){$fn($x)}; " +
+        "$project := function($x){$x.children.name}(?); " +
+        "$apply($project,detail))",
+      "($apply := function($fn,$x){$fn($x)}; " +
+        "$apply($clone,detail).children.name)",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("preserves grouped result aliases across function boundaries", () => {
     for (const expression of [
       "(function($x){$x{key:value}})(items).x.name",

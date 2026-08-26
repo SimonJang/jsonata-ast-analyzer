@@ -34,6 +34,7 @@ import {
   bindObjectAlias,
   bindDynamicObjectAlias,
   bindLambda,
+  bindLambdaReference,
   bindPartial,
   bindTransform,
   bindValue,
@@ -5551,7 +5552,7 @@ function lambdaCallScope(
   return bindForwardCallableReferences(
     resultScope,
     binding.lambda,
-    callScope,
+    binding.forwardScope ?? callScope,
     binding.name,
   );
 }
@@ -7123,7 +7124,7 @@ function bindHigherOrderLambdaCallbackScope(
   return bindForwardCallableReferences(
     lambdaScope,
     binding.lambda,
-    dataArgScope,
+    binding.forwardScope ?? dataArgScope,
     binding.name,
   );
 }
@@ -7630,7 +7631,7 @@ function walkCustomFunctionCall(
   lambdaScope = bindForwardCallableReferences(
     lambdaScope,
     lambda,
-    callScope,
+    binding.forwardScope ?? callScope,
     binding.name,
   );
 
@@ -7815,7 +7816,39 @@ function bindArgumentParameter(
   nextScope = bindSuffixBasePathsIfPresent(nextScope, param.value, arg, argScope);
   nextScope = bindObjectAliasIfPresent(nextScope, param.value, arg, argScope);
   nextScope = bindDynamicObjectAliasIfPresent(nextScope, param.value, arg, argScope);
-  return nextScope;
+  const callables = resolveCallableValues(arg, argScope);
+  if (
+    callables.length === 0 &&
+    resolveBuiltinCallableNames(arg, argScope).length === 0
+  ) {
+    return nextScope;
+  }
+  nextScope = bindCallableValue(nextScope, param.value, arg, argScope);
+  return callables.length === 1 &&
+    callables[0].kind === "lambda" &&
+    lambdaNeedsForwardScope(callables[0].binding, argScope)
+    ? bindLambdaReference(
+        nextScope,
+        param.value,
+        callables[0].binding,
+        argScope,
+      )
+    : nextScope;
+}
+
+function lambdaNeedsForwardScope(
+  binding: LambdaBinding,
+  candidateScope: ScopeTracker,
+): boolean {
+  const parameterNames = new Set(
+    binding.lambda.arguments.map((argument) => argument.value),
+  );
+  return [...callableProcedureVariableNames(binding.lambda.body)].some(
+    (name) =>
+      !parameterNames.has(name) &&
+      !resolveValue(binding.scope, name) &&
+      resolveValue(candidateScope, name) != null,
+  );
 }
 
 function applyPartialArguments(
@@ -7854,11 +7887,46 @@ function walkPartialCall(
     procedure: binding.partial.procedure,
     arguments: applyPartialArguments(binding.partial, callArgs),
   };
+  const appliedArgs = appliedFunction.arguments;
+  const resolvedCallables = resolveCallableValues(
+    binding.partial.procedure,
+    binding.scope,
+  );
+  const builtinNames = resolveBuiltinCallableNames(
+    binding.partial.procedure,
+    binding.scope,
+  );
+  const invocationPaths = resolvedCallables.flatMap((callable) => {
+    if (callable.kind === "lambda") {
+      return walkCustomFunctionCall(callable.binding, appliedArgs, callScope);
+    }
+    if (callable.kind === "transform") {
+      return walkTransformCall(callable.binding, appliedArgs, callScope);
+    }
+    return walkPartialCall(callable.binding, appliedArgs, callScope);
+  });
+  for (const name of builtinNames) {
+    invocationPaths.push(
+      ...walkFunction(
+        {
+          ...appliedFunction,
+          procedure: {
+            type: "variable",
+            value: name,
+            position: appliedFunction.position,
+          },
+        },
+        callScope,
+      ),
+    );
+  }
 
   return [
     ...boundPaths,
     ...callPaths,
-    ...walkFunction(appliedFunction, binding.scope),
+    ...(resolvedCallables.length > 0 || builtinNames.length > 0
+      ? invocationPaths
+      : walkFunction(appliedFunction, binding.scope)),
   ];
 }
 
@@ -8158,7 +8226,7 @@ function getCustomFunctionResultObjectAlias(
   lambdaScope = bindForwardCallableReferences(
     lambdaScope,
     lambda,
-    callScope,
+    binding.forwardScope ?? callScope,
     binding.name,
   );
 
@@ -8202,7 +8270,7 @@ function getCustomFunctionResultDynamicObjectAlias(
   lambdaScope = bindForwardCallableReferences(
     lambdaScope,
     lambda,
-    callScope,
+    binding.forwardScope ?? callScope,
     binding.name,
   );
 
@@ -8689,7 +8757,7 @@ function getCustomFunctionResultBasePaths(
   lambdaScope = bindForwardCallableReferences(
     lambdaScope,
     lambda,
-    callScope,
+    binding.forwardScope ?? callScope,
     binding.name,
   );
 
@@ -9154,7 +9222,7 @@ function getCustomFunctionResultSuffixBasePaths(
   lambdaScope = bindForwardCallableReferences(
     lambdaScope,
     lambda,
-    callScope,
+    binding.forwardScope ?? callScope,
     binding.name,
   );
 
