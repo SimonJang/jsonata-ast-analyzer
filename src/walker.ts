@@ -5576,6 +5576,25 @@ function unwrapCallableContainerNode(
       return unwrapCallableContainerNode(value.node, value.scope, depth + 1);
     }
   }
+  if (node.type === "block") {
+    const block = node as BlockNode;
+    let blockScope = scope;
+    for (const [index, expression] of block.expressions.entries()) {
+      if (index === block.expressions.length - 1) {
+        return unwrapCallableContainerNode(
+          expression,
+          blockScope,
+          depth + 1,
+        );
+      }
+      if (expression.type === "bind") {
+        blockScope = bindCallableBlockValue(
+          blockScope,
+          expression as BindNode,
+        );
+      }
+    }
+  }
   if (
     node.type === "function" &&
     (node as FunctionNode).procedure.type === "variable" &&

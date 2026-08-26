@@ -1179,6 +1179,22 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("traces callables selected from parenthesized inline objects", () => {
+    for (const expression of [
+      '({"go":function($x){$x.children.name}}).go(detail)',
+      "($project := " +
+        '({"go":function($x){$x}}).go; ' +
+        "$project(detail).children.name)",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("resolves variable-bound callbacks in filtered path chains", () => {
     expect(
       sortPaths(
