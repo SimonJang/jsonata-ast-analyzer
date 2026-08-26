@@ -1766,6 +1766,73 @@ describe("function semantics", () => {
     );
   });
 
+  it("invokes callables preserved by collection functions", () => {
+    for (const [producer, invocation, expectedPaths] of [
+      [
+        "$reverse([function($x){fallback.name & $x.children.name}])",
+        "($callbacks[0])(detail)",
+        ["fallback.name", "detail", "detail.children.name"],
+      ],
+      [
+        "$sort([function($x){$x.children.name}," +
+          "function($x){$x.children.rank}]," +
+          "function(){ $$.config.enabled })",
+        "($callbacks[0])(detail)",
+        [
+          "config.enabled",
+          "detail",
+          "detail.children.name",
+          "detail.children.rank",
+        ],
+      ],
+      [
+        "$filter([function($x){$x.children.name}]," +
+          "function(){ $$.config.enabled })",
+        "($callbacks[0])(detail)",
+        ["config.enabled", "detail", "detail.children.name"],
+      ],
+      [
+        "$single([function($x){$x.children.name}]," +
+          "function(){ $$.config.enabled })",
+        "$callbacks(detail)",
+        ["config.enabled", "detail", "detail.children.name"],
+      ],
+      [
+        "$shuffle([function($x){$x.children.name}])",
+        "($callbacks[0])(detail)",
+        ["detail", "detail.children.name"],
+      ],
+      [
+        "$distinct([function($x){$x.children.name}])",
+        "($callbacks[0])(detail)",
+        ["detail", "detail.children.name"],
+      ],
+      [
+        "$zip([function($x){$x.children.name}], [$clone])",
+        "($callbacks[0][0])(detail)",
+        ["detail", "detail.children.name"],
+      ],
+      [
+        "$reverse([$lookup])",
+        '($callbacks[0])(record, "first").children.name',
+        ["record", "record.first", "record.first.children.name"],
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(`($callbacks := ${producer}; ${invocation})`),
+        ),
+      ).toEqual(
+        sortPaths(
+          expectedPaths.map((path) => ({
+            path,
+            confidence: "static" as const,
+          })),
+        ),
+      );
+    }
+  });
+
   it("invokes callable results produced by reduce callbacks", () => {
     expect(
       sortPaths(

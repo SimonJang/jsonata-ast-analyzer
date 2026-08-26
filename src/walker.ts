@@ -6578,6 +6578,11 @@ function resolveCallableValues(
   );
   if (higherOrderResults.length > 0) return higherOrderResults;
 
+  const producerResults = callableContainerProducerInputs(functionNode).flatMap(
+    (input) => resolveCallableValues(input, scope),
+  );
+  if (producerResults.length > 0) return producerResults;
+
   const lambdaBinding =
     functionNode.procedure.type === "lambda"
       ? { lambda: functionNode.procedure, scope }
@@ -6896,6 +6901,11 @@ function resolveBuiltinCallableNames(
       scope,
     );
     if (higherOrderResults.length > 0) return higherOrderResults;
+
+    const producerResults = callableContainerProducerInputs(
+      functionNode,
+    ).flatMap((input) => resolveBuiltinCallableNames(input, scope));
+    if (producerResults.length > 0) return producerResults;
 
     const lambdaBinding =
       functionNode.procedure.type === "lambda"
@@ -7809,10 +7819,14 @@ function walkHigherOrderCall(
 ): string[] {
   const args = node.arguments;
   const paths: string[] = [];
-  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
-  const transformCallback = findHigherOrderTransformCallback(args, scope);
   const funcName =
     node.procedure.type === "variable" ? node.procedure.value : "";
+  const callback = findResolvedHigherOrderLambdaCallbacks(
+    args,
+    scope,
+    (funcName === "each" || funcName === "sift") && args.length === 1 ? 0 : 1,
+  );
+  const transformCallback = findHigherOrderTransformCallback(args, scope);
 
   // Extract paths from all non-lambda arguments (they're data reads)
   // This emits ALL paths including filter predicates (correct -- they are data reads)
@@ -8274,12 +8288,14 @@ function findHigherOrderCallback(
 function findResolvedHigherOrderLambdaCallbacks(
   args: AstNode[],
   scope: ScopeTracker,
+  callbackIndex?: number,
 ): {
   index: number;
   bindings: LambdaBinding[];
   partials: NonNullable<ReturnType<typeof resolvePartial>>[];
 } | null {
   for (const [index, arg] of args.entries()) {
+    if (callbackIndex !== undefined && index !== callbackIndex) continue;
     const callables = resolveCallableValues(arg, scope);
     const bindings = callables.flatMap((callable) =>
       callable.kind === "lambda" ? [callable.binding] : [],
@@ -9645,7 +9661,7 @@ function getCallbackResultObjectAlias(
   args: AstNode[],
   scope: ScopeTracker,
 ): ObjectAlias | null {
-  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
@@ -9725,7 +9741,7 @@ function getCallbackResultDynamicObjectAlias(
   args: AstNode[],
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
-  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
@@ -9805,7 +9821,7 @@ function getReduceResultObjectAlias(
   scope: ScopeTracker,
 ): ObjectAlias | null {
   const callback = findHigherOrderCallback(args, scope);
-  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
@@ -9905,7 +9921,7 @@ function getReduceResultDynamicObjectAlias(
   scope: ScopeTracker,
 ): DynamicObjectAlias | null {
   const callback = findHigherOrderCallback(args, scope);
-  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
@@ -10287,7 +10303,7 @@ function getCallbackResultBasePaths(
   args: AstNode[],
   scope: ScopeTracker,
 ): string[] {
-  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
@@ -10359,7 +10375,7 @@ function getCallbackResultBasePaths(
 
 function getReduceResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
   const callback = findHigherOrderCallback(args, scope);
-  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
@@ -10675,7 +10691,7 @@ function getReduceCallbackResultSuffixBasePaths(
   scope: ScopeTracker,
 ): string[] {
   const callback = findHigherOrderCallback(args, scope);
-  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const resolvedCallback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   if (!callback && !resolvedCallback?.partials.length) return [];
 
   const dataArg = args[0];
@@ -10782,7 +10798,7 @@ function getCallbackResultSuffixBasePaths(
   args: AstNode[],
   scope: ScopeTracker,
 ): string[] {
-  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope);
+  const callback = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
   const builtinCallbacks = args[1]
     ? resolveBuiltinCallableNames(args[1], scope)
     : [];
