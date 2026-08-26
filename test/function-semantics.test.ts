@@ -232,6 +232,23 @@ describe("function semantics", () => {
     }
   });
 
+  it("contextualizes partial captures from static $eval programs", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '$eval("function($captured, $x){$x.children.name}(config.suffix, ?)", detail)(record)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.config.suffix", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("marks data-dependent recursive function descent", () => {
     expect(
       sortPaths(

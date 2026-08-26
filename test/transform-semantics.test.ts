@@ -590,6 +590,32 @@ describe("transform semantics", () => {
     );
   });
 
+  it("does not execute transform bodies while evaluating static programs", () => {
+    for (const expression of [
+      '$eval("|$|{\\"seen\\": children.name & $$.config.suffix}|", detail)(record)',
+      '($t := $eval("|$|{\\"seen\\": children.name & $$.config.suffix}|", detail); $t(record))',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "config.suffix", confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "record", confidence: "static" },
+          { path: "record.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$eval("|$|{\\"seen\\": children.name}|", detail)',
+        ),
+      ),
+    ).toEqual(
+      [{ path: "detail", confidence: "static" }],
+    );
+  });
+
   it("executes an inline transform through partial application", () => {
     expect(
       sortPaths(

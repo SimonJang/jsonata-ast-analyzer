@@ -2942,6 +2942,29 @@ function walkContextExpression(
   return paths;
 }
 
+function walkContextCallableSelection(
+  expr: AstNode,
+  contextPrefix: string,
+  scope: ScopeTracker,
+): string[] {
+  const localPaths = walkCallableSelection(expr, childScope(createScope()));
+  const localSet = new Set(localPaths);
+  const usesCurrentContext = collectVariableNames(expr).has("");
+
+  if (usesCurrentContext && contextPrefix) {
+    const contextScope = bindVariable(childScope(scope), "", [contextPrefix]);
+    return walkCallableSelection(expr, contextScope).flatMap((path) =>
+      localSet.has(path) ? prefixPaths(contextPrefix, [path]) : [path],
+    );
+  }
+
+  const paths = prefixPaths(contextPrefix, localPaths);
+  for (const scopedPath of walkCallableSelection(expr, scope)) {
+    if (!localSet.has(scopedPath)) paths.push(scopedPath);
+  }
+  return paths;
+}
+
 function isParentRelativePath(path: string): boolean {
   return path === "%" || path.startsWith("%.");
 }
@@ -5238,10 +5261,17 @@ function isPlaceholder(node: AstNode): boolean {
 
 /** Extract read effects from bound partial-application arguments. */
 function walkPartial(node: PartialNode, scope: ScopeTracker): string[] {
+  const capturedCurrent = resolveVariable(scope, "");
   return [
     ...walkFunctionProcedureSelection(node.procedure, scope),
     ...node.arguments.flatMap((arg) =>
-      isPlaceholder(arg) ? [] : walkNode(arg, scope),
+      isPlaceholder(arg)
+        ? []
+        : capturedCurrent && capturedCurrent.length > 0
+          ? capturedCurrent.flatMap((contextPrefix) =>
+              walkContextExpression(arg, contextPrefix, scope),
+            )
+          : walkNode(arg, scope),
     ),
     ...walkSourceLessFilterStages(node.predicate ?? [], scope),
     ...(node.group ? walkSourceLessGroupEntries(node.group, scope) : []),
@@ -7533,6 +7563,19 @@ function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
     return args[0]?.type === "string" ? [] : markAbsolute(["**"]);
   }
 
+  const evalScope = getStaticEvalScope(args, scope);
+  if (
+    resolveCallableValues(expression, evalScope).length > 0 ||
+    resolveBuiltinCallableNames(expression, evalScope).length > 0
+  ) {
+    const contextArg = args[1];
+    return contextArg
+      ? getResultBasePathsFromArg(contextArg, scope).flatMap((basePath) =>
+          walkContextCallableSelection(expression, basePath, scope),
+        )
+      : walkCallableSelection(expression, scope);
+  }
+
   const contextArg = args[1];
   if (!contextArg) return walkNode(expression, scope);
 
@@ -9110,7 +9153,13 @@ function walkCustomFunctionCall(
   for (const [index, arg] of callArgs.entries()) {
     const argumentScope = argumentScopes[index] ?? callScope;
     const identityPaths = identityReferencePaths(arg, argumentScope);
-    const argPaths = identityPaths ?? walkNode(arg, argumentScope);
+    const capturedArgumentContext = resolveVariable(argumentScope, "");
+    const argPaths = identityPaths ??
+      (capturedArgumentContext && capturedArgumentContext.length > 0
+        ? capturedArgumentContext.flatMap((contextPrefix) =>
+            walkContextExpression(arg, contextPrefix, argumentScope),
+          )
+        : walkNode(arg, argumentScope));
     if (!identityPaths) paths.push(...argPaths);
     argPathSets.push(argPaths);
   }
