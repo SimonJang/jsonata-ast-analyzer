@@ -7233,7 +7233,9 @@ function walkReturnedCallableCall(
   const producer = node.procedure;
   const paths = walkCallableSelection(producer, scope);
   const callables = resolveCallableValues(producer, scope);
-  const builtinNames = resolveBuiltinCallableNames(producer, scope);
+  const builtinNames = callables.length === 0
+    ? resolveBuiltinCallableNames(producer, scope)
+    : [];
   if (callables.length === 0 && builtinNames.length === 0) {
     return [...paths, ...node.arguments.flatMap((arg) => walkNode(arg, scope))];
   }
@@ -9465,10 +9467,13 @@ function scopePartialArguments(
       value: `\0partialArgument${index}`,
       position: (arg as { position?: number }).position ?? 0,
     };
+    const capturedArgumentContext = resolveVariable(argumentScope, "");
     scopedCallScope = bindArgumentParameter(
       scopedCallScope,
       variable,
-      extractBasePaths(arg, argumentScope),
+      capturedArgumentContext !== null
+        ? bindingAliasPaths(arg, argumentScope)
+        : extractBasePaths(arg, argumentScope),
       arg,
       argumentScope,
     );
@@ -10516,27 +10521,27 @@ function getFunctionResultBasePaths(
             ? getResultBasePathsFromArg(node.arguments[0], scope)
             : [];
         }
-        return getFunctionResultBasePaths(
-          {
-            ...node,
-            procedure: callable.binding.partial.procedure,
-            arguments: applyPartialArguments(
-              callable.binding.partial,
-              node.arguments,
-            ),
-          },
-          callable.binding.scope,
+        return getPartialFunctionResultBasePaths(
+          callable.binding,
+          node.arguments,
+          scope,
         );
       }),
-      ...resolveBuiltinCallableNames(node.procedure, scope).flatMap((name) =>
-        getFunctionResultBasePaths(
-          {
-            ...node,
-            procedure: { type: "variable", value: name, position: node.position },
-          },
-          scope,
-        ),
-      ),
+      ...(resolveCallableValues(node.procedure, scope).length === 0
+        ? resolveBuiltinCallableNames(node.procedure, scope).flatMap((name) =>
+            getFunctionResultBasePaths(
+              {
+                ...node,
+                procedure: {
+                  type: "variable",
+                  value: name,
+                  position: node.position,
+                },
+              },
+              scope,
+            ),
+          )
+        : []),
     ];
   }
 

@@ -247,6 +247,38 @@ describe("function semantics", () => {
         { path: "record.children.name", confidence: "static" },
       ]),
     );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$eval("$append(items, ?)", detail)(fallback).children.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.items", confidence: "static" },
+        { path: "detail.items.children.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$eval("$lookup(config, ?)", detail)(key).children.name',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.config", confidence: "static" },
+        { path: "detail.config[*]", confidence: "dynamic" },
+        { path: "detail.config[*].children.name", confidence: "dynamic" },
+        { path: "key", confidence: "static" },
+      ]),
+    );
   });
 
   it("marks data-dependent recursive function descent", () => {
