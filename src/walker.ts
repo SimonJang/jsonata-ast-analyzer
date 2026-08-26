@@ -5859,6 +5859,49 @@ function transformUpdateCallableValues(
   });
 }
 
+function transformUpdateBuiltinCallableNames(
+  node: FunctionNode,
+  suffixSteps: AstNode[],
+  scope: ScopeTracker,
+): string[] {
+  const suffixNames = suffixSteps.every((step) => step.type === "name")
+    ? suffixSteps.map((step) => (step as NameNode).value)
+    : null;
+  if (!suffixNames) return [];
+
+  return resolveCallableValues(node.procedure, scope).flatMap((callable) => {
+    if (callable.kind !== "transform") return [];
+    const patternNames = staticTransformPatternNames(
+      callable.binding.transform.pattern,
+    );
+    if (
+      !patternNames ||
+      patternNames.some((name, index) => suffixNames[index] !== name)
+    ) {
+      return [];
+    }
+
+    const updateSuffix = suffixSteps.slice(patternNames.length);
+    if (updateSuffix.length === 0) return [];
+    const input = node.arguments[0];
+    const inputBases = input ? extractBasePaths(input, scope) : [];
+    const matchContextPaths = inputBases.map((base) =>
+      appendPath(base, patternNames.join(".")),
+    );
+    let updateScope = transformInvocationScope(callable.binding, scope);
+    if (matchContextPaths.length > 0) {
+      updateScope = bindVariable(updateScope, "", matchContextPaths);
+    }
+    return resolveBuiltinCallableNames(
+      {
+        type: "path",
+        steps: [callable.binding.transform.update, ...updateSuffix],
+      } as PathNode,
+      updateScope,
+    );
+  });
+}
+
 function resolveCallableValues(
   node: AstNode,
   scope: ScopeTracker,
@@ -6169,15 +6212,22 @@ function resolveBuiltinCallableNames(
       );
     }
     if (sourceNode.type === "function") {
-      return callableContainerProducerInputs(sourceNode as FunctionNode).flatMap(
-        (input) =>
+      const functionNode = sourceNode as FunctionNode;
+      return [
+        ...transformUpdateBuiltinCallableNames(
+          functionNode,
+          suffixSteps,
+          sourceScope,
+        ),
+        ...callableContainerProducerInputs(functionNode).flatMap((input) =>
           resolveBuiltinCallableNames(
             suffixSteps.length > 0
               ? ({ type: "path", steps: [input, ...suffixSteps] } as PathNode)
               : input,
             sourceScope,
           ),
-      );
+        ),
+      ];
     }
 
     const [selector, ...rest] = suffixSteps;
@@ -6370,13 +6420,20 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
   if (node.type === "path") {
     const path = node as PathNode;
     const [first, ...suffixSteps] = path.steps;
-    const producerPaths =
+    const producedByTransform =
       first?.type === "function" &&
-      transformUpdateCallableValues(
+      (transformUpdateCallableValues(
         first as FunctionNode,
         suffixSteps,
         scope,
-      ).length > 0
+      ).length > 0 ||
+        transformUpdateBuiltinCallableNames(
+          first as FunctionNode,
+          suffixSteps,
+          scope,
+        ).length > 0);
+    const producerPaths =
+      producedByTransform
         ? walkFunction(first as FunctionNode, scope)
         : [];
     return [...producerPaths, ...path.steps.flatMap((step) => {

@@ -49,6 +49,24 @@ describe("transform semantics", () => {
     );
   });
 
+  it("invokes builtin fields produced by transform updates", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          '($t := |node|{"apply":$clone}|; ' +
+            "(($t(record).node.apply)(detail)).children.name)",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.node", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("resolves data values bound later in the transform closure frame", () => {
     expect(
       sortPaths(
