@@ -9074,6 +9074,33 @@ function applyPartialArgumentScopes(
   return scopes;
 }
 
+function scopePartialArguments(
+  args: AstNode[],
+  argumentScopes: ScopeTracker[],
+  callScope: ScopeTracker,
+): { arguments: AstNode[]; scope: ScopeTracker } {
+  let scopedCallScope = childScope(callScope);
+  const scopedArguments = args.map((arg, index) => {
+    const argumentScope = argumentScopes[index] ?? callScope;
+    if (argumentScope === callScope) return arg;
+
+    const variable: VariableNode = {
+      type: "variable",
+      value: `\0partialArgument${index}`,
+      position: (arg as { position?: number }).position ?? 0,
+    };
+    scopedCallScope = bindArgumentParameter(
+      scopedCallScope,
+      variable,
+      extractBasePaths(arg, argumentScope),
+      arg,
+      argumentScope,
+    );
+    return variable;
+  });
+  return { arguments: scopedArguments, scope: scopedCallScope };
+}
+
 function walkPartialCall(
   binding: NonNullable<ReturnType<typeof resolvePartial>>,
   callArgs: AstNode[],
@@ -9103,6 +9130,11 @@ function walkPartialCall(
     binding.partial.procedure,
     binding.scope,
   );
+  const scopedBuiltinCall = scopePartialArguments(
+    appliedArgs,
+    appliedArgumentScopes,
+    callScope,
+  );
   const invocationPaths = resolvedCallables.flatMap((callable) => {
     if (callable.kind === "lambda") {
       return walkCustomFunctionCall(
@@ -9128,8 +9160,9 @@ function walkPartialCall(
             value: name,
             position: appliedFunction.position,
           },
+          arguments: scopedBuiltinCall.arguments,
         },
-        callScope,
+        scopedBuiltinCall.scope,
       ),
     );
   }
@@ -10221,6 +10254,16 @@ function getPartialFunctionResultBasePaths(
   callScope: ScopeTracker,
 ): string[] {
   const appliedArgs = applyPartialArguments(binding.partial, callArgs);
+  const scopedCall = scopePartialArguments(
+    appliedArgs,
+    applyPartialArgumentScopes(
+      binding.partial,
+      callArgs,
+      binding.scope,
+      callScope,
+    ),
+    callScope,
+  );
   const paths = resolveCallableValues(
     binding.partial.procedure,
     binding.scope,
@@ -10228,19 +10271,22 @@ function getPartialFunctionResultBasePaths(
     if (callable.kind === "lambda") {
       return getCustomFunctionResultBasePaths(
         callable.binding,
-        appliedArgs,
-        callScope,
+        scopedCall.arguments,
+        scopedCall.scope,
       );
     }
     if (callable.kind === "transform") {
-      return appliedArgs[0]
-        ? getResultBasePathsFromArg(appliedArgs[0], callScope)
+      return scopedCall.arguments[0]
+        ? getResultBasePathsFromArg(
+            scopedCall.arguments[0],
+            scopedCall.scope,
+          )
         : [];
     }
     return getPartialFunctionResultBasePaths(
       callable.binding,
-      appliedArgs,
-      callScope,
+      scopedCall.arguments,
+      scopedCall.scope,
     );
   });
   for (const name of resolveBuiltinCallableNames(
@@ -10258,9 +10304,9 @@ function getPartialFunctionResultBasePaths(
             value: name,
             position: binding.partial.position,
           },
-          arguments: appliedArgs,
+          arguments: scopedCall.arguments,
         },
-        callScope,
+        scopedCall.scope,
       ),
     );
   }
@@ -10589,19 +10635,33 @@ function getFunctionResultSuffixBasePaths(
   let argScope = scope;
 
   if (partialBinding) {
+    const appliedArgs = applyPartialArguments(
+      partialBinding.partial,
+      func.arguments,
+    );
+    const scopedCall = scopePartialArguments(
+      appliedArgs,
+      applyPartialArgumentScopes(
+        partialBinding.partial,
+        func.arguments,
+        partialBinding.scope,
+        scope,
+      ),
+      scope,
+    );
     if (partialBinding.partial.procedure.type !== "variable") {
       return getFunctionResultSuffixBasePaths(
         {
           ...func,
           procedure: partialBinding.partial.procedure,
-          arguments: applyPartialArguments(partialBinding.partial, func.arguments),
+          arguments: scopedCall.arguments,
         },
-        partialBinding.scope,
+        scopedCall.scope,
       );
     }
     funcName = partialBinding.partial.procedure.value;
-    args = applyPartialArguments(partialBinding.partial, func.arguments);
-    argScope = partialBinding.scope;
+    args = scopedCall.arguments;
+    argScope = scopedCall.scope;
   }
   args = withImplicitRootFunctionArgument(funcName, args, func.position, argScope);
 

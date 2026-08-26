@@ -1706,6 +1706,29 @@ describe("function semantics", () => {
     );
   });
 
+  it("preserves captured arguments in builtin partials from higher-order callbacks", () => {
+    for (const producer of [
+      "$map(items, function($value){$lookup($value, ?)})[0]",
+      "$reduce(items, function($accumulator, $value){$lookup($value, ?)})",
+    ]) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($lookupChildren := ${producer}; ` +
+              '$lookupChildren("children").name)',
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "children", confidence: "static" },
+          { path: "items", confidence: "static" },
+          { path: "items.children", confidence: "static" },
+          { path: "items.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("invokes callable fields in structured higher-order results", () => {
     for (const [producer, selector, suffix, source] of [
       [
