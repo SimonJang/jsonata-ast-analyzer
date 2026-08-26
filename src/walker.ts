@@ -5809,11 +5809,45 @@ function compositionLambda(node: ApplyNode, scope: ScopeTracker): LambdaNode | n
   };
 }
 
-function staticTransformPatternNames(node: AstNode): string[] | null {
+function staticTransformPatternAlternatives(node: AstNode): string[][] {
+  if (node.type === "array") {
+    return (node as ArrayNode).expressions.flatMap((expression) =>
+      staticTransformPatternAlternatives(expression),
+    );
+  }
   const steps = node.type === "path" ? (node as PathNode).steps : [node];
-  return steps.every((step) => step.type === "name")
-    ? steps.map((step) => (step as NameNode).value)
+  return steps.every((step) => ["name", "wildcard"].includes(step.type))
+    ? [
+        steps.map((step) =>
+          step.type === "wildcard" ? "*" : (step as NameNode).value,
+        ),
+      ]
+    : [];
+}
+
+function transformUpdateMatches(
+  pattern: AstNode,
+  suffixSteps: AstNode[],
+): Array<{ locationNames: string[]; updateSuffix: AstNode[] }> {
+  const suffixNames = suffixSteps.every((step) => step.type === "name")
+    ? suffixSteps.map((step) => (step as NameNode).value)
     : null;
+  if (!suffixNames) return [];
+
+  return staticTransformPatternAlternatives(pattern).flatMap(
+    (patternNames) =>
+      patternNames.length <= suffixNames.length &&
+      patternNames.every(
+        (name, index) => name === "*" || suffixNames[index] === name,
+      )
+        ? [
+            {
+              locationNames: suffixNames.slice(0, patternNames.length),
+              updateSuffix: suffixSteps.slice(patternNames.length),
+            },
+          ]
+        : [],
+  );
 }
 
 function transformUpdateCallableValues(
@@ -5821,41 +5855,30 @@ function transformUpdateCallableValues(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
 ): ResolvedCallable[] {
-  const suffixNames = suffixSteps.every((step) => step.type === "name")
-    ? suffixSteps.map((step) => (step as NameNode).value)
-    : null;
-  if (!suffixNames) return [];
-
   return resolveCallableValues(node.procedure, scope).flatMap((callable) => {
     if (callable.kind !== "transform") return [];
-    const patternNames = staticTransformPatternNames(
+    return transformUpdateMatches(
       callable.binding.transform.pattern,
-    );
-    if (
-      !patternNames ||
-      patternNames.some((name, index) => suffixNames[index] !== name)
-    ) {
-      return [];
-    }
-
-    const updateSuffix = suffixSteps.slice(patternNames.length);
-    if (updateSuffix.length === 0) return [];
-    const input = node.arguments[0];
-    const inputBases = input ? extractBasePaths(input, scope) : [];
-    const matchContextPaths = inputBases.map((base) =>
-      appendPath(base, patternNames.join(".")),
-    );
-    let updateScope = transformInvocationScope(callable.binding, scope);
-    if (matchContextPaths.length > 0) {
-      updateScope = bindVariable(updateScope, "", matchContextPaths);
-    }
-    return resolveCallableValues(
-      {
-        type: "path",
-        steps: [callable.binding.transform.update, ...updateSuffix],
-      } as PathNode,
-      updateScope,
-    );
+      suffixSteps,
+    ).flatMap(({ locationNames, updateSuffix }) => {
+      if (updateSuffix.length === 0) return [];
+      const input = node.arguments[0];
+      const inputBases = input ? extractBasePaths(input, scope) : [];
+      const matchContextPaths = inputBases.map((base) =>
+        appendPath(base, locationNames.join(".")),
+      );
+      let updateScope = transformInvocationScope(callable.binding, scope);
+      if (matchContextPaths.length > 0) {
+        updateScope = bindVariable(updateScope, "", matchContextPaths);
+      }
+      return resolveCallableValues(
+        {
+          type: "path",
+          steps: [callable.binding.transform.update, ...updateSuffix],
+        } as PathNode,
+        updateScope,
+      );
+    });
   });
 }
 
@@ -5864,41 +5887,30 @@ function transformUpdateBuiltinCallableNames(
   suffixSteps: AstNode[],
   scope: ScopeTracker,
 ): string[] {
-  const suffixNames = suffixSteps.every((step) => step.type === "name")
-    ? suffixSteps.map((step) => (step as NameNode).value)
-    : null;
-  if (!suffixNames) return [];
-
   return resolveCallableValues(node.procedure, scope).flatMap((callable) => {
     if (callable.kind !== "transform") return [];
-    const patternNames = staticTransformPatternNames(
+    return transformUpdateMatches(
       callable.binding.transform.pattern,
-    );
-    if (
-      !patternNames ||
-      patternNames.some((name, index) => suffixNames[index] !== name)
-    ) {
-      return [];
-    }
-
-    const updateSuffix = suffixSteps.slice(patternNames.length);
-    if (updateSuffix.length === 0) return [];
-    const input = node.arguments[0];
-    const inputBases = input ? extractBasePaths(input, scope) : [];
-    const matchContextPaths = inputBases.map((base) =>
-      appendPath(base, patternNames.join(".")),
-    );
-    let updateScope = transformInvocationScope(callable.binding, scope);
-    if (matchContextPaths.length > 0) {
-      updateScope = bindVariable(updateScope, "", matchContextPaths);
-    }
-    return resolveBuiltinCallableNames(
-      {
-        type: "path",
-        steps: [callable.binding.transform.update, ...updateSuffix],
-      } as PathNode,
-      updateScope,
-    );
+      suffixSteps,
+    ).flatMap(({ locationNames, updateSuffix }) => {
+      if (updateSuffix.length === 0) return [];
+      const input = node.arguments[0];
+      const inputBases = input ? extractBasePaths(input, scope) : [];
+      const matchContextPaths = inputBases.map((base) =>
+        appendPath(base, locationNames.join(".")),
+      );
+      let updateScope = transformInvocationScope(callable.binding, scope);
+      if (matchContextPaths.length > 0) {
+        updateScope = bindVariable(updateScope, "", matchContextPaths);
+      }
+      return resolveBuiltinCallableNames(
+        {
+          type: "path",
+          steps: [callable.binding.transform.update, ...updateSuffix],
+        } as PathNode,
+        updateScope,
+      );
+    });
   });
 }
 

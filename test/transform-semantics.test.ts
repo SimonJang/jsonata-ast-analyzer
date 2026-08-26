@@ -67,6 +67,42 @@ describe("transform semantics", () => {
     );
   });
 
+  it("invokes callable fields produced at wildcard and union transform locations", () => {
+    for (const [pattern, update, resultSuffix, expectedLocations] of [
+      [
+        "record.*",
+        '{"apply":function($x){$x.children.name}}',
+        "",
+        ["payload.record.*"],
+      ],
+      [
+        "[record.first, record.second]",
+        '{"apply":$clone}',
+        ".children.name",
+        ["payload.record.first", "payload.record.second"],
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($t := |${pattern}|${update}|; ` +
+              `(($t(payload).record.first.apply)(detail))${resultSuffix})`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "payload", confidence: "static" },
+          ...expectedLocations.map((path) => ({
+            path,
+            confidence: "static" as const,
+          })),
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("resolves data values bound later in the transform closure frame", () => {
     expect(
       sortPaths(
