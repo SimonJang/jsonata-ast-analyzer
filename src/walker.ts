@@ -6288,6 +6288,8 @@ function resolveCallableValues(
         scope,
       );
     }
+    const directValues = resolveCallableValues(objectArg, scope);
+    if (directValues.length > 0) return directValues;
     const { node: objectNode, scope: objectScope } =
       unwrapCallableContainerNode(objectArg, scope);
     if (objectNode.type === "condition") {
@@ -6305,6 +6307,10 @@ function resolveCallableValues(
       );
     }
     if (objectNode.type === "function") {
+      const producerValues = callableContainerProducerInputs(
+        objectNode as FunctionNode,
+      ).flatMap((input) => resolveCallableValues(input, objectScope));
+      if (producerValues.length > 0) return producerValues;
       return customFunctionResultBodies(
         objectNode as FunctionNode,
         objectScope,
@@ -6319,6 +6325,11 @@ function resolveCallableValues(
           },
           body.scope,
         ),
+      );
+    }
+    if (objectNode.type === "path" && (objectNode as PathNode).group) {
+      return (objectNode as PathNode).group!.entries.flatMap(([, value]) =>
+        resolveCallableValues(value, objectScope),
       );
     }
     if (objectNode.type !== "object") return [];
@@ -6565,6 +6576,8 @@ function resolveBuiltinCallableNames(
           scope,
         );
       }
+      const directNames = resolveBuiltinCallableNames(objectArg, scope);
+      if (directNames.length > 0) return directNames;
       const { node: objectNode, scope: objectScope } =
         unwrapCallableContainerNode(objectArg, scope);
       if (objectNode.type === "condition") {
@@ -6582,6 +6595,12 @@ function resolveBuiltinCallableNames(
         );
       }
       if (objectNode.type === "function") {
+        const producerNames = callableContainerProducerInputs(
+          objectNode as FunctionNode,
+        ).flatMap((input) =>
+          resolveBuiltinCallableNames(input, objectScope),
+        );
+        if (producerNames.length > 0) return producerNames;
         return customFunctionResultBodies(
           objectNode as FunctionNode,
           objectScope,
@@ -6596,6 +6615,11 @@ function resolveBuiltinCallableNames(
             },
             body.scope,
           ),
+        );
+      }
+      if (objectNode.type === "path" && (objectNode as PathNode).group) {
+        return (objectNode as PathNode).group!.entries.flatMap(([, value]) =>
+          resolveBuiltinCallableNames(value, objectScope),
         );
       }
       if (objectNode.type !== "object") return [];

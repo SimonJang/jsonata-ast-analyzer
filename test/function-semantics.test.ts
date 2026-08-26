@@ -1390,6 +1390,48 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes dynamically looked-up callables from higher-order results", () => {
+    for (const producer of [
+      '$map([1], function($v){{"apply":function($x){$x.children.name}}})',
+      '$each({"one":1}, function($v){{"apply":function($x){$x.children.name}}})',
+      '$reduce([1], function($a,$v){{"apply":function($x){$x.children.name}}}, {})',
+    ]) {
+      expect(
+        extractPaths(
+          `$lookup(${producer}, $$.config.operation)(detail)`,
+        ),
+      ).toEqual([
+        { path: "config.operation", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]);
+    }
+  });
+
+  it("invokes dynamically looked-up callables from composed containers", () => {
+    for (const [producer, expectedProducerPaths] of [
+      [
+        '$append({"apply":function($x){$x.children.name}}, {})',
+        [],
+      ],
+      [
+        '($ops := items[0]{"apply":function($x){$x.children.name}}; $ops)',
+        [{ path: "items", confidence: "static" as const }],
+      ],
+    ] as const) {
+      expect(
+        extractPaths(
+          `$lookup(${producer}, $$.config.operation)(detail)`,
+        ),
+      ).toEqual([
+        ...expectedProducerPaths,
+        { path: "config.operation", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]);
+    }
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [
