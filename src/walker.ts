@@ -5191,7 +5191,13 @@ function walkFunctionProcedureSelection(
   procedure: FunctionNode["procedure"],
   scope: ScopeTracker,
 ): string[] {
-  if (procedure.type !== "condition") return [];
+  if (procedure.type !== "condition") {
+    return ["function", "path", "block"].includes(procedure.type) &&
+      (resolveCallableValues(procedure, scope).length > 0 ||
+        resolveBuiltinCallableNames(procedure, scope).length > 0)
+      ? walkCallableSelection(procedure, scope)
+      : [];
+  }
   return [
     ...walkNode(procedure.condition, scope),
     ...(isFunctionProcedureNode(procedure.then)
@@ -6274,12 +6280,13 @@ function resolveCallableValues(
   }
   if (node.type === "apply") {
     const apply = node as ApplyNode;
+    const lambda = compositionLambda(apply, scope);
+    if (lambda) return [{ kind: "lambda", binding: { lambda, scope } }];
     const appliedFunction = appliedFunctionFromApply(apply);
     if (appliedFunction) {
       return resolveCallableValues(appliedFunction, scope);
     }
-    const lambda = compositionLambda(apply, scope);
-    return lambda ? [{ kind: "lambda", binding: { lambda, scope } }] : [];
+    return [];
   }
   if (node.type !== "function") return [];
 

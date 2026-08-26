@@ -1166,6 +1166,18 @@ describe("function semantics", () => {
     );
   });
 
+  it("composes callables selected from custom-function results", () => {
+    expect(
+      extractPaths(
+        '($maker := function(){{"apply":function($x){$x.children.name}}}; ' +
+          "(($maker().apply) ~> $count)(detail))",
+      ),
+    ).toEqual([
+      { path: "detail", confidence: "static" },
+      { path: "detail.children.name", confidence: "static" },
+    ]);
+  });
+
   it("recognizes all unary builtins used in function composition", () => {
     const cases = [
       {
@@ -1388,6 +1400,20 @@ describe("function semantics", () => {
         { path: "detail.children.name", confidence: "static" },
       ]);
     }
+  });
+
+  it("preserves dynamic lookup reads in selected callable partials", () => {
+    expect(
+      extractPaths(
+        '($maker := function(){{"apply":function($x){$x.children.name}}}; ' +
+          "$partial := $lookup($maker(), $$.config.operation)(?); " +
+          "$partial(detail))",
+      ),
+    ).toEqual([
+      { path: "config.operation", confidence: "static" },
+      { path: "detail", confidence: "static" },
+      { path: "detail.children.name", confidence: "static" },
+    ]);
   });
 
   it("invokes dynamically looked-up callables from higher-order results", () => {
