@@ -5490,31 +5490,66 @@ function bindForwardDataReferences(
   const parameterNames = new Set(lambda.arguments.map((arg) => arg.value));
   let resultScope = scope;
   for (const name of collectVariableNames(lambda.body)) {
+    if (name === "" || parameterNames.has(name)) {
+      continue;
+    }
+    const referenceNode: VariableNode = {
+      type: "variable",
+      value: name,
+      position: lambda.position,
+    };
     if (
-      name === "" ||
-      parameterNames.has(name) ||
-      resolveVariable(resultScope, name) !== null
+      resolveCallableValues(referenceNode, resultScope).length > 0 ||
+      resolveCallableValues(referenceNode, callScope).length > 0 ||
+      resolveBuiltinCallableNames(referenceNode, resultScope).length > 0 ||
+      resolveBuiltinCallableNames(referenceNode, callScope).length > 0
     ) {
       continue;
     }
 
-    const paths = resolveVariable(callScope, name);
-    if (paths === null) continue;
-    resultScope = bindVariable(resultScope, name, paths);
+    const capturedPaths = resolveVariable(resultScope, name);
+    const currentPaths = resolveVariable(callScope, name);
+    if (currentPaths === null) continue;
+    const capturedSuffixBasePaths = resolveSuffixBasePaths(resultScope, name);
+    const currentSuffixBasePaths = resolveSuffixBasePaths(callScope, name);
+    const capturedObjectAlias = resolveObjectAlias(resultScope, name);
+    const currentObjectAlias = resolveObjectAlias(callScope, name);
+    const capturedDynamicObjectAlias = resolveDynamicObjectAlias(
+      resultScope,
+      name,
+    );
+    const currentDynamicObjectAlias = resolveDynamicObjectAlias(callScope, name);
 
-    const suffixBasePaths = resolveSuffixBasePaths(callScope, name);
-    if (suffixBasePaths) {
+    resultScope = bindVariable(
+      resultScope,
+      name,
+      [...new Set([...(capturedPaths ?? []), ...currentPaths])],
+    );
+
+    const suffixBasePaths = [
+      ...new Set([
+        ...(capturedSuffixBasePaths ?? []),
+        ...(currentSuffixBasePaths ?? []),
+      ]),
+    ];
+    if (suffixBasePaths.length > 0) {
       resultScope = bindSuffixBasePaths(
         resultScope,
         name,
         suffixBasePaths,
       );
     }
-    const objectAlias = resolveObjectAlias(callScope, name);
+    const objectAlias = mergeObjectAliases([
+      capturedObjectAlias,
+      currentObjectAlias,
+    ]);
     if (objectAlias) {
       resultScope = bindObjectAlias(resultScope, name, objectAlias);
     }
-    const dynamicObjectAlias = resolveDynamicObjectAlias(callScope, name);
+    const dynamicObjectAlias = mergeDynamicObjectAliases([
+      capturedDynamicObjectAlias,
+      currentDynamicObjectAlias,
+    ]);
     if (dynamicObjectAlias) {
       resultScope = bindDynamicObjectAlias(
         resultScope,

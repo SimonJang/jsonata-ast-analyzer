@@ -625,7 +625,7 @@ describe("function semantics", () => {
     );
   });
 
-  it("captures lambda scope at definition time", () => {
+  it("over-approximates rebinding in a captured lambda frame", () => {
     expect(
       sortPaths(
         extractPaths(
@@ -637,6 +637,7 @@ describe("function semantics", () => {
         { path: "account", confidence: "static" },
         { path: "account.name", confidence: "static" },
         { path: "customer", confidence: "static" },
+        { path: "customer.name", confidence: "static" },
       ]),
     );
   });
