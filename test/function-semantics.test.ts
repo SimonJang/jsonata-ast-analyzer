@@ -1373,6 +1373,43 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes callable results produced by higher-order apply chains", () => {
+    for (const [producer, invocation, source] of [
+      [
+        "items ~> $map(function($v){function($x){$x.children.name}})",
+        "$callbacks[0](detail)",
+        "items",
+      ],
+      [
+        "record ~> $each(function($v){function($x){$x.children.name}})",
+        "$callbacks[0](detail)",
+        "record",
+      ],
+      [
+        "items ~> $reduce(function($acc,$v){function($x){$x.children.name}})",
+        "$callbacks(detail)",
+        "items",
+      ],
+      [
+        'items ~> $map(function($v){{"apply":function($x){$x.children.name}}})',
+        "($callbacks[0].apply)(detail)",
+        "items",
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(`($callbacks := ${producer}; ${invocation})`),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: source, confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("invokes every callable kind from mixed higher-order results", () => {
     expect(
       sortPaths(

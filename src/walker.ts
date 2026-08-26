@@ -6135,6 +6135,20 @@ function resolveCallableValues(
         ),
       );
     }
+    if (sourceNode.type === "apply") {
+      const appliedFunction = appliedFunctionFromApply(sourceNode as ApplyNode);
+      return appliedFunction
+        ? resolveCallableValues(
+            suffixSteps.length > 0
+              ? ({
+                  type: "path",
+                  steps: [appliedFunction, ...suffixSteps],
+                } as PathNode)
+              : appliedFunction,
+            sourceScope,
+          )
+        : [];
+    }
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
       return [
@@ -6177,7 +6191,12 @@ function resolveCallableValues(
       : [];
   }
   if (node.type === "apply") {
-    const lambda = compositionLambda(node as ApplyNode, scope);
+    const apply = node as ApplyNode;
+    const appliedFunction = appliedFunctionFromApply(apply);
+    if (appliedFunction) {
+      return resolveCallableValues(appliedFunction, scope);
+    }
+    const lambda = compositionLambda(apply, scope);
     return lambda ? [{ kind: "lambda", binding: { lambda, scope } }] : [];
   }
   if (node.type !== "function") return [];
@@ -6345,6 +6364,20 @@ function resolveBuiltinCallableNames(
           sourceScope,
         ),
       );
+    }
+    if (sourceNode.type === "apply") {
+      const appliedFunction = appliedFunctionFromApply(sourceNode as ApplyNode);
+      return appliedFunction
+        ? resolveBuiltinCallableNames(
+            suffixSteps.length > 0
+              ? ({
+                  type: "path",
+                  steps: [appliedFunction, ...suffixSteps],
+                } as PathNode)
+              : appliedFunction,
+            sourceScope,
+          )
+        : [];
     }
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
