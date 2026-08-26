@@ -5805,9 +5805,21 @@ function unwrapCallableContainerNode(
   return { node, scope };
 }
 
-function callableContainerProducerInputs(node: FunctionNode): AstNode[] {
+function callableContainerProducerInputs(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): AstNode[] {
   if (node.procedure.type !== "variable") return [];
   const funcName = node.procedure.value;
+  if (
+    funcName === "reduce" &&
+    node.arguments[1] &&
+    resolveBuiltinCallableNames(node.arguments[1], scope).includes("append")
+  ) {
+    return [node.arguments[0], node.arguments[2]].filter(
+      (input): input is AstNode => Boolean(input),
+    );
+  }
   if (funcName === "append" || funcName === "zip") return node.arguments;
   if (
     funcName !== "lookup" &&
@@ -6516,7 +6528,7 @@ function resolveCallableValues(
           sourceScope,
           suffixSteps,
         ),
-        ...callableContainerProducerInputs(functionNode).flatMap((input) =>
+        ...callableContainerProducerInputs(functionNode, sourceScope).flatMap((input) =>
           resolveCallableValues(
             suffixSteps.length > 0
               ? ({ type: "path", steps: [input, ...suffixSteps] } as PathNode)
@@ -6620,6 +6632,7 @@ function resolveCallableValues(
     if (objectNode.type === "function") {
       const producerValues = callableContainerProducerInputs(
         objectNode as FunctionNode,
+        objectScope,
       ).flatMap((input) => resolveCallableValues(input, objectScope));
       if (producerValues.length > 0) return producerValues;
       return customFunctionResultBodies(
@@ -6657,7 +6670,7 @@ function resolveCallableValues(
   );
   if (higherOrderResults.length > 0) return higherOrderResults;
 
-  const producerResults = callableContainerProducerInputs(functionNode).flatMap(
+  const producerResults = callableContainerProducerInputs(functionNode, scope).flatMap(
     (input) => resolveCallableValues(input, scope),
   );
   if (producerResults.length > 0) return producerResults;
@@ -6829,7 +6842,7 @@ function resolveBuiltinCallableNames(
           sourceScope,
           suffixSteps,
         ),
-        ...callableContainerProducerInputs(functionNode).flatMap((input) =>
+        ...callableContainerProducerInputs(functionNode, sourceScope).flatMap((input) =>
           resolveBuiltinCallableNames(
             suffixSteps.length > 0
               ? ({ type: "path", steps: [input, ...suffixSteps] } as PathNode)
@@ -6953,6 +6966,7 @@ function resolveBuiltinCallableNames(
       if (objectNode.type === "function") {
         const producerNames = callableContainerProducerInputs(
           objectNode as FunctionNode,
+          objectScope,
         ).flatMap((input) =>
           resolveBuiltinCallableNames(input, objectScope),
         );
@@ -6995,6 +7009,7 @@ function resolveBuiltinCallableNames(
 
     const producerResults = callableContainerProducerInputs(
       functionNode,
+      scope,
     ).flatMap((input) => resolveBuiltinCallableNames(input, scope));
     if (producerResults.length > 0) return producerResults;
 

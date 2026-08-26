@@ -95,6 +95,7 @@ describe("function semantics", () => {
         { path: "detail.children.name", confidence: "static" },
       ]),
     );
+
   });
 
   it("preserves $each value aliases from static $eval objects", () => {
@@ -1707,6 +1708,11 @@ describe("function semantics", () => {
       '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": [$]}; ($operations.apply[0][0])(detail))',
       '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": {"nested": $}}; ($operations.apply.nested[0])(detail))',
       '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $map($, function($operation){$operation})}; ($operations.apply[0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $reduce($, $append, [])}; ($operations.apply[0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $reduce($, ($append), [])}; ($operations.apply[0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $reduce($, {"join": $append}.join, [])}; ($operations.apply[0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $reduce($, $lookup({"join": $append}, "join"), [])}; ($operations.apply[0])(detail))',
+      '($operations := [function($x){$x.children.name}]^($$.config.rank){"apply": $reduce($, $append(?, ?), [])}; ($operations.apply[0])(detail))',
     ];
 
     for (const expression of cases) {
@@ -1736,6 +1742,20 @@ describe("function semantics", () => {
       sortPaths(
         extractPaths(
           '($operations := [$lookup]{"apply": $reverse($)}; ($operations.apply[0])(record, "first").children.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '($operations := [$lookup]{"apply": $reduce($, $append, [])}; ($operations.apply[0])(record, "first").children.name)',
         ),
       ),
     ).toEqual(
