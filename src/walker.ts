@@ -5377,6 +5377,13 @@ function isFunctionProcedureNode(
   ].includes(node.type);
 }
 
+function isFilteredCallableVariable(node: AstNode): boolean {
+  return (
+    node.type === "variable" &&
+    ((node as VariableNode).predicate?.length ?? 0) > 0
+  );
+}
+
 type ResolvedCallable =
   | { readonly kind: "lambda"; readonly binding: LambdaBinding }
   | { readonly kind: "transform"; readonly binding: TransformBinding }
@@ -7957,7 +7964,8 @@ function getFunctionResultObjectAlias(
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
     node.procedure.type === "path" ||
-    node.procedure.type === "partial"
+    node.procedure.type === "partial" ||
+    isFilteredCallableVariable(node.procedure)
   ) {
     return mergeObjectAliases(
       resolveCallableValues(node.procedure, scope).map((callable) => {
@@ -8089,7 +8097,8 @@ function getFunctionResultDynamicObjectAlias(
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
     node.procedure.type === "path" ||
-    node.procedure.type === "partial"
+    node.procedure.type === "partial" ||
+    isFilteredCallableVariable(node.procedure)
   ) {
     return mergeDynamicObjectAliases(
       resolveCallableValues(node.procedure, scope).map((callable) => {
@@ -8601,7 +8610,8 @@ function getFunctionResultBasePaths(
     node.procedure.type === "function" ||
     node.procedure.type === "block" ||
     node.procedure.type === "path" ||
-    node.procedure.type === "partial"
+    node.procedure.type === "partial" ||
+    isFilteredCallableVariable(node.procedure)
   ) {
     return [
       ...resolveCallableValues(node.procedure, scope).flatMap((callable) => {
@@ -8966,7 +8976,8 @@ function getFunctionResultSuffixBasePaths(
     func.procedure.type === "function" ||
     func.procedure.type === "block" ||
     func.procedure.type === "path" ||
-    func.procedure.type === "partial"
+    func.procedure.type === "partial" ||
+    isFilteredCallableVariable(func.procedure)
   ) {
     return resolveCallableValues(func.procedure, scope).flatMap((callable) => {
       if (callable.kind === "lambda") {

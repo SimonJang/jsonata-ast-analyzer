@@ -1001,6 +1001,22 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("preserves result aliases from filtered callable variables", () => {
+    for (const expression of [
+      "($functions := [function($x){$x}]; " +
+        "$functions[0](detail).children.name)",
+      "($f := function($x){$functions[0]($x).children.name}; " +
+        "$functions := [function($x){$x}]; $f(detail))",
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("traces a lambda selected from a stored object", () => {
     expect(
       extractPaths(
