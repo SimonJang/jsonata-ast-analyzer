@@ -6919,11 +6919,7 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
   }
   if (["lambda", "transform"].includes(node.type)) return [];
   if (node.type === "array") {
-    return (node as ArrayNode).expressions.flatMap((value) =>
-      resolveCallableValues(value, scope).length > 0
-        ? walkCallableSelection(value, scope)
-        : walkNode(value, scope),
-    );
+    return walkArray(node as ArrayNode, scope);
   }
   if (node.type === "object") {
     return (node as ObjectNode).entries.flatMap(([key, value]) => [

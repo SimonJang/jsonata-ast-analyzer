@@ -1765,6 +1765,26 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("preserves dynamic selectors on stored callable arrays", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($functions := [" +
+            "function($x){$x.children.name}," +
+            "function($x){$x.children.rank}" +
+            "][$$.config.index]; $functions(detail))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "config.index", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+        { path: "detail.children.rank", confidence: "static" },
+      ]),
+    );
+  });
+
   it("preserves result aliases from filtered callable variables", () => {
     for (const expression of [
       "($functions := [function($x){$x}]; " +
