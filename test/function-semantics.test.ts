@@ -1152,6 +1152,62 @@ describe("function semantics", () => {
     );
   });
 
+  it("executes placeholder higher-order calls in apply chains", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "items ~> $map(?, function($value){$value.children.name})",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "items ~> $each(?, function($value){$value.children.name})",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.*.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "[detail, fallback] ~> $each(?, function($value){$value.children.name})",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "detail", confidence: "static" },
+        { path: "detail.*.children.name", confidence: "static" },
+        { path: "fallback", confidence: "static" },
+        { path: "fallback.*.children.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "items ~> $each(?, function($value, $key, $array){$array.children.name})",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("invokes callable object values inside each and sift callbacks", () => {
     for (const functionName of ["each", "sift"]) {
       expect(

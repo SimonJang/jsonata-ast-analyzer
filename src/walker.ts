@@ -1003,6 +1003,16 @@ function markAbsolute(paths: string[]): string[] {
 }
 
 function appliedFunctionFromApply(node: ApplyNode): FunctionNode | null {
+  if (node.rhs.type === "partial") {
+    const partial = node.rhs as PartialNode;
+    return {
+      type: "function",
+      value: "(",
+      position: partial.position,
+      procedure: partial.procedure,
+      arguments: applyPartialArguments(partial, [node.lhs]),
+    };
+  }
   if (node.rhs.type === "function") {
     const func = node.rhs as FunctionNode;
     return { ...func, arguments: [node.lhs, ...func.arguments] };
