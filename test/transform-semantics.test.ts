@@ -530,6 +530,50 @@ describe("transform semantics", () => {
     );
   });
 
+  it("binds the current value in invoked root transforms", () => {
+    for (const expression of [
+      '(|$|{"seen": children.name}|)(detail)',
+      '($t := |$|{"seen": children.name}|; $t(detail))',
+      '([|$|{"seen": children.name}|][0])(detail)',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
+  it("keeps explicit transform roots absolute", () => {
+    for (const [expression, expected] of [
+      [
+        'payload ~> |Account|{"seen": $$.config.suffix}|',
+        ["payload", "payload.Account", "config.suffix"],
+      ],
+      [
+        '($t := |first|{"seen": $$.config.suffix}|; $t(record))',
+        ["record", "record.first", "config.suffix"],
+      ],
+      [
+        '($later := fallback; $t := |$|{"seen": children.name & $later.name & $$.config.suffix}|; $t(detail))',
+        [
+          "fallback",
+          "fallback.name",
+          "config.suffix",
+          "detail",
+          "detail.children.name",
+        ],
+      ],
+    ] as const) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths(
+          expected.map((path) => ({ path, confidence: "static" as const })),
+        ),
+      );
+    }
+  });
+
   it("executes an inline transform through partial application", () => {
     expect(
       sortPaths(

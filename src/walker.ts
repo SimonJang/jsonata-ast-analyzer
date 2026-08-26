@@ -55,6 +55,7 @@ import {
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "./builtins.js";
 
 const ROOT_PATH = "\0";
+const TRANSFORM_CURRENT_PATH = "\u0001";
 const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([
   "lookup",
   "filter",
@@ -457,13 +458,40 @@ function walkTransformContextExpression(
   expr: AstNode,
   scope: ScopeTracker,
 ): string[] {
-  const localPaths = new Set(walkNode(expr, childScope(createScope())));
-
-  return walkNode(expr, scope).flatMap((path) =>
-    path.startsWith(ROOT_PATH) || localPaths.has(path)
-      ? prefixTransformContextPaths(prefix, [path])
-      : markAbsolute([resolveParentPathSegments(path)]),
+  const localScope = bindVariable(
+    childScope(createScope()),
+    "",
+    [TRANSFORM_CURRENT_PATH],
   );
+  const localPaths = walkNode(expr, localScope);
+  const currentSuffix = (path: string): string | null => {
+    const markerIndex = path.indexOf(TRANSFORM_CURRENT_PATH);
+    if (markerIndex < 0) return null;
+    return path
+      .slice(markerIndex + TRANSFORM_CURRENT_PATH.length)
+      .replace(/^\./, "");
+  };
+  const representedPaths = new Set(
+    localPaths.map((path) => {
+      const suffix = currentSuffix(path);
+      return suffix === null
+        ? path
+        : appendPath(ROOT_PATH, suffix || null);
+    }),
+  );
+  const localContextPaths = localPaths.flatMap((path) => {
+    const suffix = currentSuffix(path);
+    if (suffix !== null) {
+      return prefixTransformContextPaths(prefix, [suffix]);
+    }
+    if (path.startsWith(ROOT_PATH)) return [path];
+    return prefixTransformContextPaths(prefix, [path]);
+  });
+  const capturedPaths = walkNode(expr, scope)
+    .filter((path) => !representedPaths.has(path))
+    .flatMap((path) => markAbsolute([resolveParentPathSegments(path)]));
+
+  return [...localContextPaths, ...capturedPaths];
 }
 
 function transformPatternPrefixes(
@@ -7426,7 +7454,11 @@ function walkTransformCall(
   }
   if (!input) return paths;
 
-  const transformScope = transformInvocationScope(binding, callScope);
+  const transformScope = bindVariable(
+    transformInvocationScope(binding, callScope),
+    "",
+    [],
+  );
   const transformPaths = walkTransform(binding.transform, transformScope);
   const inputPaths =
     identityReferencePaths(input, callScope) ?? walkNode(input, callScope);
