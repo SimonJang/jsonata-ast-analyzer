@@ -6304,6 +6304,23 @@ function resolveCallableValues(
           : [],
       );
     }
+    if (objectNode.type === "function") {
+      return customFunctionResultBodies(
+        objectNode as FunctionNode,
+        objectScope,
+      ).flatMap((body) =>
+        resolveCallableValues(
+          {
+            ...functionNode,
+            arguments: [
+              body.node,
+              ...functionNode.arguments.slice(1),
+            ],
+          },
+          body.scope,
+        ),
+      );
+    }
     if (objectNode.type !== "object") return [];
 
     return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
@@ -6562,6 +6579,23 @@ function resolveBuiltinCallableNames(
                 objectScope,
               )
             : [],
+        );
+      }
+      if (objectNode.type === "function") {
+        return customFunctionResultBodies(
+          objectNode as FunctionNode,
+          objectScope,
+        ).flatMap((body) =>
+          resolveBuiltinCallableNames(
+            {
+              ...functionNode,
+              arguments: [
+                body.node,
+                ...functionNode.arguments.slice(1),
+              ],
+            },
+            body.scope,
+          ),
         );
       }
       if (objectNode.type !== "object") return [];

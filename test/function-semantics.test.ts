@@ -1372,6 +1372,24 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("invokes dynamically looked-up callables from custom-function results", () => {
+    for (const body of [
+      '{"apply":function($x){$x.children.name}}',
+      '{config.operation:function($x){$x.children.name}}',
+    ]) {
+      expect(
+        extractPaths(
+          `($maker := function(){${body}}; ` +
+            "$lookup($maker(), $$.config.operation)(detail))",
+        ),
+      ).toEqual([
+        { path: "config.operation", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]);
+    }
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [
