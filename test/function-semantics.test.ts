@@ -1519,6 +1519,33 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes callable fields from grouped path results", () => {
+    for (const invocation of [
+      "($operations.apply)(detail)",
+      "$lookup($operations, $$.config.operation)(detail)",
+    ]) {
+      expect(
+        sortPaths(
+          extractPaths(
+            '($operations := items[0]{"apply":' +
+              "function($x){name & $x.children.name}}; " +
+              `${invocation})`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "items", confidence: "static" },
+          { path: "items.name", confidence: "static" },
+          ...(invocation.startsWith("$lookup")
+            ? [{ path: "config.operation", confidence: "static" as const }]
+            : []),
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [

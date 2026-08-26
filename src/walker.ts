@@ -6183,6 +6183,66 @@ function pathProjectionBuiltinCallableNames(
   );
 }
 
+function groupedPathCallableScope(
+  path: PathNode,
+  scope: ScopeTracker,
+): ScopeTracker {
+  const contextPrefix = buildProjectionContextPath(path.steps);
+  return contextPrefix
+    ? bindVariable(childScope(scope), "", [contextPrefix])
+    : scope;
+}
+
+function groupedPathCallableValues(
+  path: PathNode,
+  scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
+): ResolvedCallable[] {
+  if (!path.group) return [];
+  const [selector, ...rest] = suffixSteps;
+  const groupScope = groupedPathCallableScope(path, scope);
+  return path.group.entries.flatMap(([key, value]) => {
+    const staticKey = staticObjectKey(key);
+    const selected =
+      !selector ||
+      selector.type === "wildcard" ||
+      (selector.type === "name" &&
+        (staticKey === null || staticKey === (selector as NameNode).value));
+    if (!selected) return [];
+    return resolveCallableValues(
+      rest.length > 0
+        ? ({ type: "path", steps: [value, ...rest] } as PathNode)
+        : value,
+      groupScope,
+    );
+  });
+}
+
+function groupedPathBuiltinCallableNames(
+  path: PathNode,
+  scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
+): string[] {
+  if (!path.group) return [];
+  const [selector, ...rest] = suffixSteps;
+  const groupScope = groupedPathCallableScope(path, scope);
+  return path.group.entries.flatMap(([key, value]) => {
+    const staticKey = staticObjectKey(key);
+    const selected =
+      !selector ||
+      selector.type === "wildcard" ||
+      (selector.type === "name" &&
+        (staticKey === null || staticKey === (selector as NameNode).value));
+    if (!selected) return [];
+    return resolveBuiltinCallableNames(
+      rest.length > 0
+        ? ({ type: "path", steps: [value, ...rest] } as PathNode)
+        : value,
+      groupScope,
+    );
+  });
+}
+
 function resolveCallableValues(
   node: AstNode,
   scope: ScopeTracker,
@@ -6263,6 +6323,8 @@ function resolveCallableValues(
   }
   if (node.type === "path") {
     const path = node as PathNode;
+    const groupedValues = groupedPathCallableValues(path, scope);
+    if (groupedValues.length > 0) return groupedValues;
     const projectionValues = pathProjectionCallableValues(path, scope);
     if (projectionValues.length > 0) return projectionValues;
     const [first, ...suffixSteps] = path.steps;
@@ -6309,6 +6371,12 @@ function resolveCallableValues(
         : [];
     }
     if (sourceNode.type === "path" && suffixSteps.length > 0) {
+      const groupedSourceValues = groupedPathCallableValues(
+        sourceNode as PathNode,
+        sourceScope,
+        suffixSteps,
+      );
+      if (groupedSourceValues.length > 0) return groupedSourceValues;
       return resolveCallableValues(
         {
           ...sourceNode,
@@ -6547,6 +6615,8 @@ function resolveBuiltinCallableNames(
   }
   if (node.type === "path") {
     const path = node as PathNode;
+    const groupedNames = groupedPathBuiltinCallableNames(path, scope);
+    if (groupedNames.length > 0) return groupedNames;
     const projectionNames = pathProjectionBuiltinCallableNames(path, scope);
     if (projectionNames.length > 0) return projectionNames;
     const [first, ...suffixSteps] = path.steps;
@@ -6593,6 +6663,12 @@ function resolveBuiltinCallableNames(
         : [];
     }
     if (sourceNode.type === "path" && suffixSteps.length > 0) {
+      const groupedSourceNames = groupedPathBuiltinCallableNames(
+        sourceNode as PathNode,
+        sourceScope,
+        suffixSteps,
+      );
+      if (groupedSourceNames.length > 0) return groupedSourceNames;
       return resolveBuiltinCallableNames(
         {
           ...sourceNode,
@@ -6868,6 +6944,9 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
     const producedByProjection =
       pathProjectionCallableValues(path, scope).length > 0 ||
       pathProjectionBuiltinCallableNames(path, scope).length > 0;
+    const producedByGroup =
+      groupedPathCallableValues(path, scope).length > 0 ||
+      groupedPathBuiltinCallableNames(path, scope).length > 0;
     const producedByTransform =
       first?.type === "function" &&
       (transformUpdateCallableValues(
@@ -6908,7 +6987,8 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
       producedByTransform || producedByHigherOrder || producedByCustomFunction
         ? walkFunction(first as FunctionNode, scope)
         : [];
-    const projectionPaths = producedByProjection ? walkPath(path, scope) : [];
+    const projectionPaths =
+      producedByProjection || producedByGroup ? walkPath(path, scope) : [];
     return [...producerPaths, ...projectionPaths, ...path.steps.flatMap((step) => {
       if (["array", "object", "block"].includes(step.type)) {
         return walkCallableSelection(step, scope);
