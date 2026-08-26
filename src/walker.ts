@@ -6409,6 +6409,10 @@ function resolveCallableValues(
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
       return [
+        ...(functionNode.procedure.type === "variable" &&
+        functionNode.procedure.value === "lookup"
+          ? resolveCallableValues(functionNode, sourceScope)
+          : []),
         ...customFunctionResultCallableValues(
           functionNode,
           sourceScope,
@@ -6701,6 +6705,10 @@ function resolveBuiltinCallableNames(
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
       return [
+        ...(functionNode.procedure.type === "variable" &&
+        functionNode.procedure.value === "lookup"
+          ? resolveBuiltinCallableNames(functionNode, sourceScope)
+          : []),
         ...customFunctionResultBuiltinCallableNames(
           functionNode,
           sourceScope,

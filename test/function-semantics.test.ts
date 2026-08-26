@@ -1583,6 +1583,46 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes nested callable fields from dynamically grouped results", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($operations := items@$item{" +
+            '$item.name:{"apply":function($x){' +
+            "$item.children.name & $x.name}}}; " +
+            '($lookup($operations, "a").apply)(detail))',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "items.children.name", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.name", confidence: "static" },
+      ]),
+    );
+
+    expect(
+      sortPaths(
+        extractPaths(
+          "($operations := items@$item{" +
+            '$item.name:{"apply":$lookup}}; ' +
+            '($lookup($operations, "a").apply)' +
+            '(record, "first").children.name)',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [
