@@ -57,4 +57,32 @@ describe("regex semantics", () => {
       ]),
     );
   });
+
+  it("extracts captured reads from variable-bound matcher callbacks", () => {
+    const matcher =
+      "$matcher := function($str){config.needle ? /x/($str) : /z/($str)}; ";
+    for (const [call, expected] of [
+      ["$contains(text, $matcher)", ["text", "config.needle"]],
+      [
+        "$match(text, $matcher, options.limit)",
+        ["text", "config.needle", "options.limit"],
+      ],
+      [
+        "$split(text, $matcher, options.limit)",
+        ["text", "config.needle", "options.limit"],
+      ],
+      ["$replace(text, $matcher, \"_\")", ["text", "config.needle"]],
+    ] as const) {
+      expect(
+        sortPaths(extractPaths(`(${matcher}${call})`)),
+      ).toEqual(
+        sortPaths(
+          expected.map((path) => ({
+            path,
+            confidence: "static" as const,
+          })),
+        ),
+      );
+    }
+  });
 });

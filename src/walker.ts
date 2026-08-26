@@ -100,6 +100,12 @@ const IMPLICIT_ROOT_SHALLOW_FUNCTIONS = new Set([
   "not",
 ]);
 const IMPLICIT_ROOT_DEEP_FUNCTIONS = new Set(["clone", "string"]);
+const MATCHER_CALLBACK_FUNCTIONS = new Set([
+  "contains",
+  "match",
+  "replace",
+  "split",
+]);
 
 const CONTEXT_DEFAULT_BUILTINS = new Set([
   "string",
@@ -6540,8 +6546,11 @@ function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
 
   // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
   for (const [argIndex, arg] of args.entries()) {
+    const invokesCallableArgument =
+      (argIndex === 1 && MATCHER_CALLBACK_FUNCTIONS.has(funcName)) ||
+      (argIndex === 2 && funcName === "replace");
     const callableArguments =
-      funcName === "replace" && argIndex === 2
+      invokesCallableArgument
         ? resolveCallableValues(arg, scope)
         : [];
     if (callableArguments.length > 0) {
