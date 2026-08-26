@@ -5743,6 +5743,20 @@ function resolveCallableValues(
     const { node: sourceNode, scope: sourceScope } =
       unwrapCallableContainerNode(first, scope);
 
+    if (sourceNode.type === "condition") {
+      const condition = sourceNode as ConditionNode;
+      return [condition.then, condition.else].flatMap((branch) =>
+        branch
+          ? resolveCallableValues(
+              suffixSteps.length > 0
+                ? ({ type: "path", steps: [branch, ...suffixSteps] } as PathNode)
+                : branch,
+              sourceScope,
+            )
+          : [],
+      );
+    }
+
     const [selector, ...rest] = suffixSteps;
     if (sourceNode.type === "object" && selector?.type === "name") {
       return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
@@ -5786,6 +5800,20 @@ function resolveCallableValues(
     if (!objectArg) return [];
     const { node: objectNode, scope: objectScope } =
       unwrapCallableContainerNode(objectArg, scope);
+    if (objectNode.type === "condition") {
+      const condition = objectNode as ConditionNode;
+      return [condition.then, condition.else].flatMap((branch) =>
+        branch
+          ? resolveCallableValues(
+              {
+                ...functionNode,
+                arguments: [branch, ...functionNode.arguments.slice(1)],
+              },
+              objectScope,
+            )
+          : [],
+      );
+    }
     if (objectNode.type !== "object") return [];
 
     const keyArg = functionNode.arguments[1];
@@ -5875,6 +5903,20 @@ function resolveBuiltinCallableNames(
     const { node: sourceNode, scope: sourceScope } =
       unwrapCallableContainerNode(first, scope);
 
+    if (sourceNode.type === "condition") {
+      const condition = sourceNode as ConditionNode;
+      return [condition.then, condition.else].flatMap((branch) =>
+        branch
+          ? resolveBuiltinCallableNames(
+              suffixSteps.length > 0
+                ? ({ type: "path", steps: [branch, ...suffixSteps] } as PathNode)
+                : branch,
+              sourceScope,
+            )
+          : [],
+      );
+    }
+
     const [selector, ...rest] = suffixSteps;
     if (sourceNode.type === "object" && selector?.type === "name") {
       return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
@@ -5943,6 +5985,20 @@ function resolveBuiltinCallableNames(
       if (!objectArg) return [];
       const { node: objectNode, scope: objectScope } =
         unwrapCallableContainerNode(objectArg, scope);
+      if (objectNode.type === "condition") {
+        const condition = objectNode as ConditionNode;
+        return [condition.then, condition.else].flatMap((branch) =>
+          branch
+            ? resolveBuiltinCallableNames(
+                {
+                  ...functionNode,
+                  arguments: [branch, ...functionNode.arguments.slice(1)],
+                },
+                objectScope,
+              )
+            : [],
+        );
+      }
       if (objectNode.type !== "object") return [];
 
       const keyArg = functionNode.arguments[1];

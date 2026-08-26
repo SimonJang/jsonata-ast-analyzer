@@ -1195,6 +1195,25 @@ describe("function semantics", () => {
     }
   });
 
+  it("traces callables selected from conditional object containers", () => {
+    for (const expression of [
+      "($project := (flag ? " +
+        '{"go":function($x){$x}} : {"go":function($x){$x}}).go; ' +
+        "$project(detail).children.name)",
+      "$lookup(flag ? " +
+        '{"go":function($x){$x}} : {"go":function($x){$x}}, ' +
+        '"go")(detail).children.name',
+    ]) {
+      expect(sortPaths(extractPaths(expression))).toEqual(
+        sortPaths([
+          { path: "flag", confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("resolves variable-bound callbacks in filtered path chains", () => {
     expect(
       sortPaths(
