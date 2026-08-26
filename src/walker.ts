@@ -8643,6 +8643,18 @@ function bindHigherOrderParameter(
   }
 
   if (
+    (funcName === "each" || funcName === "sift") &&
+    role === "value" &&
+    arg
+  ) {
+    const valueScope = bindVariable(scope, param.value, argPaths);
+    return resolveCallableValues(arg, argScope).length > 0 ||
+      resolveBuiltinCallableNames(arg, argScope).length > 0
+      ? bindCallableValue(valueScope, param.value, arg, argScope)
+      : valueScope;
+  }
+
+  if (
     role === "element" ||
     role === "value" ||
     role === "left" ||

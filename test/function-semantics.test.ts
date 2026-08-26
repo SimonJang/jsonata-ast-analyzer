@@ -1065,6 +1065,40 @@ describe("function semantics", () => {
     );
   });
 
+  it("invokes callable object values inside each and sift callbacks", () => {
+    for (const functionName of ["each", "sift"]) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `$${functionName}({"operation":function($x){` +
+              "$x.children.name}}, function($operation){" +
+              "$operation(detail)})",
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+
+    expect(
+      sortPaths(
+        extractPaths(
+          '$each({"operation":$lookup}, function($operation){' +
+            '$operation(record, "first").children.name})',
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "record", confidence: "static" },
+        { path: "record.first", confidence: "static" },
+        { path: "record.first.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("binds whole-object callback parameters for $each and $sift", () => {
     expect(
       sortPaths(
