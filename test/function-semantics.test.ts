@@ -1335,6 +1335,44 @@ describe("function semantics", () => {
     }
   });
 
+  it("invokes callable fields in structured higher-order results", () => {
+    for (const [producer, selector, suffix, source] of [
+      [
+        '$map(items, function($v){{"apply":function($x){$x.children.name}}})',
+        "apply",
+        "",
+        "items",
+      ],
+      [
+        '$map(items, function($v){{"ops":{"apply":function($x){$x.children.name}}}})',
+        "ops.apply",
+        "",
+        "items",
+      ],
+      [
+        '$each(record, function($v){{"apply":$clone}})',
+        "apply",
+        ".children.name",
+        "record",
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($containers := ${producer}; ` +
+              `(($containers[0].${selector})(detail))${suffix})`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          { path: source, confidence: "static" },
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("invokes every callable kind from mixed higher-order results", () => {
     expect(
       sortPaths(

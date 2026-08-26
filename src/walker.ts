@@ -5999,18 +5999,30 @@ function higherOrderCallableResultBodies(
 function higherOrderResultCallableValues(
   node: FunctionNode,
   scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
 ): ResolvedCallable[] {
   return higherOrderCallableResultBodies(node, scope).flatMap((body) =>
-    resolveCallableValues(body.node, body.scope),
+    resolveCallableValues(
+      suffixSteps.length > 0
+        ? ({ type: "path", steps: [body.node, ...suffixSteps] } as PathNode)
+        : body.node,
+      body.scope,
+    ),
   );
 }
 
 function higherOrderResultBuiltinCallableNames(
   node: FunctionNode,
   scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
 ): string[] {
   return higherOrderCallableResultBodies(node, scope).flatMap((body) =>
-    resolveBuiltinCallableNames(body.node, body.scope),
+    resolveBuiltinCallableNames(
+      suffixSteps.length > 0
+        ? ({ type: "path", steps: [body.node, ...suffixSteps] } as PathNode)
+        : body.node,
+      body.scope,
+    ),
   );
 }
 
@@ -6130,6 +6142,11 @@ function resolveCallableValues(
           functionNode,
           suffixSteps,
           sourceScope,
+        ),
+        ...higherOrderResultCallableValues(
+          functionNode,
+          sourceScope,
+          suffixSteps,
         ),
         ...callableContainerProducerInputs(functionNode).flatMap((input) =>
           resolveCallableValues(
@@ -6336,6 +6353,11 @@ function resolveBuiltinCallableNames(
           functionNode,
           suffixSteps,
           sourceScope,
+        ),
+        ...higherOrderResultBuiltinCallableNames(
+          functionNode,
+          sourceScope,
+          suffixSteps,
         ),
         ...callableContainerProducerInputs(functionNode).flatMap((input) =>
           resolveBuiltinCallableNames(
@@ -6556,8 +6578,20 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
           suffixSteps,
           scope,
         ).length > 0);
+    const producedByHigherOrder =
+      first?.type === "function" &&
+      (higherOrderResultCallableValues(
+        first as FunctionNode,
+        scope,
+        suffixSteps,
+      ).length > 0 ||
+        higherOrderResultBuiltinCallableNames(
+          first as FunctionNode,
+          scope,
+          suffixSteps,
+        ).length > 0);
     const producerPaths =
-      producedByTransform
+      producedByTransform || producedByHigherOrder
         ? walkFunction(first as FunctionNode, scope)
         : [];
     return [...producerPaths, ...path.steps.flatMap((step) => {
