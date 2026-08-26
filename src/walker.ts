@@ -5996,6 +5996,50 @@ function higherOrderCallableResultBodies(
   });
 }
 
+function customFunctionResultBodies(
+  node: FunctionNode,
+  scope: ScopeTracker,
+): Array<{ node: AstNode; scope: ScopeTracker }> {
+  return resolveLambdaFunctionCalls(
+    node.procedure,
+    node.arguments,
+    scope,
+  ).map((call) => ({
+    node: call.binding.lambda.body,
+    scope: lambdaCallScope(call.binding, call.arguments, scope),
+  }));
+}
+
+function customFunctionResultCallableValues(
+  node: FunctionNode,
+  scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
+): ResolvedCallable[] {
+  return customFunctionResultBodies(node, scope).flatMap((body) =>
+    resolveCallableValues(
+      suffixSteps.length > 0
+        ? ({ type: "path", steps: [body.node, ...suffixSteps] } as PathNode)
+        : body.node,
+      body.scope,
+    ),
+  );
+}
+
+function customFunctionResultBuiltinCallableNames(
+  node: FunctionNode,
+  scope: ScopeTracker,
+  suffixSteps: AstNode[] = [],
+): string[] {
+  return customFunctionResultBodies(node, scope).flatMap((body) =>
+    resolveBuiltinCallableNames(
+      suffixSteps.length > 0
+        ? ({ type: "path", steps: [body.node, ...suffixSteps] } as PathNode)
+        : body.node,
+      body.scope,
+    ),
+  );
+}
+
 function higherOrderResultCallableValues(
   node: FunctionNode,
   scope: ScopeTracker,
@@ -6152,6 +6196,11 @@ function resolveCallableValues(
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
       return [
+        ...customFunctionResultCallableValues(
+          functionNode,
+          sourceScope,
+          suffixSteps,
+        ),
         ...transformUpdateCallableValues(
           functionNode,
           suffixSteps,
@@ -6382,6 +6431,11 @@ function resolveBuiltinCallableNames(
     if (sourceNode.type === "function") {
       const functionNode = sourceNode as FunctionNode;
       return [
+        ...customFunctionResultBuiltinCallableNames(
+          functionNode,
+          sourceScope,
+          suffixSteps,
+        ),
         ...transformUpdateBuiltinCallableNames(
           functionNode,
           suffixSteps,
@@ -6623,8 +6677,20 @@ function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
           scope,
           suffixSteps,
         ).length > 0);
+    const producedByCustomFunction =
+      first?.type === "function" &&
+      (customFunctionResultCallableValues(
+        first as FunctionNode,
+        scope,
+        suffixSteps,
+      ).length > 0 ||
+        customFunctionResultBuiltinCallableNames(
+          first as FunctionNode,
+          scope,
+          suffixSteps,
+        ).length > 0);
     const producerPaths =
-      producedByTransform || producedByHigherOrder
+      producedByTransform || producedByHigherOrder || producedByCustomFunction
         ? walkFunction(first as FunctionNode, scope)
         : [];
     return [...producerPaths, ...path.steps.flatMap((step) => {

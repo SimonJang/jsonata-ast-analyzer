@@ -1305,6 +1305,47 @@ describe("function semantics", () => {
     ]);
   });
 
+  it("invokes callable fields in structured custom-function results", () => {
+    for (const [body, selector, suffix, includesCondition] of [
+      [
+        '{"apply":function($x){$x.children.name}}',
+        "apply",
+        "",
+        false,
+      ],
+      [
+        '{"ops":{"apply":function($x){$x.children.name}}}',
+        "ops.apply",
+        "",
+        false,
+      ],
+      ['{"apply":$clone}', "apply", ".children.name", false],
+      [
+        'config.flag ? {"apply":function($x){$x.children.name}} : {"apply":$clone}',
+        "apply",
+        "",
+        true,
+      ],
+    ] as const) {
+      expect(
+        sortPaths(
+          extractPaths(
+            `($maker := function(){${body}}; ` +
+              `(($maker().${selector})(detail))${suffix})`,
+          ),
+        ),
+      ).toEqual(
+        sortPaths([
+          ...(includesCondition
+            ? [{ path: "config.flag", confidence: "static" as const }]
+            : []),
+          { path: "detail", confidence: "static" },
+          { path: "detail.children.name", confidence: "static" },
+        ]),
+      );
+    }
+  });
+
   it("invokes callable results produced by higher-order callbacks", () => {
     for (const [producer, source] of [
       [
