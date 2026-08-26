@@ -8699,23 +8699,40 @@ function walkCustomFunctionCall(
   callArgs: AstNode[],
   callScope: ScopeTracker,
   defaultsApplied = false,
+  argumentScopes: ScopeTracker[] = callArgs.map(() => callScope),
 ): string[] {
   const { lambda, scope } = binding;
   if (!defaultsApplied) {
     const variants = lambdaContextDefaultArgumentVariants(lambda, callArgs);
     if (variants.length > 1 || variants[0] !== callArgs) {
-      return variants.flatMap((args) =>
-        walkCustomFunctionCall(binding, args, callScope, true),
-      );
+      const contextIndex = contextDefaultParameterIndex(lambda);
+      return variants.flatMap((args) => {
+        const variantScopes =
+          args.length === callArgs.length
+            ? argumentScopes
+            : [
+                ...argumentScopes.slice(0, contextIndex),
+                callScope,
+                ...argumentScopes.slice(contextIndex),
+              ];
+        return walkCustomFunctionCall(
+          binding,
+          args,
+          callScope,
+          true,
+          variantScopes,
+        );
+      });
     }
   }
   const paths: string[] = [];
 
   // Extract paths from all call-site arguments
   const argPathSets: string[][] = [];
-  for (const arg of callArgs) {
-    const identityPaths = identityReferencePaths(arg, callScope);
-    const argPaths = identityPaths ?? walkNode(arg, callScope);
+  for (const [index, arg] of callArgs.entries()) {
+    const argumentScope = argumentScopes[index] ?? callScope;
+    const identityPaths = identityReferencePaths(arg, argumentScope);
+    const argPaths = identityPaths ?? walkNode(arg, argumentScope);
     if (!identityPaths) paths.push(...argPaths);
     argPathSets.push(argPaths);
   }
@@ -8727,7 +8744,13 @@ function walkCustomFunctionCall(
     const argPaths = i < argPathSets.length ? argPathSets[i] : [];
     lambdaScope =
       i < callArgs.length
-        ? bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
+        ? bindArgumentParameter(
+            lambdaScope,
+            param,
+            argPaths,
+            callArgs[i],
+            argumentScopes[i] ?? callScope,
+          )
         : bindVariable(lambdaScope, param.value, argPaths);
   }
   lambdaScope = bindForwardReferences(
@@ -8737,7 +8760,9 @@ function walkCustomFunctionCall(
     binding.name,
   );
   // Walk the lambda body with parameter bindings
-  const parentBasePaths = callArgs[0] ? extractBasePaths(callArgs[0], callScope) : [];
+  const parentBasePaths = callArgs[0]
+    ? extractBasePaths(callArgs[0], argumentScopes[0] ?? callScope)
+    : [];
   const capturedContextPaths = resolveVariable(scope, "");
   const bodyPaths = capturedContextPaths?.length
     ? capturedContextPaths.flatMap((contextPath) =>
@@ -8974,6 +8999,30 @@ function applyPartialArguments(
   return args;
 }
 
+function applyPartialArgumentScopes(
+  partial: PartialNode,
+  callArgs: AstNode[],
+  bindingScope: ScopeTracker,
+  callScope: ScopeTracker,
+): ScopeTracker[] {
+  const scopes: ScopeTracker[] = [];
+  let callArgIndex = 0;
+
+  for (const partialArg of partial.arguments) {
+    if (isPlaceholder(partialArg)) {
+      if (callArgIndex < callArgs.length) {
+        scopes.push(callScope);
+        callArgIndex++;
+      }
+    } else {
+      scopes.push(bindingScope);
+    }
+  }
+
+  scopes.push(...callArgs.slice(callArgIndex).map(() => callScope));
+  return scopes;
+}
+
 function walkPartialCall(
   binding: NonNullable<ReturnType<typeof resolvePartial>>,
   callArgs: AstNode[],
@@ -8989,6 +9038,12 @@ function walkPartialCall(
     arguments: applyPartialArguments(binding.partial, callArgs),
   };
   const appliedArgs = appliedFunction.arguments;
+  const appliedArgumentScopes = applyPartialArgumentScopes(
+    binding.partial,
+    callArgs,
+    binding.scope,
+    callScope,
+  );
   const resolvedCallables = resolveCallableValues(
     binding.partial.procedure,
     binding.scope,
@@ -8999,7 +9054,13 @@ function walkPartialCall(
   );
   const invocationPaths = resolvedCallables.flatMap((callable) => {
     if (callable.kind === "lambda") {
-      return walkCustomFunctionCall(callable.binding, appliedArgs, callScope);
+      return walkCustomFunctionCall(
+        callable.binding,
+        appliedArgs,
+        callScope,
+        false,
+        appliedArgumentScopes,
+      );
     }
     if (callable.kind === "transform") {
       return walkTransformCall(callable.binding, appliedArgs, callScope);

@@ -1613,6 +1613,25 @@ describe("function semantics", () => {
     }
   });
 
+  it("preserves captured arguments in partials produced by higher-order callbacks", () => {
+    expect(
+      sortPaths(
+        extractPaths(
+          "($callbacks := $map(items, function($value){" +
+            "function($left, $right){$left.name & $right.children.name}" +
+            "($value, ?)}); ($callbacks[0])(detail))",
+        ),
+      ),
+    ).toEqual(
+      sortPaths([
+        { path: "items", confidence: "static" },
+        { path: "items.name", confidence: "static" },
+        { path: "detail", confidence: "static" },
+        { path: "detail.children.name", confidence: "static" },
+      ]),
+    );
+  });
+
   it("invokes callable fields in structured higher-order results", () => {
     for (const [producer, selector, suffix, source] of [
       [
