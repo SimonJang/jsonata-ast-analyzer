@@ -4,9 +4,14 @@ import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePart
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, PATH_PRESERVING_RESULT_FUNCTIONS } from "./constants.js";
 import { appendPath, resolveParentPathSegments, filterToBasePaths } from "./path-utils.js";
-import type { ResultOperations, WalkerRuntime } from "./runtime.js";
+import type { ResultOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
 
-export function createResultOperations(runtime: WalkerRuntime): ResultOperations {
+const DEFAULT_OPTIONS: WalkerOptions = { opaqueFunctions: new Set() };
+
+export function createResultOperations(
+  runtime: WalkerRuntime,
+  options: WalkerOptions = DEFAULT_OPTIONS,
+): ResultOperations {
   function getFunctionResultObjectAlias(
     node: FunctionNode,
     scope: ScopeTracker,
@@ -147,6 +152,8 @@ export function createResultOperations(runtime: WalkerRuntime): ResultOperations
     if (resolveTransform(argScope, funcName)) {
       return args[0] ? runtime.aliases.groupResultObjectAliasForNode(args[0], argScope) : null;
     }
+
+    if (options.opaqueFunctions.has(funcName)) return null;
   
     if (funcName === "eval") {
       return runtime.functions.getStaticEvalResultObjectAlias(args, argScope);
@@ -316,6 +323,8 @@ export function createResultOperations(runtime: WalkerRuntime): ResultOperations
         ? runtime.aliases.groupResultDynamicObjectAliasForNode(args[0], argScope)
         : null;
     }
+
+    if (options.opaqueFunctions.has(funcName)) return null;
   
     if (funcName === "eval") {
       return runtime.functions.getStaticEvalResultDynamicObjectAlias(args, argScope);
@@ -1048,6 +1057,8 @@ export function createResultOperations(runtime: WalkerRuntime): ResultOperations
     if (resolveTransform(argScope, funcName)) {
       return args[0] ? getResultBasePathsFromArg(args[0], argScope) : [];
     }
+
+    if (options.opaqueFunctions.has(funcName)) return [];
   
     if (funcName === "eval") {
       return runtime.functions.getStaticEvalResultBasePaths(args, argScope);
@@ -1504,6 +1515,8 @@ export function createResultOperations(runtime: WalkerRuntime): ResultOperations
     if (resolveTransform(argScope, funcName)) {
       return args[0] ? runtime.aliases.groupResultSuffixBasePaths(args[0], argScope) : [];
     }
+
+    if (options.opaqueFunctions.has(funcName)) return [];
   
     if (funcName === "eval") {
       return runtime.functions.getStaticEvalResultBasePaths(args, argScope);

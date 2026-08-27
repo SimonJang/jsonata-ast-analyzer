@@ -8,6 +8,24 @@ export interface PathResult {
   confidence: Confidence;
 }
 
+/** How broadly a referenced path contributes to the expression result. */
+export type Coverage = "exact" | "subtree";
+
+/** A referenced input path together with its dependency coverage. */
+export interface PathAccess extends PathResult {
+  coverage: Coverage;
+}
+
+/** Per-analysis host integration overrides. */
+export interface AnalyzeOptions {
+  opaqueFunctions?: readonly string[];
+}
+
+/** Static dependency analysis for one JSONata expression. */
+export interface AnalysisResult {
+  accesses: PathAccess[];
+}
+
 export interface SourceAstMetadata {
   type: string;
   value?: unknown;

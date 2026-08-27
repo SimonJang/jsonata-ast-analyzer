@@ -1,10 +1,22 @@
 import { parse } from "./parser.js";
 import { walkNode } from "./walker.js";
+import { createWalker } from "./walker/index.js";
 import { createScope } from "./scope.js";
-import type { PathResult, Confidence } from "./types.js";
+import type {
+  AnalysisResult,
+  AnalyzeOptions,
+  Confidence,
+  PathResult,
+} from "./types.js";
 
-export type { PathResult } from "./types.js";
-export type { Confidence } from "./types.js";
+export type {
+  AnalysisResult,
+  AnalyzeOptions,
+  Confidence,
+  Coverage,
+  PathAccess,
+  PathResult,
+} from "./types.js";
 
 interface AnalysisDetails {
   rawPaths: string[];
@@ -52,6 +64,47 @@ function deriveConfidence(path: string): Confidence {
 export function extractPaths(expression: string): PathResult[] {
   const { uniquePaths } = analyzePaths(expression);
   return uniquePaths.map((path) => ({ path, confidence: deriveConfidence(path) }));
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/^\0\.?/, "");
+}
+
+function normalizeOpaqueFunctions(options?: AnalyzeOptions): ReadonlySet<string> {
+  return new Set(
+    (options?.opaqueFunctions ?? []).map((name) => name.replace(/^\$/, "")),
+  );
+}
+
+/**
+ * Analyze input-path dependencies, including whether each path's complete
+ * value is selected into the expression result.
+ */
+export function analyzeExpression(
+  expression: string,
+  options?: AnalyzeOptions,
+): AnalysisResult {
+  const ast = parse(expression);
+  const scope = createScope();
+  const walker = createWalker(normalizeOpaqueFunctions(options));
+  const rawPaths = walker
+    .walkNode(ast, scope)
+    .map(normalizePath)
+    .filter((path) => path !== "");
+  const selectedPaths = new Set(
+    walker
+      .getSelectedResultPaths(ast, scope)
+      .map(normalizePath)
+      .filter((path) => path !== ""),
+  );
+  const uniquePaths = [...new Set(rawPaths)];
+  return {
+    accesses: uniquePaths.map((path) => ({
+      path,
+      confidence: deriveConfidence(path),
+      coverage: selectedPaths.has(path) ? "subtree" : "exact",
+    })),
+  };
 }
 
 function analyzePaths(expression: string): AnalysisDetails {

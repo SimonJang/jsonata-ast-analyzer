@@ -1,0 +1,8 @@
+case,size,chars,paths,extract_median_ms,analyze_median_ms,analyze_ratio,extract_baseline_ratio
+long-path,400,1889,1,1.355568,1.523258,1.124,0.967
+wide-binary,400,2687,400,0.466497,0.472449,1.013,0.883
+wide-object,400,4981,400,0.688182,0.619343,0.900,1.089
+many-bindings,400,7388,400,1.797508,2.320552,1.291,1.008
+alias-chain,400,7673,400,5.593442,6.171142,1.103,0.977
+wide-filter,400,3492,401,2.391221,2.395333,1.002,0.954
+repeated-path,400,4797,1,0.620481,0.635238,1.024,1.025

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 - 2026-08-27
+
+### Added
+
+- Added `analyzeExpression()` with `exact` or `subtree` dependency coverage for every referenced path.
+- Added per-analysis `opaqueFunctions` overrides for host functions that replace recognized JSONata built-ins, including Qargo's `$eval` use case.
+- Added corpus-wide compatibility proof and focused coverage tests without changing existing test expectations or fixtures.
+
+### Performance
+
+- Added same-run comparative scaling measurements for `extractPaths()` and `analyzeExpression()`.
+- Enforced release limits of at most 10% median regression for `extractPaths()` and at most 2x its median for `analyzeExpression()` at fixture size 400.
+
 ## 1.0.3 - 2026-08-26
 
 ### Changed

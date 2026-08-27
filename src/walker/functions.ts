@@ -5,9 +5,14 @@ import { type ScopeTracker, childScope, bindVariable, bindLambda, bindPartial, b
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, IMPLICIT_ROOT_SHALLOW_FUNCTIONS, IMPLICIT_ROOT_DEEP_FUNCTIONS, MATCHER_CALLBACK_FUNCTIONS, CONTEXT_DEFAULT_BUILTINS } from "./constants.js";
 import { prefixPaths, appendPath, isRootReference, markAbsolute, isNumericIndex } from "./path-utils.js";
-import type { FunctionOperations, WalkerRuntime } from "./runtime.js";
+import type { FunctionOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
 
-export function createFunctionOperations(runtime: WalkerRuntime): FunctionOperations {
+const DEFAULT_OPTIONS: WalkerOptions = { opaqueFunctions: new Set() };
+
+export function createFunctionOperations(
+  runtime: WalkerRuntime,
+  options: WalkerOptions = DEFAULT_OPTIONS,
+): FunctionOperations {
   function bindCallableValue(
     scope: ScopeTracker,
     name: string,
@@ -665,6 +670,64 @@ export function createFunctionOperations(runtime: WalkerRuntime): FunctionOperat
             node.position,
           );
     const paths: string[] = [];
+
+    const lambdaBinding = resolveLambda(scope, funcName);
+    const partialBinding = resolvePartial(scope, funcName);
+    const transformBinding = resolveTransform(scope, funcName);
+    const storedCallables = runtime.callables.resolveCallableValues(
+      node.procedure,
+      scope,
+    );
+    const walkStoredCallablePaths = (): string[] => {
+      const storedPaths = walkCallableSelection(node.procedure, scope);
+      for (const callable of storedCallables) {
+        if (callable.kind === "transform") {
+          storedPaths.push(...runtime.transforms.walkTransformCall(callable.binding, args, scope));
+        } else if (callable.kind === "lambda") {
+          storedPaths.push(...runtime.higherOrder.walkCustomFunctionCall(callable.binding, args, scope));
+        } else {
+          storedPaths.push(...runtime.higherOrder.walkPartialCall(callable.binding, args, scope));
+        }
+      }
+      for (const name of storedBuiltinNames) {
+        storedPaths.push(
+          ...walkFunction(
+            {
+              ...node,
+              procedure: { type: "variable", value: name, position: node.position },
+              arguments: args,
+              predicate: [],
+              group: undefined,
+            },
+            scope,
+          ),
+        );
+      }
+      return storedPaths;
+    };
+    if (options.opaqueFunctions.has(funcName)) {
+      if (lambdaBinding) {
+        return withFunctionStages(
+          runtime.higherOrder.walkCustomFunctionCall(lambdaBinding, args, scope),
+        );
+      }
+      if (partialBinding) {
+        return withFunctionStages(
+          runtime.higherOrder.walkPartialCall(partialBinding, args, scope),
+        );
+      }
+      if (transformBinding) {
+        return withFunctionStages(
+          runtime.transforms.walkTransformCall(transformBinding, args, scope),
+        );
+      }
+      if (storedCallables.length > 0 || storedBuiltinNames.length > 0) {
+        return withFunctionStages(walkStoredCallablePaths());
+      }
+      return withFunctionStages(
+        args.flatMap((argument) => runtime.core.walkNode(argument, scope)),
+      );
+    }
   
     if (args.length === 0 && IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)) {
       paths.push("*");
@@ -714,48 +777,20 @@ export function createFunctionOperations(runtime: WalkerRuntime): FunctionOperat
     }
   
     // Step 2: Check if this is a custom function call (lambda bound in scope)
-    const lambdaBinding = resolveLambda(scope, funcName);
     if (lambdaBinding) {
       return withFunctionStages(runtime.higherOrder.walkCustomFunctionCall(lambdaBinding, args, scope));
     }
   
-    const partialBinding = resolvePartial(scope, funcName);
     if (partialBinding) {
       return withFunctionStages(runtime.higherOrder.walkPartialCall(partialBinding, args, scope));
     }
   
-    const transformBinding = resolveTransform(scope, funcName);
     if (transformBinding) {
       return withFunctionStages(runtime.transforms.walkTransformCall(transformBinding, args, scope));
     }
   
-    const storedCallables = runtime.callables.resolveCallableValues(node.procedure, scope);
     if (storedCallables.length > 0 || storedBuiltinNames.length > 0) {
-      const storedPaths = walkCallableSelection(node.procedure, scope);
-      for (const callable of storedCallables) {
-        if (callable.kind === "transform") {
-          storedPaths.push(...runtime.transforms.walkTransformCall(callable.binding, args, scope));
-        } else if (callable.kind === "lambda") {
-          storedPaths.push(...runtime.higherOrder.walkCustomFunctionCall(callable.binding, args, scope));
-        } else {
-          storedPaths.push(...runtime.higherOrder.walkPartialCall(callable.binding, args, scope));
-        }
-      }
-      for (const name of storedBuiltinNames) {
-        storedPaths.push(
-          ...walkFunction(
-            {
-              ...node,
-              procedure: { type: "variable", value: name, position: node.position },
-              arguments: args,
-              predicate: [],
-              group: undefined,
-            },
-            scope,
-          ),
-        );
-      }
-      return withFunctionStages(storedPaths);
+      return withFunctionStages(walkStoredCallablePaths());
     }
   
     // Step 3: Non-higher-order built-in or unknown function -- pass-through all args

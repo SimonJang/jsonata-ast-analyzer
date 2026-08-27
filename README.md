@@ -42,6 +42,52 @@ Extracts all data paths that a JSONata expression reads from its input object, i
 
 `extractPaths` always returns an array or throws -- it never returns `null` or `undefined`.
 
+### analyzeExpression(expression: string, options?: AnalyzeOptions): AnalysisResult
+
+Analyzes the same ordered input-path reads as `extractPaths()` and adds dependency coverage:
+
+```javascript
+import { analyzeExpression } from "jsonata-ast-analyzer";
+
+analyzeExpression(
+  "$filter(items, function($item) { $item.active })"
+);
+// {
+//   accesses: [
+//     { path: "items",        confidence: "static", coverage: "subtree" },
+//     { path: "items.active", confidence: "static", coverage: "exact" }
+//   ]
+// }
+```
+
+`exact` means only the path value is consumed. `subtree` means the complete value is selected or forwarded, so changes to any descendant may affect the expression result. It is conservative dependency metadata; it does **not** mean every child is eagerly evaluated at runtime.
+
+| Recorded access | Dependency query | Matches |
+|-----------------|------------------|---------|
+| `customer`, `exact` | `customer` | yes |
+| `customer`, `exact` | `customer.name` | no |
+| `customer`, `subtree` | `customer.name` | yes |
+| `customer.name`, either coverage | `customer` | yes |
+
+For example, `$count(items)` consumes the collection value and reports `items` as `exact`, while returning `items` directly reports it as `subtree`. When the same path is both consumed and selected, `subtree` wins without changing its first-seen position.
+
+The optional `opaqueFunctions` list treats recognized built-ins as opaque host functions for one analysis. Names may include or omit the leading `$`:
+
+```javascript
+analyzeExpression("$eval(payload).x", {
+  opaqueFunctions: ["eval"], // "$eval" is equivalent
+});
+// {
+//   accesses: [
+//     { path: "payload", confidence: "static", coverage: "exact" }
+//   ]
+// }
+```
+
+This is useful when a host replaces a built-in with different semantics. Arguments are still analyzed as consumed values, but built-in result and callback semantics are skipped. A JSONata-local lambda, partial, transform, or stored callable with the same name takes precedence. Options are immutable and scoped to the individual call.
+
+With no options, removing `coverage` from `analyzeExpression(expression).accesses` produces exactly the same paths, confidence, and order as `extractPaths(expression)`.
+
 ### Types
 
 ```typescript
@@ -51,6 +97,20 @@ interface PathResult {
 }
 
 type Confidence = "static" | "dynamic" | "partial";
+
+type Coverage = "exact" | "subtree";
+
+interface PathAccess extends PathResult {
+  coverage: Coverage;
+}
+
+interface AnalyzeOptions {
+  opaqueFunctions?: readonly string[];
+}
+
+interface AnalysisResult {
+  accesses: PathAccess[];
+}
 ```
 
 - **path** -- the dot-separated data path. Special markers: `[*]` indicates a dynamic segment, `%` indicates a parent reference.
@@ -202,13 +262,13 @@ pnpm bench
 
 Each benchmark reports parse-plus-analyze time plus raw path count before dedupe and unique path count after dedupe.
 
-Run the synthetic scaling suite to exercise long paths, bindings, aliases, filters, and wide expressions:
+Run the synthetic scaling suite to exercise long paths, bindings, aliases, filters, and wide expressions. It measures both public APIs and enforces the size-400 performance gates:
 
 ```sh
 pnpm bench:scaling
 ```
 
-The benchmark tools, methodology, and historical result data live in `benchmark/` in the repository. They are development-only assets and are not included in the npm package.
+`analyzeExpression()` must remain within 2x the same-run `extractPaths()` median. The 10% `extractPaths()` regression gate is applied by setting `JSONATA_BENCH_BASELINE_MODULE` to a built comparison release; both implementations are then measured in alternating rounds in the same process, avoiding machine-specific absolute thresholds. The benchmark tools, methodology, and historical result data live in `benchmark/` in the repository. They are development-only assets and are not included in the npm package.
 
 Run the release gate used by CI:
 
@@ -248,7 +308,9 @@ The analyzer is designed to over-approximate: it reports a superset of the paths
 
 **Transform writes** -- Transform locations and update/delete expressions are analyzed for reads, but write targets are not exposed as a separate public API. Literal delete targets such as `["password"]` do not create input reads.
 
-**Internal benchmark helper** -- `__benchmarkExpression()` is exported only so the repository benchmark can measure raw and deduped path counts. Treat it as internal; `extractPaths()` remains the supported API.
+**External function contracts** -- `opaqueFunctions` can suppress recognized built-in semantics, but this release does not model argument or return contracts for arbitrary host functions.
+
+**Internal benchmark helper** -- `__benchmarkExpression()` is exported only so the repository benchmark can measure raw and deduped path counts. Treat it as internal; `extractPaths()` and `analyzeExpression()` are the supported APIs.
 
 ## License
 

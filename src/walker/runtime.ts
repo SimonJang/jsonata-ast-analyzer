@@ -219,6 +219,14 @@ export interface ResultOperations {
   getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[];
 }
 
+export interface SelectionOperations {
+  getSelectedResultPaths(node: AstNode, scope: ScopeTracker): string[];
+}
+
+export interface WalkerOptions {
+  readonly opaqueFunctions: ReadonlySet<string>;
+}
+
 export interface WalkerRuntime {
   core: CoreOperations;
   paths: PathOperations;
