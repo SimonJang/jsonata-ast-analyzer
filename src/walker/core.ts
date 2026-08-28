@@ -4,6 +4,12 @@ import { appendPath } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
 export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
+  const IN_PROGRESS = Symbol("walk-in-progress");
+  const walkCache = new WeakMap<
+    AstNode,
+    WeakMap<ScopeTracker, string[] | typeof IN_PROGRESS>
+  >();
+
   /**
    * Walk an AST node and extract all data paths as raw strings.
    * Dispatches on node.type using a switch statement.
@@ -11,6 +17,25 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
    * Unknown node types return empty array (skip silently).
    */
   function walkNode(
+    node: AstNode,
+    scope: ScopeTracker,
+  ): string[] {
+    let scopeCache = walkCache.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      walkCache.set(node, scopeCache);
+    }
+    const cached = scopeCache.get(scope);
+    if (cached === IN_PROGRESS) return [];
+    if (cached) return cached;
+
+    scopeCache.set(scope, IN_PROGRESS);
+    const paths = computeWalkNode(node, scope);
+    scopeCache.set(scope, paths);
+    return paths;
+  }
+
+  function computeWalkNode(
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {

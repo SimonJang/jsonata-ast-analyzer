@@ -6,10 +6,60 @@ import { markAbsolute, collectVariableNames, buildProjectionContextPath } from "
 import type { CallableOperations, WalkerRuntime, ResolvedCallable } from "./runtime.js";
 
 export function createCallableOperations(runtime: WalkerRuntime): CallableOperations {
+  const CALLABLE_RESULT_BUILTINS = new Set([
+    ...PATH_PRESERVING_RESULT_FUNCTIONS,
+    "map",
+    "each",
+    "reduce",
+    "eval",
+  ]);
+  const IN_PROGRESS = Symbol("callable-resolution-in-progress");
+  const callableValueCache = new WeakMap<
+    AstNode,
+    WeakMap<ScopeTracker, ResolvedCallable[] | typeof IN_PROGRESS>
+  >();
+  const negativeCallableEnvironmentCache = new WeakMap<AstNode, WeakSet<object>>();
+  const builtinNameCache = new WeakMap<
+    AstNode,
+    WeakMap<ScopeTracker, string[] | typeof IN_PROGRESS>
+  >();
   const definitelyDataCache = new WeakMap<
     AstNode,
     WeakMap<ScopeTracker, boolean>
   >();
+  const callableProcedureVariableNamesCache = new WeakMap<
+    AstNode,
+    ReadonlySet<string>
+  >();
+
+  function isNonCallableBuiltinResult(node: FunctionNode): boolean {
+    return (
+      node.procedure.type === "variable" &&
+      BUILTIN_FUNCTIONS.has(node.procedure.value) &&
+      !CALLABLE_RESULT_BUILTINS.has(node.procedure.value)
+    );
+  }
+
+  function cannotProduceCallable(node: AstNode): boolean {
+    return (
+      !callableGroup(node) &&
+      [
+        "name",
+        "string",
+        "number",
+        "value",
+        "regex",
+        "binary",
+        "unary",
+        "negate",
+        "parent",
+        "wildcard",
+        "descendant",
+        "operator",
+        "bind",
+      ].includes(node.type)
+    );
+  }
 
   function isDefinitelyDataValue(node: AstNode, scope: ScopeTracker): boolean {
     let scopeCache = definitelyDataCache.get(node);
@@ -140,8 +190,17 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
 
   function callableProcedureVariableNames(
     node: AstNode,
-    names = new Set<string>(),
+    names?: Set<string>,
   ): Set<string> {
+    if (!names) {
+      const cached = callableProcedureVariableNamesCache.get(node);
+      if (cached) return cached as Set<string>;
+
+      const collected = callableProcedureVariableNames(node, new Set<string>());
+      callableProcedureVariableNamesCache.set(node, collected);
+      return collected;
+    }
+
     if (node.type === "function") {
       for (const name of collectVariableNames((node as FunctionNode).procedure)) {
         names.add(name);
@@ -847,6 +906,36 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
+    if (cannotProduceCallable(node)) return [];
+    const negativeEnvironments = negativeCallableEnvironmentCache.get(node);
+    if (negativeEnvironments?.has(scope.callableEnvironment)) return [];
+    let scopeCache = callableValueCache.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      callableValueCache.set(node, scopeCache);
+    }
+    const cached = scopeCache.get(scope);
+    if (cached === IN_PROGRESS) return [];
+    if (cached) return cached;
+
+    scopeCache.set(scope, IN_PROGRESS);
+    const resolved = computeCallableValues(node, scope);
+    scopeCache.set(scope, resolved);
+    if (resolved.length === 0) {
+      let environments = negativeCallableEnvironmentCache.get(node);
+      if (!environments) {
+        environments = new WeakSet();
+        negativeCallableEnvironmentCache.set(node, environments);
+      }
+      environments.add(scope.callableEnvironment);
+    }
+    return resolved;
+  }
+
+  function computeCallableValues(
+    node: AstNode,
+    scope: ScopeTracker,
+  ): ResolvedCallable[] {
     if (node.type === "path" && isDefinitelyDataValue(node, scope)) return [];
     if (node.type !== "path" && callableGroup(node)) {
       return groupedNodeCallableValues(node, scope);
@@ -996,6 +1085,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       }
       if (sourceNode.type === "function") {
         const functionNode = sourceNode as FunctionNode;
+        if (isNonCallableBuiltinResult(functionNode)) return [];
         return [
           ...(functionNode.procedure.type === "variable" &&
           functionNode.procedure.value === "lookup"
@@ -1059,8 +1149,9 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       return [];
     }
     if (node.type !== "function") return [];
-  
+
     const functionNode = node as FunctionNode;
+    if (isNonCallableBuiltinResult(functionNode)) return [];
     if (
       functionNode.procedure.type === "variable" &&
       functionNode.procedure.value === "eval"
@@ -1177,6 +1268,25 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
   }
 
   function resolveBuiltinCallableNames(
+    node: AstNode,
+    scope: ScopeTracker,
+  ): string[] {
+    let scopeCache = builtinNameCache.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      builtinNameCache.set(node, scopeCache);
+    }
+    const cached = scopeCache.get(scope);
+    if (cached === IN_PROGRESS) return [];
+    if (cached) return cached;
+
+    scopeCache.set(scope, IN_PROGRESS);
+    const resolved = computeBuiltinCallableNames(node, scope);
+    scopeCache.set(scope, resolved);
+    return resolved;
+  }
+
+  function computeBuiltinCallableNames(
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {

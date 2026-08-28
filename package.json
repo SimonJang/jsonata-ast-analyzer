@@ -1,6 +1,6 @@
 {
   "name": "jsonata-ast-analyzer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Static analysis of JSONata expressions to extract data paths",
   "repository": {
     "type": "git",
@@ -26,7 +26,8 @@
     "build": "tsup",
     "bench": "pnpm build && node benchmark/smoke.mjs",
     "bench:scaling": "pnpm build && node benchmark/scaling.mjs",
-    "release:check": "pnpm typecheck && pnpm build && pnpm test && node benchmark/smoke.mjs && node benchmark/scaling.mjs",
+    "bench:production-shaped": "pnpm build && node benchmark/production-shaped.mjs",
+    "release:check": "pnpm typecheck && pnpm build && pnpm test && node benchmark/smoke.mjs && node benchmark/scaling.mjs && node benchmark/production-shaped.mjs",
     "test": "vitest run",
     "test:corpus": "vitest run test/corpus/jsonata-corpus.test.ts",
     "test:unit": "vitest run --exclude 'test/integration/**'",

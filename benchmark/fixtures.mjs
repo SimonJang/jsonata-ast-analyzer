@@ -34,3 +34,35 @@ export const scalingFixtures = {
   "repeated-path": (size) =>
     Array.from({ length: size }, () => "root.same").join(" + "),
 };
+
+export const productionShapedFixtures = {
+  "conditional-nested-projection": `(
+    $source := event.kind = "primary" ? $$.primary.stop : $$.fallback.stop;
+    $source.{
+      "identifier": $.id,
+      "location": $.location.{
+        "name": $.name,
+        "address": $.address.{"city": $.city, "country": $.country}
+      }
+    }
+  )`,
+  "stored-callback-chain": `(
+    $read := function($entry) { $entry.details.value ?: defaults.value };
+    $active := function($entry) { $entry.status = "active" };
+    $callbacks := [$read, $active];
+    $selected := $filter(records, $callbacks[1]);
+    $map($selected, $callbacks[0])
+  )`,
+  "resolver-branching": `(
+    $project := function($entry) {{
+      "id": $entry.id,
+      "value": $entry.details.value,
+      "children": $map($entry.children, function($child) {{
+        "id": $child.id,
+        "value": $child.details.value
+      }})
+    }};
+    $source := flags.usePrimary ? $$.primary.records : $$.fallback.records;
+    $map($source, $project)
+  )`,
+};

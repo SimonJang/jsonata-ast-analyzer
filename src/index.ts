@@ -1,19 +1,39 @@
 import { parse } from "./parser.js";
 import { walkNode } from "./walker.js";
 import { createWalker } from "./walker/index.js";
-import { createScope } from "./scope.js";
+import { bindVariable, createScope, type ScopeTracker } from "./scope.js";
+import {
+  CURRENT_CONTEXT_PATH,
+  PARENT_CONTEXT_PATH,
+  ROOT_PATH,
+  UNRESOLVED_PATH,
+} from "./walker/constants.js";
 import type {
+  AccessKind,
+  AccessOrigin,
+  AnalysisDiagnostic,
   AnalysisResult,
   AnalyzeOptions,
   Confidence,
+  ContextualAnalysisResult,
+  ContextualPathAccess,
+  ExternalFunctionContract,
   PathResult,
 } from "./types.js";
 
 export type {
+  AccessKind,
+  AccessOrigin,
+  AnalysisDiagnostic,
+  AnalysisContext,
   AnalysisResult,
   AnalyzeOptions,
   Confidence,
+  ContextualAnalysisResult,
+  ContextualPathAccess,
   Coverage,
+  ExternalFunctionAccessMode,
+  ExternalFunctionContract,
   PathAccess,
   PathResult,
 } from "./types.js";
@@ -67,13 +87,128 @@ export function extractPaths(expression: string): PathResult[] {
 }
 
 function normalizePath(path: string): string {
-  return path.replace(/^\0\.?/, "");
+  return path
+    .replace(new RegExp(`^[${ROOT_PATH}${CURRENT_CONTEXT_PATH}${PARENT_CONTEXT_PATH}]\\.?`), "")
+    .replace(UNRESOLVED_PATH, "**");
 }
 
 function normalizeOpaqueFunctions(options?: AnalyzeOptions): ReadonlySet<string> {
   return new Set(
     (options?.opaqueFunctions ?? []).map((name) => name.replace(/^\$/, "")),
   );
+}
+
+function normalizeExternalFunctions(
+  options?: AnalyzeOptions,
+): ReadonlyMap<string, ExternalFunctionContract> {
+  return new Map(
+    Object.entries(options?.externalFunctions ?? {}).map(([name, contract]) => [
+      name.replace(/^\$/, ""),
+      contract,
+    ]),
+  );
+}
+
+function contextualMarkerPath(marker: string, path: string | undefined): string {
+  return path ? `${marker}.${path}` : marker;
+}
+
+function analysisScope(
+  options: AnalyzeOptions | undefined,
+  _preserveDefaultCurrent: boolean,
+): ScopeTracker {
+  let scope = createScope();
+  const context = options?.context;
+  if (context?.currentPath) {
+    scope = bindVariable(scope, "", [
+      contextualMarkerPath(CURRENT_CONTEXT_PATH, context?.currentPath),
+    ]);
+  }
+  if (context?.parentVariable && context.parentPath !== undefined) {
+    scope = bindVariable(
+      scope,
+      context.parentVariable.replace(/^\$/, ""),
+      [contextualMarkerPath(PARENT_CONTEXT_PATH, context.parentPath)],
+    );
+  }
+  return scope;
+}
+
+interface RawAnalysis {
+  rawPaths: string[];
+  selectedPaths: Set<string>;
+}
+
+function analyzeRaw(
+  expression: string,
+  options: AnalyzeOptions | undefined,
+  preserveDefaultCurrent: boolean,
+): RawAnalysis {
+  const ast = parse(expression);
+  return analyzeAst(ast, options, preserveDefaultCurrent);
+}
+
+function analyzeAst(
+  ast: Parameters<typeof walkNode>[0],
+  options: AnalyzeOptions | undefined,
+  preserveDefaultCurrent: boolean,
+): RawAnalysis {
+  const scope = analysisScope(options, preserveDefaultCurrent);
+  const walker = createWalker(
+    normalizeOpaqueFunctions(options),
+    normalizeExternalFunctions(options),
+  );
+  const rawPaths = walker.walkNode(ast, scope);
+  const selectedPaths = new Set([
+    ...walker.getSelectedResultPaths(ast, scope),
+    ...walker.getExternalSubtreeAccessPaths(),
+  ]);
+  return { rawPaths, selectedPaths };
+}
+
+function diagnosticMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function contextualAccessKey(access: {
+  path: string;
+  origin: AccessOrigin;
+  kind: AccessKind;
+}): string {
+  return `${access.origin}\0${access.kind}\0${access.path}`;
+}
+
+function contextualPath(path: string): {
+  path: string;
+  origin: AccessOrigin;
+  kind: AccessKind;
+} {
+  let origin: AccessOrigin = "current";
+  let remainder = path;
+  if (remainder.startsWith(ROOT_PATH)) {
+    origin = "root";
+    remainder = remainder.slice(ROOT_PATH.length).replace(/^\./, "");
+  } else if (remainder.startsWith(CURRENT_CONTEXT_PATH)) {
+    remainder = remainder.slice(CURRENT_CONTEXT_PATH.length).replace(/^\./, "");
+  } else if (remainder.startsWith(PARENT_CONTEXT_PATH)) {
+    origin = "parent";
+    remainder = remainder.slice(PARENT_CONTEXT_PATH.length).replace(/^\./, "");
+  }
+
+  const unresolved = remainder.includes(UNRESOLVED_PATH);
+  remainder = remainder
+    .split(".")
+    .filter((segment) => segment !== UNRESOLVED_PATH)
+    .join(".");
+  const segments = remainder.split(".");
+  const kind: AccessKind = unresolved
+    ? "unresolved"
+    : remainder.includes("[*]")
+      ? "dynamic"
+      : segments.includes("*") || segments.includes("**")
+        ? "wildcard"
+        : "path";
+  return { path: remainder, origin, kind };
 }
 
 /**
@@ -84,16 +219,13 @@ export function analyzeExpression(
   expression: string,
   options?: AnalyzeOptions,
 ): AnalysisResult {
-  const ast = parse(expression);
-  const scope = createScope();
-  const walker = createWalker(normalizeOpaqueFunctions(options));
-  const rawPaths = walker
-    .walkNode(ast, scope)
+  const { rawPaths: unresolvedPaths, selectedPaths: rawSelectedPaths } =
+    analyzeRaw(expression, options, false);
+  const rawPaths = unresolvedPaths
     .map(normalizePath)
     .filter((path) => path !== "");
   const selectedPaths = new Set(
-    walker
-      .getSelectedResultPaths(ast, scope)
+    [...rawSelectedPaths]
       .map(normalizePath)
       .filter((path) => path !== ""),
   );
@@ -107,11 +239,60 @@ export function analyzeExpression(
   };
 }
 
+/**
+ * Analyze dependencies while retaining whether each access starts at the
+ * absolute root, current host context, or parent host context.
+ */
+export function analyzeExpressionWithContext(
+  expression: string,
+  options?: AnalyzeOptions,
+): ContextualAnalysisResult {
+  let ast: Parameters<typeof walkNode>[0];
+  try {
+    ast = parse(expression);
+  } catch (error) {
+    return {
+      accesses: [],
+      diagnostics: [{ kind: "parse", message: diagnosticMessage(error) }],
+    };
+  }
+
+  let rawAnalysis: RawAnalysis;
+  try {
+    rawAnalysis = analyzeAst(ast, options, true);
+  } catch (error) {
+    return {
+      accesses: [],
+      diagnostics: [{ kind: "analysis", message: diagnosticMessage(error) }],
+    };
+  }
+  const { rawPaths, selectedPaths } = rawAnalysis;
+  const selectedAccesses = new Set(
+    [...selectedPaths].map((path) => contextualAccessKey(contextualPath(path))),
+  );
+  const merged = new Map<string, ContextualPathAccess>();
+
+  for (const rawPath of rawPaths) {
+    const decoded = contextualPath(rawPath);
+    const key = contextualAccessKey(decoded);
+    const selected = selectedAccesses.has(key);
+    const candidate: ContextualPathAccess = {
+      ...decoded,
+      confidence: deriveConfidence(decoded.path),
+      coverage: selected ? "subtree" : "exact",
+    };
+    const existing = merged.get(key);
+    if (!existing || candidate.coverage === "subtree") merged.set(key, candidate);
+  }
+
+  return { accesses: [...merged.values()], diagnostics: [] };
+}
+
 function analyzePaths(expression: string): AnalysisDetails {
   const ast = parse(expression);
   const scope = createScope();
   const rawPaths = walkNode(ast, scope)
-    .map((path) => path.replace(/^\0\.?/, ""))
+    .map(normalizePath)
     .filter((path) => path !== "");
   return { rawPaths, uniquePaths: [...new Set(rawPaths)] };
 }
