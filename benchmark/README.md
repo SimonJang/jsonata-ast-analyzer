@@ -16,6 +16,12 @@ Run the warm synthetic scaling suite:
 pnpm bench:scaling
 ```
 
+Run the redacted production-shaped resolver and projection suite:
+
+```sh
+pnpm bench:production-shaped
+```
+
 The scaling runner emits CSV with the expression family, generated size, expression length, extracted path count, medians for both public APIs, their ratio, and an optional comparison-release ratio. At size 400 it always enforces that `analyzeExpression()` remains within 2x the same-run `extractPaths()` median. Override its workload with:
 
 ```sh
@@ -35,6 +41,7 @@ JSONATA_BENCH_BASELINE_MODULE=/absolute/path/to/v1.0.3/dist/index.js pnpm bench:
 - `fixtures.mjs` defines the smoke expressions and scaling fixture generators.
 - `smoke.mjs` provides the fast threshold check used by `release:check`.
 - `scaling.mjs` performs warm, adaptive, median-based scaling measurements.
+- `production-shaped.mjs` reports median, p95, and maximum call latency for minimized production topologies.
 - `data/` contains timestamped raw CSV snapshots from the performance investigation.
 
 ## Recorded data

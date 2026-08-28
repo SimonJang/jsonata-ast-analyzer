@@ -6,10 +6,36 @@ import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPat
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
 
 export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
+  // Alias-local analysis deliberately runs without caller bindings. Reuse the
+  // same empty scope so the core walk cache can safely reuse those results.
+  const localAnalysisScope = childScope(createScope());
+  const bindingAliasCache = new WeakMap<
+    AstNode,
+    WeakMap<ScopeTracker, string[]>
+  >();
+  const localPathSetCache = new WeakMap<AstNode, ReadonlySet<string>>();
+  const objectAliasCache = new WeakMap<
+    AstNode,
+    WeakMap<ScopeTracker, ObjectAlias | null>
+  >();
+
   function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
+    const cached = bindingAliasCache.get(node)?.get(scope);
+    if (cached) return cached;
+    const paths = computeBindingAliasPaths(node, scope);
+    let scopeCache = bindingAliasCache.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      bindingAliasCache.set(node, scopeCache);
+    }
+    scopeCache.set(scope, paths);
+    return paths;
+  }
+
+  function computeBindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
     const identityPaths = runtime.functions.identityReferencePaths(node, scope);
     if (identityPaths) return identityPaths;
-  
+
     switch (node.type) {
       case "name": {
         const currentPaths = resolveVariable(scope, "");
@@ -156,6 +182,19 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
+    const existingScopeCache = objectAliasCache.get(node);
+    if (existingScopeCache?.has(scope)) return existingScopeCache.get(scope) ?? null;
+    const alias = computeObjectAliasForNode(node, scope);
+    let scopeCache = objectAliasCache.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      objectAliasCache.set(node, scopeCache);
+    }
+    scopeCache.set(scope, alias);
+    return alias;
+  }
+
+  function computeObjectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
     if (node.type === "object") return objectAliasFromObject(node as ObjectNode, scope);
     if (node.type === "path") return objectAliasFromPathProjection(node as PathNode, scope);
     if (node.type === "array") {
@@ -896,20 +935,32 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     parentContextPaths: readonly string[],
     scope: ScopeTracker,
   ): string[] {
-    const localPaths = runtime.core.walkNode(expr, childScope(createScope()));
     const alignedParentContexts =
       parentContextPaths.length === contextPaths.length ? parentContextPaths : null;
-  
+
     return contextPaths.flatMap((contextPath, index) => {
+      const contextScope = bindVariable(
+        childScope(createScope()),
+        "",
+        [contextPath],
+      );
+      const localPaths = runtime.core.walkNode(expr, contextScope);
       const parentPaths = alignedParentContexts
         ? [alignedParentContexts[index]].filter(Boolean)
         : parentContextPaths;
-  
+
       return localPaths.flatMap((localPath) => {
+        if (
+          localPath.startsWith(ROOT_PATH) ||
+          localPath === contextPath ||
+          localPath.startsWith(`${contextPath}.`)
+        ) {
+          return [localPath];
+        }
         if (!isParentRelativePath(localPath)) {
           return prefixPaths(contextPath, [localPath]);
         }
-  
+
         if (parentPaths.length === 0) {
           return prefixPaths(contextPath, [localPath]);
         }
@@ -1783,7 +1834,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     skipLocalPaths = false,
   ): string[] {
     const paths: string[] = [];
-    const localPaths = new Set(runtime.core.walkNode(expression, childScope(createScope())));
+    let localPaths = localPathSetCache.get(expression);
+    if (!localPaths) {
+      localPaths = new Set(runtime.core.walkNode(expression, localAnalysisScope));
+      localPathSetCache.set(expression, localPaths);
+    }
     const localAliasPaths = skipLocalPaths
       ? new Set(
           [...localPaths].flatMap((path) => {

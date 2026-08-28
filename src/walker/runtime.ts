@@ -1,4 +1,4 @@
-import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, DescendantNode, FunctionNode, GroupByNode, LambdaNode, ObjectNode, PartialNode, PathNode, SortNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
+import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, DescendantNode, ExternalFunctionAccessMode, ExternalFunctionContract, FunctionNode, GroupByNode, LambdaNode, ObjectNode, PartialNode, PathNode, SortNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
 import type { DynamicObjectAlias, LambdaBinding, ObjectAlias, PartialBinding, ScopeTracker, TransformBinding } from "../scope.js";
 
 export interface ResolvedTransformCall {
@@ -225,6 +225,29 @@ export interface SelectionOperations {
 
 export interface WalkerOptions {
   readonly opaqueFunctions: ReadonlySet<string>;
+  readonly externalFunctions: ReadonlyMap<string, ExternalFunctionContract>;
+  readonly recordExternalSubtreeAccesses: (paths: readonly string[]) => void;
+}
+
+export function externalFunctionContract(
+  options: WalkerOptions,
+  name: string,
+): ExternalFunctionContract | null {
+  return (
+    options.externalFunctions.get(name) ??
+    (options.opaqueFunctions.has(name) ? { arguments: "value" } : null)
+  );
+}
+
+export function externalArgumentAccessMode(
+  contract: ExternalFunctionContract,
+  argumentIndex: number,
+): ExternalFunctionAccessMode {
+  const configured = contract.arguments;
+  if (typeof configured === "string" || configured === undefined) {
+    return configured ?? "value";
+  }
+  return configured[argumentIndex] ?? "value";
 }
 
 export interface WalkerRuntime {

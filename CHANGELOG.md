@@ -1,11 +1,30 @@
 # Changelog
 
+## 1.2.0 - Unreleased
+
+### Added
+
+- Added explicit external-function argument contracts with `value` and `subtree` access modes; `opaqueFunctions` remains supported as the value-only shorthand.
+- Added `analyzeExpressionWithContext()` with root/current/parent origins and distinct path, wildcard, dynamic, and unresolved access kinds.
+- Added parse and analysis diagnostics to contextual results so host adapters cannot confuse analyzer failure with an empty dependency set.
+- Added production-shaped semantic and performance regression coverage.
+
+### Fixed
+
+- Preserved deep leaf dependencies when conditional or variable-bound inputs are projected through nested object constructors.
+- Prevented host context from requiring synthetic path segments in analyzer output.
+- Limited external `subtree` promotion to input values that flow into the argument result, keeping scalar computation dependencies exact.
+
+### Performance
+
+- Memoized immutable scope lookups and callable resolution by scope and AST-node identity with recursion guards.
+
 ## 1.1.0 - 2026-08-27
 
 ### Added
 
 - Added `analyzeExpression()` with `exact` or `subtree` dependency coverage for every referenced path.
-- Added per-analysis `opaqueFunctions` overrides for host functions that replace recognized JSONata built-ins, including Qargo's `$eval` use case.
+- Added per-analysis `opaqueFunctions` overrides for host functions that replace recognized JSONata built-ins, including host-provided `$eval` helpers that parse JSON strings.
 - Added corpus-wide compatibility proof and focused coverage tests without changing existing test expectations or fixtures.
 
 ### Performance
