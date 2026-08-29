@@ -167,7 +167,18 @@ function analyzeAst(
 }
 
 function diagnosticMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const details = error as Record<string, unknown>;
+    const message = typeof details.message === "string" ? details.message : "Unknown JSONata error";
+    const context = [
+      typeof details.code === "string" ? details.code : null,
+      typeof details.position === "number" ? `at position ${details.position}` : null,
+      details.token !== undefined ? `near ${JSON.stringify(String(details.token))}` : null,
+    ].filter((value): value is string => value !== null);
+    return context.length > 0 ? `${context.join(" ")}: ${message}` : message;
+  }
+  return String(error);
 }
 
 function contextualAccessKey(access: {
