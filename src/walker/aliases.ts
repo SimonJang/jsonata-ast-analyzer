@@ -1,7 +1,7 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, PathNode, SortNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
-import { ROOT_PATH } from "./constants.js";
+import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
+import { ROOT_PATH, UNRESOLVED_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex } from "./path-utils.js";
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
 
@@ -159,10 +159,24 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       ? resolveDynamicObjectAlias(scope, varStep.value)
       : null;
     const contextPrefix = buildPathString(prefixSteps) ?? "";
+    const resolvedContextPrefixes = runtime.results.getResultBasePathsFromArg(
+      { ...node, steps: prefixSteps, group: undefined } as PathNode,
+      scope,
+    );
+    const resolvedSuffixBasePaths = varStep
+      ? resolveSuffixBasePaths(scope, varStep.value)
+      : undefined;
     const contextPrefixes =
-      contextPrefix || !varStep
-        ? [contextPrefix]
-        : [...(resolveVariable(scope, varStep.value) ?? [])];
+      resolvedContextPrefixes.length > 0
+        ? resolvedContextPrefixes
+        : resolvedSuffixBasePaths?.length
+          ? resolvedSuffixBasePaths
+          : contextPrefix || !varStep
+            ? [contextPrefix]
+            : [...(resolveVariable(scope, varStep.value) ?? [])];
+    const suffixBasePaths = resolvedSuffixBasePaths?.length
+      ? resolvedSuffixBasePaths
+      : contextPrefixes;
     const fields = new Map<string, string[]>();
   
     for (const [keyNode, valueNode] of (projectionStep as ObjectNode).entries) {
@@ -171,7 +185,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
       const aliases =
         objectAlias || dynamicObjectAlias
-          ? selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, valueNode, scope)
+          ? selectAliasExpressionPaths(
+              objectAlias,
+              dynamicObjectAlias,
+              valueNode,
+              scope,
+              collectVariableNames(valueNode).has("") ? suffixBasePaths : [],
+            )
           : contextPrefixes.flatMap((prefix) =>
               runtime.paths.walkContextExpression(valueNode, prefix, scope),
             );
@@ -579,6 +599,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       selector,
       scope,
       preserveUnmappedLocalPaths,
+      suffixBasePaths,
     );
     if (projectionPaths) {
       const suffix = buildPathString(rest);
@@ -844,7 +865,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
               scope,
               suffixBasePaths,
             )
-          : [];
+          : unmatchedAliasSuffixBasePaths(objectAlias, suffixBasePaths);
       const parentContextPaths =
         contextPrefixSteps.length > 1
           ? selectAliasSuffixContextPaths(
@@ -857,14 +878,19 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           : [];
   
       for (const expr of expressions) {
+        const referencedVariables = collectVariableNames(expr);
+        const expressionContextPaths =
+          contextPrefixSteps.length > 0 || referencedVariables.has("")
+            ? contextPaths
+            : [];
         paths.push(
           ...walkAliasSuffixContextExpression(
             expr,
-            contextPaths,
+            expressionContextPaths,
             parentContextPaths,
             scope,
           ),
-          ...(collectVariableNames(expr).size > 0
+          ...([...referencedVariables].some((name) => name !== "")
             ? selectAliasExpressionPaths(
                 objectAlias,
                 dynamicObjectAlias,
@@ -937,38 +963,65 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   ): string[] {
     const alignedParentContexts =
       parentContextPaths.length === contextPaths.length ? parentContextPaths : null;
-
-    return contextPaths.flatMap((contextPath, index) => {
-      const contextScope = bindVariable(
-        childScope(createScope()),
-        "",
-        [contextPath],
+    const hasExplicitNamedVariables =
+      contextPaths.length > 0 &&
+      [...collectVariableNames(expr)].some(
+        (name) => name !== "" && name !== "$",
       );
-      const localPaths = runtime.core.walkNode(expr, contextScope);
-      const parentPaths = alignedParentContexts
-        ? [alignedParentContexts[index]].filter(Boolean)
-        : parentContextPaths;
+    let unscopedLocalPaths = localPathSetCache.get(expr);
+    if (hasExplicitNamedVariables && !unscopedLocalPaths) {
+      unscopedLocalPaths = new Set(runtime.core.walkNode(expr, localAnalysisScope));
+      localPathSetCache.set(expr, unscopedLocalPaths);
+    }
+    const explicitVariableScope =
+      hasExplicitNamedVariables && contextPaths[0]
+      ? bindVariable(childScope(scope), "", [contextPaths[0]])
+      : scope;
+    const explicitVariablePaths = hasExplicitNamedVariables
+      ? runtime.core
+          .walkNode(expr, explicitVariableScope)
+          .filter(
+            (path) =>
+              !unscopedLocalPaths?.has(path) && !path.includes(UNRESOLVED_PATH),
+          )
+      : [];
 
-      return localPaths.flatMap((localPath) => {
-        if (
-          localPath.startsWith(ROOT_PATH) ||
-          localPath === contextPath ||
-          localPath.startsWith(`${contextPath}.`)
-        ) {
-          return [localPath];
-        }
-        if (!isParentRelativePath(localPath)) {
-          return prefixPaths(contextPath, [localPath]);
-        }
+    return [
+      ...contextPaths.flatMap((contextPath, index) => {
+        const localContextScope = bindVariable(
+          childScope(createScope()),
+          "",
+          [contextPath],
+        );
+        const localPaths = runtime.core
+          .walkNode(expr, localContextScope)
+          .filter((path) => !path.includes(UNRESOLVED_PATH));
+        const parentPaths = alignedParentContexts
+          ? [alignedParentContexts[index]].filter(Boolean)
+          : parentContextPaths;
 
-        if (parentPaths.length === 0) {
-          return prefixPaths(contextPath, [localPath]);
-        }
-  
-        const suffix = stripParentRelativePath(localPath);
-        return parentPaths.map((parentPath) => appendPath(parentPath, suffix || null));
-      });
-    });
+        return localPaths.flatMap((localPath) => {
+          if (
+            localPath.startsWith(ROOT_PATH) ||
+            localPath === contextPath ||
+            localPath.startsWith(`${contextPath}.`)
+          ) {
+            return [localPath];
+          }
+          if (!isParentRelativePath(localPath)) {
+            return prefixPaths(contextPath, [localPath]);
+          }
+
+          if (parentPaths.length === 0) {
+            return prefixPaths(contextPath, [localPath]);
+          }
+
+          const suffix = stripParentRelativePath(localPath);
+          return parentPaths.map((parentPath) => appendPath(parentPath, suffix || null));
+        });
+      }),
+      ...explicitVariablePaths,
+    ];
   }
 
   function walkAliasSuffixGroupEntries(
@@ -1777,7 +1830,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const objectAlias = objectAliasForNode(step, scope);
     const dynamicObject = dynamicObjectAliasForNode(step, scope);
     if (!objectAlias && !dynamicObject) return null;
-  
+
     const projectionPaths = selectAliasProjectionStepPaths(
       objectAlias,
       dynamicObject,
@@ -1805,21 +1858,28 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     step: AstNode | undefined,
     scope: ScopeTracker,
     preserveUnmappedLocalPaths = false,
+    suffixBasePaths: readonly string[] = [],
   ): string[] | null {
     if (!step) return null;
   
     const expressions = projectionStepExpressions(step);
     if (!expressions) return null;
   
+    const contextPaths = unmatchedAliasSuffixBasePaths(
+      objectAlias,
+      suffixBasePaths,
+    );
     const paths = expressions.flatMap((expr) =>
-      selectAliasExpressionPaths(
-        objectAlias,
-        dynamicObject,
-        expr,
-        scope,
-        [],
-        preserveUnmappedLocalPaths,
-      ),
+      collectVariableNames(expr).has("") && contextPaths.length > 0
+        ? walkAliasSuffixContextExpression(expr, contextPaths, [], scope)
+        : selectAliasExpressionPaths(
+            objectAlias,
+            dynamicObject,
+            expr,
+            scope,
+            [],
+            preserveUnmappedLocalPaths,
+          ),
     );
     return paths.length > 0 ? paths : null;
   }

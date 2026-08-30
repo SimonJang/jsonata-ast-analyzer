@@ -12,6 +12,8 @@
 ### Fixed
 
 - Preserved deep leaf dependencies when conditional or variable-bound inputs are projected through nested object constructors.
+- Preserved explicit aliases and independent root reads inside projections, including projections from opaque scalar results.
+- Retained path-backed projection context when conditional merges combine input objects with constructed fields.
 - Prevented host context from requiring synthetic path segments in analyzer output.
 - Limited external `subtree` promotion to input values that flow into the argument result, keeping scalar computation dependencies exact.
 

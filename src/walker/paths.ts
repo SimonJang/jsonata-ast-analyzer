@@ -1,7 +1,7 @@
 import type { ArrayNode, AstNode, ApplyNode, BlockNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, ParentNode, PathNode, PositionBindingNode, SortNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, createScope, childScope, bindVariable, resolveLambda, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
-import { ROOT_PATH } from "./constants.js";
+import { ROOT_PATH, UNRESOLVED_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, resolveParentPathSegments, isRootReference, markAbsolute, parentPath, collectVariableNames, isNumericIndex, isTransparentPathBlock, flattenTransparentPathBlocks, buildProjectionContextPath, hasPendingProjectionFocusReset } from "./path-utils.js";
 import type { PathOperations, WalkerRuntime } from "./runtime.js";
 
@@ -714,8 +714,49 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   
         return paths;
       }
-      // Unresolvable variable in path: drop the entire path (silent skip)
-      return [];
+      // The variable itself is not an input alias, but later path stages can
+      // still contain independent root reads (for example an object projection
+      // from an opaque scalar function result). Analyze those stages against an
+      // unknown base instead of dropping the complete path expression.
+      const unresolvedSuffixSteps = node.steps.slice(varStepIndex + 1);
+      return [
+        ...walkFilterStages(
+          varStep.predicate ?? [],
+          UNRESOLVED_PATH,
+          scope,
+        ),
+        ...walkResolvedVariableSuffixFilterStages(
+          unresolvedSuffixSteps,
+          UNRESOLVED_PATH,
+          scope,
+          new Set(),
+        ),
+        ...walkResolvedVariableSuffixSortTerms(
+          unresolvedSuffixSteps,
+          UNRESOLVED_PATH,
+          scope,
+          new Set(),
+        ),
+        ...runtime.aliases
+          .walkResultBaseSuffixProjectionSteps(
+            [UNRESOLVED_PATH],
+            unresolvedSuffixSteps,
+            scope,
+          )
+          .map(resolveParentPathSegments),
+        ...runtime.aliases.walkResultBaseSuffixFunctionSteps(
+          [UNRESOLVED_PATH],
+          unresolvedSuffixSteps,
+          scope,
+        ),
+        ...(node.group
+          ? walkContextGroupEntries(
+              node.group,
+              UNRESOLVED_PATH,
+              scope,
+            ).map(resolveParentPathSegments)
+          : []),
+      ];
     }
   
     // Build the base path first (existing behavior).

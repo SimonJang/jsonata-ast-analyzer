@@ -207,6 +207,102 @@ describe("contextual analysis", () => {
 });
 
 describe("production-shaped projection regressions", () => {
+  it("retains root origin for selected values inside root projections", () => {
+    expect(
+      analyzeExpressionWithContext(
+        '$$.orders[0].{"result": $.details}',
+      ),
+    ).toEqual({
+      diagnostics: [],
+      accesses: [
+        {
+          path: "orders",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "exact",
+        },
+        {
+          path: "orders.details",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "subtree",
+        },
+      ],
+    });
+  });
+
+  it("preserves mixed conditional merge aliases as projection contexts", () => {
+    expect(
+      analyzeExpressionWithContext(
+        "($base := $$.orders[0].items[0].details; " +
+          "$extra := $$.orders[0].extra; " +
+          '$combined := $extra ? $merge([$base, {"extra": $extra}]) : $base; ' +
+          '$combined.{"code": $.code})',
+      ),
+    ).toEqual({
+      diagnostics: [],
+      accesses: [
+        {
+          path: "orders.items.details",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "exact",
+        },
+        {
+          path: "orders.extra",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "exact",
+        },
+        {
+          path: "orders.items.details.code",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "subtree",
+        },
+      ],
+    });
+  });
+
+  it("keeps explicit root and current reads with the same suffix distinct", () => {
+    expect(
+      analyzeExpressionWithContext(
+        '($base := $$.orders[0].details; ' +
+          '$base.{"local": $.code, "root": $$.code})',
+      ),
+    ).toEqual({
+      diagnostics: [],
+      accesses: [
+        {
+          path: "orders.details",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "exact",
+        },
+        {
+          path: "orders.details.code",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "subtree",
+        },
+        {
+          path: "code",
+          origin: "root",
+          kind: "path",
+          confidence: "static",
+          coverage: "subtree",
+        },
+      ],
+    });
+  });
+
   it("retains deep leaves for conditional variable projection contexts", () => {
     expect(
       analyzeExpression(
