@@ -68,6 +68,48 @@ describe("analyzeExpression", () => {
     });
   });
 
+  it("preserves explicit aliases inside projections from the same alias", () => {
+    expect(
+      analyzeExpression(
+        '($record := $$.records[0]; $record.{"id": $record.identifier})',
+      ),
+    ).toEqual({
+      accesses: [
+        { path: "records", confidence: "static", coverage: "exact" },
+        {
+          path: "records.identifier",
+          confidence: "static",
+          coverage: "subtree",
+        },
+      ],
+    });
+  });
+
+  it("analyzes independent root reads inside projections from opaque values", () => {
+    expect(
+      analyzeExpression(
+        '($value := $parse($$.source[0].date, "x"); ' +
+          '$value := $value != "" ? $format($value, "x"); ' +
+          '$value.{"result": $$.records[0].`field one`})',
+        {
+          externalFunctions: {
+            parse: { arguments: "value" },
+            format: { arguments: "value" },
+          },
+        },
+      ),
+    ).toEqual({
+      accesses: [
+        { path: "source.date", confidence: "static", coverage: "exact" },
+        {
+          path: "records.field one",
+          confidence: "static",
+          coverage: "subtree",
+        },
+      ],
+    });
+  });
+
   it("resolves a final rebinding against the preceding scope", () => {
     expect(
       analyzeExpression("($value := customer; $value := $value.name)"),

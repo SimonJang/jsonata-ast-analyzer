@@ -1,5 +1,11 @@
 export const ROOT_PATH = "\0";
 
+export const CURRENT_CONTEXT_PATH = "\u0002";
+
+export const PARENT_CONTEXT_PATH = "\u0003";
+
+export const UNRESOLVED_PATH = "\u0004";
+
 export const TRANSFORM_CURRENT_PATH = "\u0001";
 
 export const PATH_PRESERVING_RESULT_FUNCTIONS = new Set([

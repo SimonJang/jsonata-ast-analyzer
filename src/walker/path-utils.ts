@@ -83,9 +83,31 @@ export function stripParentRelativePath(path: string): string {
   return path === "%" ? "" : path.slice(2);
 }
 
-export function collectVariableNames(node: AstNode, names = new Set<string>()): Set<string> {
+const variableNamesCache = new WeakMap<AstNode, ReadonlySet<string>>();
+
+export function collectVariableNames(node: AstNode, names?: Set<string>): Set<string> {
+  if (!names) {
+    const cached = variableNamesCache.get(node);
+    if (cached) return cached as Set<string>;
+
+    const collected = collectVariableNamesInto(node, new Set<string>());
+    variableNamesCache.set(node, collected);
+    return collected;
+  }
+
+  return collectVariableNamesInto(node, names);
+}
+
+function collectVariableNamesInto(node: AstNode, names: Set<string>): Set<string> {
+  const cached = variableNamesCache.get(node);
+  if (cached) {
+    for (const name of cached) names.add(name);
+    return names;
+  }
+
+  const localNames = new Set<string>();
   if (node.type === "variable") {
-    names.add((node as VariableNode).value);
+    localNames.add((node as VariableNode).value);
   }
 
   for (const [key, value] of Object.entries(node)) {
@@ -93,14 +115,16 @@ export function collectVariableNames(node: AstNode, names = new Set<string>()): 
     if (Array.isArray(value)) {
       for (const item of value) {
         if (item && typeof item === "object") {
-          collectVariableNames(item as AstNode, names);
+          collectVariableNamesInto(item as AstNode, localNames);
         }
       }
     } else if (value && typeof value === "object") {
-      collectVariableNames(value as AstNode, names);
+      collectVariableNamesInto(value as AstNode, localNames);
     }
   }
 
+  variableNamesCache.set(node, localNames);
+  for (const name of localNames) names.add(name);
   return names;
 }
 
