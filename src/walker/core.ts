@@ -501,15 +501,14 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   
       for (const stage of node.predicate) {
         if (stage.type !== "filter") continue;
+        // Object constructors always have a dynamic alias variant.
         paths.push(
-          ...(objectAlias || dynamicObjectAlias || resultBasePaths.length > 0
-            ? runtime.aliases.selectAliasExpressionPaths(
-                objectAlias,
-                dynamicObjectAlias,
-                (stage as unknown as FilterStage).expr,
-                predicateScope,
-              )
-            : runtime.paths.walkSourceLessFilterStages([stage], predicateScope)),
+          ...runtime.aliases.selectAliasExpressionPaths(
+            objectAlias,
+            dynamicObjectAlias,
+            (stage as unknown as FilterStage).expr,
+            predicateScope,
+          ),
         );
       }
     }
@@ -520,7 +519,6 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         runtime.aliases.bindingAliasPaths(value, scope),
       );
       let groupScope = scope;
-      const groupStageVariables = new Set<string>();
   
       if (node.focusBinding) {
         groupScope = runtime.aliases.bindFocusObjectAliasScope(
@@ -531,7 +529,6 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
           resultBasePaths,
           [],
         );
-        groupStageVariables.add(node.focusBinding.name);
       }
       if (node.indexBinding) {
         if (groupScope === scope) groupScope = childScope(groupScope);
@@ -539,18 +536,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       }
   
       paths.push(
-        ...(objectAlias || dynamicObjectAlias
-          ? runtime.paths.walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, groupScope)
-          : resultBasePaths.length > 0
-            ? resultBasePaths.flatMap((basePath) =>
-                runtime.paths.walkContextGroupEntries(
-                  node.group!,
-                  basePath,
-                  groupScope,
-                  groupStageVariables,
-                ),
-              )
-            : runtime.paths.walkSourceLessGroupEntries(node.group, groupScope)),
+        ...runtime.paths.walkAliasGroupEntries(node.group, objectAlias, dynamicObjectAlias, groupScope),
       );
     }
     return paths;

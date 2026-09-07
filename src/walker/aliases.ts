@@ -545,7 +545,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const suffix = buildPathString(rest);
       const projectionBasePaths =
         selector && selector.type !== "object"
-          ? (projectionStepExpressions(selector) ?? []).flatMap((expr) =>
+          ? projectionStepExpressions(selector)!.flatMap((expr) =>
               bindingAliasPaths(expr, scope),
             )
           : [];
@@ -1826,9 +1826,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffixSteps,
         suffixBasePaths,
       );
-      paths.push(
-        ...(aliasPaths.length > 0 || !preserveUnmappedLocalPaths ? aliasPaths : [path]),
-      );
+      // Unmapped-path preservation has already continued above.
+      paths.push(...aliasPaths);
     }
   
     return paths;
@@ -1841,10 +1840,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     suffixBasePaths: readonly string[],
   ): string[] {
     const suffix = buildPathString(suffixSteps);
+    // Both callers supply nonempty steps validated by aliasSuffixStepsFromPath.
     return [
       ...(objectAlias ? (selectObjectAliasPaths(objectAlias, suffixSteps) ?? []) : []),
       ...(dynamicObject ? selectDynamicObjectAliasPaths(dynamicObject, suffixSteps) : []),
-      ...(suffix ? suffixBasePaths.map((path) => appendPath(path, suffix)) : []),
+      ...suffixBasePaths.map((path) => appendPath(path, suffix)),
     ];
   }
 

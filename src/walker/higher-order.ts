@@ -259,23 +259,22 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
             position: node.position,
           } as WildcardNode)
         : args[0];
-      if (dataArg) {
-        const producer = args[transformCallback.index];
-        paths.push(...runtime.functions.walkCallableSelection(producer, scope));
-        const transformCalls = runtime.transforms.resolveTransformFunctionCalls(
-          {
-            type: "function",
-            value: "(",
-            position: node.position,
-            procedure: producer as FunctionNode["procedure"],
-            arguments: [dataArg],
-          },
-          scope,
-          false,
-        );
-        for (const call of transformCalls) {
-          paths.push(...runtime.transforms.walkTransformCall(call.binding, call.arguments, scope));
-        }
+      // Finding a callback proves the dense argument list is nonempty.
+      const producer = args[transformCallback.index];
+      paths.push(...runtime.functions.walkCallableSelection(producer, scope));
+      const transformCalls = runtime.transforms.resolveTransformFunctionCalls(
+        {
+          type: "function",
+          value: "(",
+          position: node.position,
+          procedure: producer as FunctionNode["procedure"],
+          arguments: [dataArg],
+        },
+        scope,
+        false,
+      );
+      for (const call of transformCalls) {
+        paths.push(...runtime.transforms.walkTransformCall(call.binding, call.arguments, scope));
       }
     }
   
@@ -737,10 +736,9 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
   ): string[] {
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
-    const dataArgPaths = dataArg ? extractBasePaths(dataArg, dataArgScope) : [];
-    const accumulatorPaths = accumulatorArg
-      ? extractBasePaths(accumulatorArg, dataArgScope)
-      : dataArgPaths;
+    // The caller has found a callback in the nonempty argument list.
+    const dataArgPaths = extractBasePaths(dataArg, dataArgScope);
+    const accumulatorPaths = extractBasePaths(accumulatorArg, dataArgScope);
     let lambdaScope = childScope(parentScope);
   
     for (let i = 0; i < lambda.arguments.length; i++) {
@@ -793,10 +791,9 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     if (variableIndex < 0) return null;
   
     const variable = args[variableIndex] as VariableNode;
-    const binding = resolveLambda(scope, variable.value);
-    return binding
-      ? { index: variableIndex, lambda: binding.lambda, scope: binding.scope }
-      : null;
+    // The preceding search resolved this name in the same immutable scope.
+    const binding = resolveLambda(scope, variable.value)!;
+    return { index: variableIndex, lambda: binding.lambda, scope: binding.scope };
   }
 
   function findResolvedHigherOrderLambdaCallbacks(
@@ -879,7 +876,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
             higherOrderCallbackCallArguments(
               funcName,
               callbackDataArg,
-              dataArg ?? callbackDataArg,
+              dataArg!, // Without data, callbackDataArgs is empty.
               higherOrderArgs,
               (callbackDataArg as { position?: number }).position ?? 0,
             ),

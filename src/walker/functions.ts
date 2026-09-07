@@ -555,7 +555,7 @@ export function createFunctionOperations(
     node: FunctionNode,
     scope: ScopeTracker,
   ): string[] {
-    if (!["function", "block", "path"].includes(node.procedure.type)) return [];
+    // walkFunction dispatches here only for a function, block, or path procedure.
     const producer = node.procedure;
     const paths = walkCallableSelection(producer, scope);
     const callables = runtime.callables.resolveCallableValues(producer, scope);

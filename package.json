@@ -28,6 +28,7 @@
     "bench:scaling": "pnpm build && node benchmark/scaling.mjs",
     "release:check": "pnpm typecheck && pnpm build && pnpm test && node benchmark/smoke.mjs && node benchmark/scaling.mjs",
     "test": "vitest run",
+    "test:coverage": "vitest run --config vitest.coverage.config.ts",
     "test:corpus": "vitest run test/corpus/jsonata-corpus.test.ts",
     "test:unit": "vitest run --exclude 'test/integration/**'",
     "test:integration": "vitest run test/integration/",

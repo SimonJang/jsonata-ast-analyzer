@@ -122,27 +122,12 @@ export function createResultOperations(
       }
     }
   
-    const partialBinding = resolvePartial(scope, node.procedure.value);
-    let funcName = node.procedure.value;
-    let args = node.arguments;
-    let argScope = scope;
-  
-    if (partialBinding) {
-      if (partialBinding.partial.procedure.type !== "variable") {
-        return getFunctionResultObjectAlias(
-          {
-            ...node,
-            procedure: partialBinding.partial.procedure,
-            arguments: runtime.higherOrder.applyPartialArguments(partialBinding.partial, node.arguments),
-          },
-          partialBinding.scope,
-        );
-      }
-      funcName = partialBinding.partial.procedure.value;
-      args = runtime.higherOrder.applyPartialArguments(partialBinding.partial, node.arguments);
-      argScope = partialBinding.scope;
-    }
-    args = runtime.functions.withImplicitRootFunctionArgument(funcName, args, node.position, argScope);
+    // Named partials have already returned through the scoped partial handler.
+    const funcName = node.procedure.value;
+    const argScope = scope;
+    const args = runtime.functions.withImplicitRootFunctionArgument(
+      funcName, node.arguments, node.position, argScope,
+    );
   
     const lambdaBinding = resolveLambda(argScope, funcName);
     if (lambdaBinding) {
@@ -291,27 +276,12 @@ export function createResultOperations(
       }
     }
   
-    const partialBinding = resolvePartial(scope, node.procedure.value);
-    let funcName = node.procedure.value;
-    let args = node.arguments;
-    let argScope = scope;
-  
-    if (partialBinding) {
-      if (partialBinding.partial.procedure.type !== "variable") {
-        return getFunctionResultDynamicObjectAlias(
-          {
-            ...node,
-            procedure: partialBinding.partial.procedure,
-            arguments: runtime.higherOrder.applyPartialArguments(partialBinding.partial, node.arguments),
-          },
-          partialBinding.scope,
-        );
-      }
-      funcName = partialBinding.partial.procedure.value;
-      args = runtime.higherOrder.applyPartialArguments(partialBinding.partial, node.arguments);
-      argScope = partialBinding.scope;
-    }
-    args = runtime.functions.withImplicitRootFunctionArgument(funcName, args, node.position, argScope);
+    // Named partials have already returned through the scoped partial handler.
+    const funcName = node.procedure.value;
+    const argScope = scope;
+    const args = runtime.functions.withImplicitRootFunctionArgument(
+      funcName, node.arguments, node.position, argScope,
+    );
   
     const lambdaBinding = resolveLambda(argScope, funcName);
     if (lambdaBinding) {
@@ -732,10 +702,9 @@ export function createResultOperations(
   
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
-    const dataArgPaths = dataArg ? runtime.higherOrder.extractBasePaths(dataArg, scope) : [];
-    const accumulatorPaths = accumulatorArg
-      ? runtime.higherOrder.extractBasePaths(accumulatorArg, scope)
-      : dataArgPaths;
+    // A resolved callback proves the dense argument list is nonempty.
+    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
     let bodyAlias: ObjectAlias | null = null;
     if (callback) {
       let lambdaScope = childScope(callback.scope);
@@ -784,20 +753,18 @@ export function createResultOperations(
           )
         : []),
       args[2] ? runtime.aliases.groupResultObjectAliasForNode(args[2], scope) : null,
-      ...(dataArg && accumulatorArg
-        ? builtinCallbacks.map((name) =>
-            getFunctionResultObjectAlias(
-              {
-                type: "function",
-                value: "(",
-                position: 0,
-                procedure: { type: "variable", value: name, position: 0 },
-                arguments: [accumulatorArg, dataArg],
-              },
-              scope,
-            ),
-          )
-        : []),
+      ...builtinCallbacks.map((name) =>
+        getFunctionResultObjectAlias(
+          {
+            type: "function",
+            value: "(",
+            position: 0,
+            procedure: { type: "variable", value: name, position: 0 },
+            arguments: [accumulatorArg, dataArg],
+          },
+          scope,
+        ),
+      ),
     ]);
   }
 
@@ -832,10 +799,9 @@ export function createResultOperations(
   
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
-    const dataArgPaths = dataArg ? runtime.higherOrder.extractBasePaths(dataArg, scope) : [];
-    const accumulatorPaths = accumulatorArg
-      ? runtime.higherOrder.extractBasePaths(accumulatorArg, scope)
-      : dataArgPaths;
+    // A resolved callback proves the dense argument list is nonempty.
+    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
     let callbackAlias: DynamicObjectAlias | null = null;
     if (callback) {
       let lambdaScope = childScope(callback.scope);
@@ -889,20 +855,18 @@ export function createResultOperations(
           )
         : []),
       args[2] ? runtime.aliases.groupResultDynamicObjectAliasForNode(args[2], scope) : null,
-      ...(dataArg && accumulatorArg
-        ? builtinCallbacks.map((name) =>
-            getFunctionResultDynamicObjectAlias(
-              {
-                type: "function",
-                value: "(",
-                position: 0,
-                procedure: { type: "variable", value: name, position: 0 },
-                arguments: [accumulatorArg, dataArg],
-              },
-              scope,
-            ),
-          )
-        : []),
+      ...builtinCallbacks.map((name) =>
+        getFunctionResultDynamicObjectAlias(
+          {
+            type: "function",
+            value: "(",
+            position: 0,
+            procedure: { type: "variable", value: name, position: 0 },
+            arguments: [accumulatorArg, dataArg],
+          },
+          scope,
+        ),
+      ),
     ]);
   }
 
@@ -1019,27 +983,12 @@ export function createResultOperations(
       }
     }
   
-    const partialBinding = resolvePartial(scope, node.procedure.value);
-    let funcName = node.procedure.value;
-    let args = node.arguments;
-    let argScope = scope;
-  
-    if (partialBinding) {
-      if (partialBinding.partial.procedure.type !== "variable") {
-        return getFunctionResultBasePaths(
-          {
-            ...node,
-            procedure: partialBinding.partial.procedure,
-            arguments: runtime.higherOrder.applyPartialArguments(partialBinding.partial, node.arguments),
-          },
-          partialBinding.scope,
-        );
-      }
-      funcName = partialBinding.partial.procedure.value;
-      args = runtime.higherOrder.applyPartialArguments(partialBinding.partial, node.arguments);
-      argScope = partialBinding.scope;
-    }
-    args = runtime.functions.withImplicitRootFunctionArgument(funcName, args, node.position, argScope);
+    // Named partials have already returned through the scoped partial handler.
+    const funcName = node.procedure.value;
+    const argScope = scope;
+    const args = runtime.functions.withImplicitRootFunctionArgument(
+      funcName, node.arguments, node.position, argScope,
+    );
   
     if (
       args.length === 0 &&
@@ -1250,26 +1199,24 @@ export function createResultOperations(
             ),
           )
         : []),
-      ...(dataArg
-        ? builtinCallbacks.flatMap((name) =>
-            PATH_PRESERVING_RESULT_FUNCTIONS.has(name)
-              ? dataArgPaths
-              : getFunctionResultBasePaths(
-                  {
-                    type: "function",
-                    value: "(",
-                    position: 0,
-                    procedure: {
-                      type: "variable",
-                      value: name,
-                      position: 0,
-                    },
-                    arguments: [dataArg],
-                  },
-                  scope,
-                ),
-          )
-        : []),
+      ...builtinCallbacks.flatMap((name) =>
+        PATH_PRESERVING_RESULT_FUNCTIONS.has(name)
+          ? dataArgPaths
+          : getFunctionResultBasePaths(
+              {
+                type: "function",
+                value: "(",
+                position: 0,
+                procedure: {
+                  type: "variable",
+                  value: name,
+                  position: 0,
+                },
+                arguments: [dataArg],
+              },
+              scope,
+            ),
+      ),
     ];
   }
 
@@ -1301,10 +1248,9 @@ export function createResultOperations(
   
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
-    const dataArgPaths = dataArg ? runtime.higherOrder.extractBasePaths(dataArg, scope) : [];
-    const accumulatorPaths = accumulatorArg
-      ? runtime.higherOrder.extractBasePaths(accumulatorArg, scope)
-      : dataArgPaths;
+    // A resolved callback proves the dense argument list is nonempty.
+    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
     const lambdaPaths = callback
       ? (() => {
           let lambdaScope = childScope(callback.scope);
@@ -1364,23 +1310,20 @@ export function createResultOperations(
           );
         })()
       : [];
-    const builtinPaths =
-      dataArg && accumulatorArg
-        ? builtinCallbacks.flatMap((name) =>
-            PATH_PRESERVING_RESULT_FUNCTIONS.has(name)
-              ? [...accumulatorPaths, ...dataArgPaths]
-              : getFunctionResultBasePaths(
-                  {
-                    type: "function",
-                    value: "(",
-                    position: 0,
-                    procedure: { type: "variable", value: name, position: 0 },
-                    arguments: [accumulatorArg, dataArg],
-                  },
-                  scope,
-                ),
-          )
-        : [];
+    const builtinPaths = builtinCallbacks.flatMap((name) =>
+      PATH_PRESERVING_RESULT_FUNCTIONS.has(name)
+        ? [...accumulatorPaths, ...dataArgPaths]
+        : getFunctionResultBasePaths(
+            {
+              type: "function",
+              value: "(",
+              position: 0,
+              procedure: { type: "variable", value: name, position: 0 },
+              arguments: [accumulatorArg, dataArg],
+            },
+            scope,
+          ),
+    );
     const partialPaths =
       resolvedCallback && dataArg
         ? runtime.higherOrder.higherOrderPartialLambdaCalls(
@@ -1612,10 +1555,9 @@ export function createResultOperations(
   
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
-    const dataArgPaths = dataArg ? runtime.higherOrder.extractBasePaths(dataArg, scope) : [];
-    const accumulatorPaths = accumulatorArg
-      ? runtime.higherOrder.extractBasePaths(accumulatorArg, scope)
-      : dataArgPaths;
+    // A resolved callback proves the dense argument list is nonempty.
+    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
     const partialPaths =
       resolvedCallback && dataArg
         ? runtime.higherOrder.higherOrderPartialLambdaCalls(
@@ -1977,8 +1919,8 @@ export function createResultOperations(
   }
 
   function lookupPathValueAliasBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
+    // Both lookup result handlers return before calling this without input.
     const objectArg = args[0];
-    if (!objectArg) return [];
   
     return [
       ...new Set(

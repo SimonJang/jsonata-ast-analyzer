@@ -980,12 +980,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
           : [];
       }
       if (sourceNode.type === "path" && suffixSteps.length > 0) {
-        const groupedSourceValues = groupedPathCallableValues(
-          sourceNode as PathNode,
-          sourceScope,
-          suffixSteps,
-        );
-        if (groupedSourceValues.length > 0) return groupedSourceValues;
+        // Grouped source nodes returned before entering this path branch.
         return resolveCallableValues(
           {
             ...sourceNode,
@@ -1146,10 +1141,9 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       }
       if (objectNode.type !== "object") return [];
   
-      return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
-        staticKey === null || runtime.aliases.staticObjectKey(key) === staticKey
-          ? resolveCallableValues(value, objectScope)
-          : [],
+      // A static key returned above; this fallback selects all possible values.
+      return (objectNode as ObjectNode).entries.flatMap(([, value]) =>
+        resolveCallableValues(value, objectScope),
       );
     }
     const higherOrderResults = higherOrderResultCallableValues(
@@ -1294,12 +1288,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
           : [];
       }
       if (sourceNode.type === "path" && suffixSteps.length > 0) {
-        const groupedSourceNames = groupedPathBuiltinCallableNames(
-          sourceNode as PathNode,
-          sourceScope,
-          suffixSteps,
-        );
-        if (groupedSourceNames.length > 0) return groupedSourceNames;
+        // Grouped source nodes returned before entering this path branch.
         return resolveBuiltinCallableNames(
           {
             ...sourceNode,
@@ -1482,10 +1471,9 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         }
         if (objectNode.type !== "object") return [];
   
-        return (objectNode as ObjectNode).entries.flatMap(([key, value]) =>
-          staticKey === null || runtime.aliases.staticObjectKey(key) === staticKey
-            ? resolveBuiltinCallableNames(value, objectScope)
-            : [],
+        // A static key returned above; this fallback selects all possible values.
+        return (objectNode as ObjectNode).entries.flatMap(([, value]) =>
+          resolveBuiltinCallableNames(value, objectScope),
         );
       }
   

@@ -687,10 +687,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     const lastStep = node.steps[node.steps.length - 1];
     const suppressBase = lastStep?.type === "block" || lastStep?.type === "function";
     const basePath = buildPathString(node.steps);
+    const funcStepIndex = node.steps.findIndex((step) => step.type === "function");
     const resultAliasStepIndex = node.steps.findIndex(
       (step, index) => index < node.steps.length - 1 && runtime.aliases.isResultAliasStep(step),
     );
-    const funcStepIndex = node.steps.findIndex((s) => s.type === "function");
     let skipFunctionResultSuffixStages = false;
     let resultAliasSuffixStageStart = -1;
     let skipResultAliasGroupBy = false;
@@ -763,34 +763,6 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           }
           skipFunctionResultSuffixStages = resultBasePaths.length > 0;
         }
-      }
-    } else if (basePath && funcStepIndex >= 0 && funcStepIndex < node.steps.length - 1) {
-      // basePath is relative to the function result (e.g., "quantity" from $lookup(...).quantity)
-      // Prefix it with the first argument path to produce the chained data path (e.g., "inventory.quantity")
-      const funcStep = node.steps[funcStepIndex] as FunctionNode;
-      const functionSuffixSteps = node.steps.slice(funcStepIndex + 1);
-      const suffixIsTransformOutput = runtime.transforms.transformWritesSuffix(
-        funcStep,
-        functionSuffixSteps,
-        scope,
-      );
-      const resultBasePaths = runtime.results.getFunctionResultBasePaths(funcStep, scope);
-      if (resultBasePaths.length > 0) {
-        for (const resultBasePath of resultBasePaths) {
-          if (!suffixIsTransformOutput) {
-            paths.push(...prefixPaths(resultBasePath, [basePath]));
-          }
-          paths.push(
-            ...walkResolvedVariableSuffixFilterStages(
-              functionSuffixSteps,
-              resultBasePath,
-              scope,
-              new Set(),
-            ),
-          );
-        }
-        skipFunctionResultSuffixStages = true;
-        // Don't push bare basePath -- it's not a standalone data path
       }
     } else if (basePath && !suppressBase) {
       paths.push(basePath);
@@ -1648,8 +1620,8 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     scope: ScopeTracker,
     stageVariables: ReadonlySet<string> = new Set(),
   ): string[] {
-    const groupNode = node.group;
-    if (!groupNode) return [];
+    // walkPath calls this helper only after checking node.group.
+    const groupNode = node.group!;
   
     const resultAliasStepIndex = node.steps.findIndex(runtime.aliases.isResultAliasStep);
     if (resultAliasStepIndex >= 0) {

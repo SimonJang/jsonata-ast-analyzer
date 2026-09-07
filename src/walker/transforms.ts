@@ -357,7 +357,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   }
 
   function appendSelectionSteps(node: AstNode, steps: readonly AstNode[]): AstNode {
-    if (steps.length === 0) return node;
+    // transformOutputSelectionSourcePaths handles an empty remainder before calling.
     if (node.type === "path") {
       return {
         ...node,
