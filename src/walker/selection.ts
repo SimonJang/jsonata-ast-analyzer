@@ -9,12 +9,18 @@ import type {
   LambdaNode,
   ObjectNode,
   PathNode,
+  VariableNode,
 } from "../types.js";
 import {
   bindVariable,
   childScope,
+  resolveDynamicObjectAlias,
+  resolveObjectAlias,
+  resolveSuffixBasePaths,
+  resolveVariable,
   type ScopeTracker,
 } from "../scope.js";
+import { UNRESOLVED_PATH } from "./constants.js";
 import type { SelectionOperations, WalkerRuntime } from "./runtime.js";
 
 export function createSelectionOperations(
@@ -159,9 +165,79 @@ export function createSelectionOperations(
         return runtime.aliases.bindingAliasPaths(node, scope);
       case "path": {
         const path = node as PathNode;
+        const finalStep = path.steps[path.steps.length - 1];
+        if (
+          path.steps.length > 1 &&
+          finalStep &&
+          ["array", "block", "object"].includes(finalStep.type)
+        ) {
+          const prefixPath = {
+            ...path,
+            steps: path.steps.slice(0, -1),
+            group: undefined,
+          } as PathNode;
+          const firstPrefixStep = prefixPath.steps[0];
+          const firstPrefixVariable =
+            firstPrefixStep?.type === "variable"
+              ? (firstPrefixStep as VariableNode)
+              : undefined;
+          const variableProjectionBasePaths =
+            firstPrefixVariable &&
+            !["", "$"].includes(firstPrefixVariable.value)
+              ? prefixPath.steps.length === 1
+                ? runtime.aliases.unmatchedAliasSuffixBasePaths(
+                    resolveObjectAlias(scope, firstPrefixVariable.value),
+                    resolveSuffixBasePaths(scope, firstPrefixVariable.value) ?? [],
+                  )
+                : runtime.aliases.selectAliasSuffixContextPaths(
+                    prefixPath.steps.slice(1),
+                    resolveObjectAlias(scope, firstPrefixVariable.value),
+                    resolveDynamicObjectAlias(scope, firstPrefixVariable.value),
+                    scope,
+                    resolveSuffixBasePaths(scope, firstPrefixVariable.value) ?? [],
+                  )
+              : [];
+          const projectionBasePaths =
+            variableProjectionBasePaths.length > 0
+              ? variableProjectionBasePaths
+              : runtime.results.getResultSuffixBasePaths(prefixPath, scope);
+          if (projectionBasePaths.length > 0) {
+            const projectionScope = bindVariable(
+              childScope(scope),
+              "",
+              projectionBasePaths,
+            );
+            return [
+              ...(prefixPath.steps.length > 1 &&
+              firstPrefixVariable?.value === ""
+                ? projectionBasePaths
+                : []),
+              ...getSelectedResultPaths(finalStep, projectionScope),
+            ];
+          }
+        }
         const objectAlias = runtime.aliases.objectAliasForNode(path, scope);
         if (objectAlias) {
           return [...objectAlias.values()].flatMap((paths) => [...paths]);
+        }
+        const firstStep = path.steps[0];
+        const firstVariable =
+          firstStep?.type === "variable"
+            ? (firstStep as VariableNode)
+            : undefined;
+        if (
+          firstVariable &&
+          !["", "$"].includes(firstVariable.value) &&
+          !(resolveVariable(scope, firstVariable.value)?.length) &&
+          finalStep &&
+          ["array", "block", "object"].includes(finalStep.type)
+        ) {
+          const projectionScope = bindVariable(
+            childScope(scope),
+            "",
+            [UNRESOLVED_PATH],
+          );
+          return getSelectedResultPaths(finalStep, projectionScope);
         }
         return runtime.aliases.bindingAliasPaths(path, scope);
       }

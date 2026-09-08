@@ -1,11 +1,14 @@
 import type { ArrayNode, AstNode, ApplyNode, BlockNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, ParentNode, PathNode, PositionBindingNode, SortNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, createScope, childScope, bindVariable, resolveLambda, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
-import { ROOT_PATH } from "./constants.js";
+import { ROOT_PATH, UNRESOLVED_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, resolveParentPathSegments, isRootReference, markAbsolute, parentPath, collectVariableNames, isNumericIndex, isTransparentPathBlock, flattenTransparentPathBlocks, buildProjectionContextPath, hasPendingProjectionFocusReset } from "./path-utils.js";
 import type { PathOperations, WalkerRuntime } from "./runtime.js";
 
 export function createPathOperations(runtime: WalkerRuntime): PathOperations {
+  const contextDefaultLambdaCache = new WeakMap<AstNode, boolean>();
+  const builtinContextDefaultCallCache = new WeakMap<AstNode, boolean>();
+  const contextDefaultCallCache = new WeakMap<AstNode, WeakMap<object, boolean>>();
   function walkContextExpression(
     expr: AstNode,
     contextPrefix: string,
@@ -71,10 +74,15 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   }
 
   function containsContextDefaultLambda(node: AstNode): boolean {
+    const cached = contextDefaultLambdaCache.get(node);
+    if (cached !== undefined) return cached;
+    contextDefaultLambdaCache.set(node, false);
+
     if (
       node.type === "lambda" &&
       runtime.higherOrder.contextDefaultParameterIndex(node as LambdaNode) >= 0
     ) {
+      contextDefaultLambdaCache.set(node, true);
       return true;
     }
   
@@ -89,6 +97,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               containsContextDefaultLambda(item as AstNode),
           )
         ) {
+          contextDefaultLambdaCache.set(node, true);
           return true;
         }
       } else if (
@@ -96,6 +105,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         typeof value === "object" &&
         containsContextDefaultLambda(value as AstNode)
       ) {
+        contextDefaultLambdaCache.set(node, true);
         return true;
       }
     }
@@ -106,6 +116,15 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     node: AstNode,
     scope: ScopeTracker,
   ): boolean {
+    let environmentCache = contextDefaultCallCache.get(node);
+    const cached = environmentCache?.get(scope.callableEnvironment);
+    if (cached !== undefined) return cached;
+    if (!environmentCache) {
+      environmentCache = new WeakMap();
+      contextDefaultCallCache.set(node, environmentCache);
+    }
+    environmentCache.set(scope.callableEnvironment, false);
+
     if (node.type === "function") {
       const functionNode = node as FunctionNode;
       const binding =
@@ -119,6 +138,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         runtime.higherOrder.contextDefaultParameterIndex(binding.lambda) >= 0 &&
         functionNode.arguments.length < binding.lambda.arguments.length
       ) {
+        environmentCache.set(scope.callableEnvironment, true);
         return true;
       }
     }
@@ -134,6 +154,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               containsContextDefaultCall(item as AstNode, scope),
           )
         ) {
+          environmentCache.set(scope.callableEnvironment, true);
           return true;
         }
       } else if (
@@ -141,6 +162,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         typeof value === "object" &&
         containsContextDefaultCall(value as AstNode, scope)
       ) {
+        environmentCache.set(scope.callableEnvironment, true);
         return true;
       }
     }
@@ -148,6 +170,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   }
 
   function containsBuiltinContextDefaultCall(node: AstNode): boolean {
+    const cached = builtinContextDefaultCallCache.get(node);
+    if (cached !== undefined) return cached;
+    builtinContextDefaultCallCache.set(node, false);
+
     if (
       node.type === "function" &&
       (node as FunctionNode).procedure.type === "variable" &&
@@ -156,6 +182,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         (node as FunctionNode).arguments,
       )
     ) {
+      builtinContextDefaultCallCache.set(node, true);
       return true;
     }
   
@@ -170,6 +197,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               containsBuiltinContextDefaultCall(item as AstNode),
           )
         ) {
+          builtinContextDefaultCallCache.set(node, true);
           return true;
         }
       } else if (
@@ -177,6 +205,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         typeof value === "object" &&
         containsBuiltinContextDefaultCall(value as AstNode)
       ) {
+        builtinContextDefaultCallCache.set(node, true);
         return true;
       }
     }
@@ -267,6 +296,16 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
             capturedPath,
             scope,
             new Set(),
+          ),
+          ...runtime.aliases.walkResultBaseSuffixProjectionSteps(
+            [capturedPath],
+            suffixSteps,
+            scope,
+          ).map(resolveParentPathSegments),
+          ...runtime.aliases.walkResultBaseSuffixFunctionSteps(
+            [capturedPath],
+            suffixSteps,
+            scope,
           ),
         );
       }
@@ -675,8 +714,49 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   
         return paths;
       }
-      // Unresolvable variable in path: drop the entire path (silent skip)
-      return [];
+      // The variable itself is not an input alias, but later path stages can
+      // still contain independent root reads (for example an object projection
+      // from an opaque scalar function result). Analyze those stages against an
+      // unknown base instead of dropping the complete path expression.
+      const unresolvedSuffixSteps = node.steps.slice(varStepIndex + 1);
+      return [
+        ...walkFilterStages(
+          varStep.predicate ?? [],
+          UNRESOLVED_PATH,
+          scope,
+        ),
+        ...walkResolvedVariableSuffixFilterStages(
+          unresolvedSuffixSteps,
+          UNRESOLVED_PATH,
+          scope,
+          new Set(),
+        ),
+        ...walkResolvedVariableSuffixSortTerms(
+          unresolvedSuffixSteps,
+          UNRESOLVED_PATH,
+          scope,
+          new Set(),
+        ),
+        ...runtime.aliases
+          .walkResultBaseSuffixProjectionSteps(
+            [UNRESOLVED_PATH],
+            unresolvedSuffixSteps,
+            scope,
+          )
+          .map(resolveParentPathSegments),
+        ...runtime.aliases.walkResultBaseSuffixFunctionSteps(
+          [UNRESOLVED_PATH],
+          unresolvedSuffixSteps,
+          scope,
+        ),
+        ...(node.group
+          ? walkContextGroupEntries(
+              node.group,
+              UNRESOLVED_PATH,
+              scope,
+            ).map(resolveParentPathSegments)
+          : []),
+      ];
     }
   
     // Build the base path first (existing behavior).

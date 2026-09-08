@@ -3,11 +3,15 @@ import { buildPathString } from "../path-builder.js";
 import { parse } from "../parser.js";
 import { type ScopeTracker, childScope, bindVariable, bindLambda, bindPartial, bindTransform, bindValue, resolveLambda, resolvePartial, resolveTransform, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
-import { ROOT_PATH, IMPLICIT_ROOT_SHALLOW_FUNCTIONS, IMPLICIT_ROOT_DEEP_FUNCTIONS, MATCHER_CALLBACK_FUNCTIONS, CONTEXT_DEFAULT_BUILTINS } from "./constants.js";
+import { ROOT_PATH, UNRESOLVED_PATH, IMPLICIT_ROOT_SHALLOW_FUNCTIONS, IMPLICIT_ROOT_DEEP_FUNCTIONS, MATCHER_CALLBACK_FUNCTIONS, CONTEXT_DEFAULT_BUILTINS } from "./constants.js";
 import { prefixPaths, appendPath, isRootReference, markAbsolute, isNumericIndex } from "./path-utils.js";
-import type { FunctionOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
+import { externalArgumentAccessMode, externalFunctionContract, type FunctionOperations, type WalkerOptions, type WalkerRuntime } from "./runtime.js";
 
-const DEFAULT_OPTIONS: WalkerOptions = { opaqueFunctions: new Set() };
+const DEFAULT_OPTIONS: WalkerOptions = {
+  opaqueFunctions: new Set(),
+  externalFunctions: new Map(),
+  recordExternalSubtreeAccesses: () => undefined,
+};
 
 export function createFunctionOperations(
   runtime: WalkerRuntime,
@@ -153,6 +157,40 @@ export function createFunctionOperations(
       if (capturedCurrent !== null) return [...capturedCurrent];
     }
     return [ROOT_PATH];
+  }
+
+  function externalArgumentSubtreePaths(node: AstNode, scope: ScopeTracker): string[] {
+    if (node.type === "condition") {
+      const condition = node as ConditionNode;
+      return [
+        ...externalArgumentSubtreePaths(condition.then, scope),
+        ...(condition.else ? externalArgumentSubtreePaths(condition.else, scope) : []),
+      ];
+    }
+    if (node.type === "array") {
+      return (node as ArrayNode).expressions.flatMap((expression) =>
+        externalArgumentSubtreePaths(expression, scope),
+      );
+    }
+    if (node.type === "object") {
+      return (node as ObjectNode).entries.flatMap(([, value]) =>
+        externalArgumentSubtreePaths(value, scope),
+      );
+    }
+    if (node.type === "function") {
+      return runtime.results.getFunctionResultBasePaths(node as FunctionNode, scope);
+    }
+    if (node.type === "apply") {
+      const applied = appliedFunctionFromApply(node as ApplyNode);
+      return applied ? runtime.results.getFunctionResultBasePaths(applied, scope) : [];
+    }
+    if (["path", "variable", "wildcard", "descendant", "parent"].includes(node.type)) {
+      return runtime.results.getResultBasePathsFromArg(node, scope);
+    }
+    if (node.type === "block") {
+      return runtime.results.getBlockResultSuffixBasePaths(node as BlockNode, scope);
+    }
+    return [];
   }
 
   function appliedFunctionFromApply(node: ApplyNode): FunctionNode | null {
@@ -705,7 +743,8 @@ export function createFunctionOperations(
       }
       return storedPaths;
     };
-    if (options.opaqueFunctions.has(funcName)) {
+    const hostContract = externalFunctionContract(options, funcName);
+    if (hostContract) {
       if (lambdaBinding) {
         return withFunctionStages(
           runtime.higherOrder.walkCustomFunctionCall(lambdaBinding, args, scope),
@@ -724,9 +763,16 @@ export function createFunctionOperations(
       if (storedCallables.length > 0 || storedBuiltinNames.length > 0) {
         return withFunctionStages(walkStoredCallablePaths());
       }
-      return withFunctionStages(
-        args.flatMap((argument) => runtime.core.walkNode(argument, scope)),
-      );
+      const argumentPaths = args.flatMap((argument, argumentIndex) => {
+        const paths = runtime.core.walkNode(argument, scope);
+        if (externalArgumentAccessMode(hostContract, argumentIndex) === "subtree") {
+          options.recordExternalSubtreeAccesses(
+            externalArgumentSubtreePaths(argument, scope),
+          );
+        }
+        return paths;
+      });
+      return withFunctionStages(argumentPaths);
     }
   
     if (args.length === 0 && IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)) {
@@ -854,7 +900,7 @@ export function createFunctionOperations(
   function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
     const expression = getStaticEvalExpression(args);
     if (!expression) {
-      return args[0]?.type === "string" ? [] : markAbsolute(["**"]);
+      return args[0]?.type === "string" ? [] : markAbsolute([UNRESOLVED_PATH]);
     }
   
     const evalScope = getStaticEvalScope(args, scope);

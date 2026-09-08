@@ -53,6 +53,8 @@ export interface DynamicObjectAlias {
 export interface ScopeTracker {
   /** Stable identity shared by immutable revisions of one lexical frame. */
   readonly frame: object;
+  /** Identity of the bindings that can affect callable resolution. */
+  readonly callableEnvironment: object;
   readonly bindings: ReadonlyMap<string, readonly string[]>;
   readonly lambdas: ReadonlyMap<string, LambdaBinding>;
   readonly partials: ReadonlyMap<string, PartialBinding>;
@@ -74,9 +76,63 @@ const variableResolutionCache = new WeakMap<
   ScopeTracker,
   Map<string, readonly string[] | null>
 >();
+interface StoredBindingResolution {
+  readonly lambda: LambdaBinding | null;
+  readonly partial: PartialBinding | null;
+  readonly transform: TransformBinding | null;
+  readonly value: ValueBinding | null;
+  readonly valueFrame: object | null;
+}
+const storedBindingResolutionCache = new WeakMap<
+  ScopeTracker,
+  Map<string, StoredBindingResolution>
+>();
+const objectIdentityCache = new WeakMap<object, number>();
+const callableEnvironmentTransitions = new WeakMap<object, Map<string, object>>();
+let nextObjectIdentity = 1;
+
+function objectIdentity(value: object): number {
+  const cached = objectIdentityCache.get(value);
+  if (cached) return cached;
+  const identity = nextObjectIdentity++;
+  objectIdentityCache.set(value, identity);
+  return identity;
+}
+
+function callableEnvironmentAfter(environment: object, operation: string): object {
+  let transitions = callableEnvironmentTransitions.get(environment);
+  const cached = transitions?.get(operation);
+  if (cached) return cached;
+  const next = {};
+  if (!transitions) {
+    transitions = new Map();
+    callableEnvironmentTransitions.set(environment, transitions);
+  }
+  transitions.set(operation, next);
+  return next;
+}
+
+function canContainCallableValue(node: AstNode): boolean {
+  return ![
+    "name",
+    "string",
+    "number",
+    "value",
+    "regex",
+    "binary",
+    "unary",
+    "negate",
+    "parent",
+    "wildcard",
+    "descendant",
+    "operator",
+    "bind",
+  ].includes(node.type);
+}
 
 const EMPTY_SCOPE: ScopeTracker = {
   frame: {},
+  callableEnvironment: {},
   bindings: EMPTY_MAP,
   lambdas: EMPTY_MAP,
   partials: EMPTY_MAP,
@@ -92,13 +148,14 @@ const EMPTY_SCOPE: ScopeTracker = {
 
 /** Create a new root scope (no parent). */
 export function createScope(): ScopeTracker {
-  return EMPTY_SCOPE;
+  return { ...EMPTY_SCOPE, frame: {}, callableEnvironment: {} };
 }
 
 /** Create a child scope inheriting from parent. */
 export function childScope(parent: ScopeTracker): ScopeTracker {
   return {
     frame: {},
+    callableEnvironment: parent.callableEnvironment,
     bindings: EMPTY_MAP,
     lambdas: EMPTY_MAP,
     partials: EMPTY_MAP,
@@ -126,12 +183,13 @@ type ScopeRevision = Partial<
     | "suffixBaseBindings"
     | "clearedDynamicObjectAliases"
   >
->;
+> & { readonly callableEnvironment?: object };
 
 /** Add an O(1) immutable revision without copying every binding in the frame. */
 function reviseScope(scope: ScopeTracker, revision: ScopeRevision): ScopeTracker {
   return {
     frame: scope.frame,
+    callableEnvironment: revision.callableEnvironment ?? scope.callableEnvironment,
     bindings: revision.bindings ?? EMPTY_MAP,
     lambdas: revision.lambdas ?? EMPTY_MAP,
     partials: revision.partials ?? EMPTY_MAP,
@@ -161,7 +219,12 @@ export function bindVariable(
   name: string,
   paths: readonly string[],
 ): ScopeTracker {
-  return reviseScope(scope, { bindings: new Map([[name, paths]]) });
+  return reviseScope(scope, {
+    bindings: new Map([[name, paths]]),
+    callableEnvironment: ["", "$"].includes(name)
+      ? scope.callableEnvironment
+      : callableEnvironmentAfter(scope.callableEnvironment, `data:${name}`),
+  });
 }
 
 export function bindSuffixBasePaths(
@@ -184,6 +247,10 @@ export function bindObjectAlias(
   return reviseScope(scope, {
     objectAliases: new Map([[name, alias]]),
     clearedDynamicObjectAliases: new Set([name]),
+    callableEnvironment: callableEnvironmentAfter(
+      scope.callableEnvironment,
+      `object-alias:${name}:${objectIdentity(alias)}`,
+    ),
   });
 }
 
@@ -194,6 +261,10 @@ export function bindDynamicObjectAlias(
 ): ScopeTracker {
   return reviseScope(scope, {
     dynamicObjectAliases: new Map([[name, alias]]),
+    callableEnvironment: callableEnvironmentAfter(
+      scope.callableEnvironment,
+      `dynamic-object-alias:${name}:${objectIdentity(alias)}`,
+    ),
   });
 }
 
@@ -210,6 +281,10 @@ export function bindLambda(
 ): ScopeTracker {
   return reviseScope(scope, {
     lambdas: new Map([[name, { lambda, scope: closureScope, name }]]),
+    callableEnvironment: callableEnvironmentAfter(
+      scope.callableEnvironment,
+      `lambda:${name}:${objectIdentity(lambda)}:${objectIdentity(closureScope.callableEnvironment)}`,
+    ),
   });
 }
 
@@ -230,6 +305,10 @@ export function bindLambdaReference(
         },
       ],
     ]),
+    callableEnvironment: callableEnvironmentAfter(
+      scope.callableEnvironment,
+      `lambda-ref:${name}:${objectIdentity(binding.lambda)}:${objectIdentity(binding.scope.callableEnvironment)}:${objectIdentity(forwardScope.callableEnvironment)}`,
+    ),
   });
 }
 
@@ -241,6 +320,10 @@ export function bindPartial(
 ): ScopeTracker {
   return reviseScope(scope, {
     partials: new Map([[name, { partial, scope: closureScope }]]),
+    callableEnvironment: callableEnvironmentAfter(
+      scope.callableEnvironment,
+      `partial:${name}:${objectIdentity(partial)}:${objectIdentity(closureScope.callableEnvironment)}`,
+    ),
   });
 }
 
@@ -252,6 +335,10 @@ export function bindTransform(
 ): ScopeTracker {
   return reviseScope(scope, {
     transforms: new Map([[name, { transform, scope: closureScope }]]),
+    callableEnvironment: callableEnvironmentAfter(
+      scope.callableEnvironment,
+      `transform:${name}:${objectIdentity(transform)}:${objectIdentity(closureScope.callableEnvironment)}`,
+    ),
   });
 }
 
@@ -263,6 +350,12 @@ export function bindValue(
 ): ScopeTracker {
   return reviseScope(scope, {
     values: new Map([[name, { node, scope: closureScope }]]),
+    callableEnvironment: canContainCallableValue(node)
+      ? callableEnvironmentAfter(
+          scope.callableEnvironment,
+          `value:${name}:${objectIdentity(node)}:${objectIdentity(closureScope.callableEnvironment)}`,
+        )
+      : scope.callableEnvironment,
   });
 }
 
@@ -274,64 +367,28 @@ export function resolveLambda(
   scope: ScopeTracker,
   name: string,
 ): LambdaBinding | null {
-  let current: ScopeTracker | null = scope;
-  while (current !== null) {
-    if (current.lambdas.has(name)) {
-      return current.lambdas.get(name)!;
-    }
-    if (current.bindings.has(name)) {
-      return null;
-    }
-    current = previousScope(current);
-  }
-  return null;
+  return resolveStoredBindings(scope, name).lambda;
 }
 
 export function resolvePartial(
   scope: ScopeTracker,
   name: string,
 ): PartialBinding | null {
-  let current: ScopeTracker | null = scope;
-  while (current !== null) {
-    if (current.partials.has(name)) {
-      return current.partials.get(name)!;
-    }
-    if (current.bindings.has(name)) {
-      return null;
-    }
-    current = previousScope(current);
-  }
-  return null;
+  return resolveStoredBindings(scope, name).partial;
 }
 
 export function resolveTransform(
   scope: ScopeTracker,
   name: string,
 ): TransformBinding | null {
-  let current: ScopeTracker | null = scope;
-  while (current !== null) {
-    if (current.transforms.has(name)) {
-      return current.transforms.get(name)!;
-    }
-    if (current.bindings.has(name)) {
-      return null;
-    }
-    current = previousScope(current);
-  }
-  return null;
+  return resolveStoredBindings(scope, name).transform;
 }
 
 export function resolveValue(
   scope: ScopeTracker,
   name: string,
 ): ValueBinding | null {
-  let current: ScopeTracker | null = scope;
-  while (current !== null) {
-    if (current.values.has(name)) return current.values.get(name)!;
-    if (current.bindings.has(name)) return null;
-    current = previousScope(current);
-  }
-  return null;
+  return resolveStoredBindings(scope, name).value;
 }
 
 /** Return the lexical frame that owns a resolvable stored value. */
@@ -339,13 +396,55 @@ export function resolveValueFrame(
   scope: ScopeTracker,
   name: string,
 ): object | null {
+  return resolveStoredBindings(scope, name).valueFrame;
+}
+
+function resolveStoredBindings(
+  scope: ScopeTracker,
+  name: string,
+): StoredBindingResolution {
+  const scopeCache = storedBindingResolutionCache.get(scope);
+  const cached = scopeCache?.get(name);
+  if (cached) return cached;
+
+  let lambda: LambdaBinding | null | undefined;
+  let partial: PartialBinding | null | undefined;
+  let transform: TransformBinding | null | undefined;
+  let value: ValueBinding | null | undefined;
+  let valueFrame: object | null | undefined;
+
   let current: ScopeTracker | null = scope;
   while (current !== null) {
-    if (current.values.has(name)) return current.frame;
-    if (current.bindings.has(name)) return null;
+    lambda ??= current.lambdas.get(name);
+    partial ??= current.partials.get(name);
+    transform ??= current.transforms.get(name);
+    if (value === undefined) {
+      const storedValue = current.values.get(name);
+      if (storedValue) {
+        value = storedValue;
+        valueFrame = current.frame;
+      }
+    }
+    if (current.bindings.has(name)) {
+      break;
+    }
     current = previousScope(current);
   }
-  return null;
+
+  const result: StoredBindingResolution = {
+    lambda: lambda ?? null,
+    partial: partial ?? null,
+    transform: transform ?? null,
+    value: value ?? null,
+    valueFrame: valueFrame ?? null,
+  };
+  let entries = storedBindingResolutionCache.get(scope);
+  if (!entries) {
+    entries = new Map();
+    storedBindingResolutionCache.set(scope, entries);
+  }
+  entries.set(name, result);
+  return result;
 }
 
 /**
@@ -356,40 +455,37 @@ export function resolveVariable(
   scope: ScopeTracker,
   name: string,
 ): readonly string[] | null {
-  const visited: ScopeTracker[] = [];
+  const startingScope = scope;
   let current: ScopeTracker | null = scope;
   while (current !== null) {
     const cached = variableResolutionCache.get(current);
     if (cached?.has(name)) {
       const result = cached.get(name)!;
-      cacheVariableResolution(visited, name, result);
+      cacheVariableResolution(startingScope, name, result);
       return result;
     }
-    visited.push(current);
     if (current.bindings.has(name)) {
       const result = current.bindings.get(name)!;
-      cacheVariableResolution(visited, name, result);
+      cacheVariableResolution(startingScope, name, result);
       return result;
     }
     current = previousScope(current);
   }
-  cacheVariableResolution(visited, name, null);
+  cacheVariableResolution(startingScope, name, null);
   return null; // unresolvable
 }
 
 function cacheVariableResolution(
-  scopes: ScopeTracker[],
+  scope: ScopeTracker,
   name: string,
   result: readonly string[] | null,
 ): void {
-  for (const scope of scopes) {
-    let cached = variableResolutionCache.get(scope);
-    if (!cached) {
-      cached = new Map();
-      variableResolutionCache.set(scope, cached);
-    }
-    cached.set(name, result);
+  let cached = variableResolutionCache.get(scope);
+  if (!cached) {
+    cached = new Map();
+    variableResolutionCache.set(scope, cached);
   }
+  cached.set(name, result);
 }
 
 export function resolveSuffixBasePaths(

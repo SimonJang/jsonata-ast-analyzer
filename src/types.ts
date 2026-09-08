@@ -16,14 +16,63 @@ export interface PathAccess extends PathResult {
   coverage: Coverage;
 }
 
+/** How an external host function reads one argument. */
+export type ExternalFunctionAccessMode = "value" | "subtree";
+
+/**
+ * Static read contract for a host-provided function.
+ *
+ * A single mode applies to every argument. An array applies by argument index;
+ * omitted indexes default to `value`.
+ */
+export interface ExternalFunctionContract {
+  arguments?: ExternalFunctionAccessMode | readonly ExternalFunctionAccessMode[];
+}
+
+/** Host context supplied when an expression is analyzed outside the input root. */
+export interface AnalysisContext {
+  /** Absolute dot-separated path represented by JSONata's current context (`$`). */
+  currentPath?: string;
+  /** Absolute dot-separated path represented by a host-rewritten parent variable. */
+  parentPath?: string;
+  /** Rewritten variable name, with or without `$`, used for the parent context. */
+  parentVariable?: string;
+}
+
 /** Per-analysis host integration overrides. */
 export interface AnalyzeOptions {
+  /** @deprecated Prefer `externalFunctions` with an explicit argument contract. */
   opaqueFunctions?: readonly string[];
+  externalFunctions?: Readonly<Record<string, ExternalFunctionContract>>;
+  context?: AnalysisContext;
 }
 
 /** Static dependency analysis for one JSONata expression. */
 export interface AnalysisResult {
   accesses: PathAccess[];
+}
+
+/** Where a contextual dependency starts before its absolute path is resolved. */
+export type AccessOrigin = "root" | "current" | "parent";
+
+/** Whether a dependency is concrete, broad, or statically unresolved. */
+export type AccessKind = "path" | "wildcard" | "dynamic" | "unresolved";
+
+/** A non-fatal diagnostic produced by contextual analysis. */
+export interface AnalysisDiagnostic {
+  kind: "parse" | "analysis";
+  message: string;
+}
+
+/** A dependency retaining host-context and broad-access metadata. */
+export interface ContextualPathAccess extends PathAccess {
+  origin: AccessOrigin;
+  kind: AccessKind;
+}
+
+export interface ContextualAnalysisResult {
+  accesses: ContextualPathAccess[];
+  diagnostics: AnalysisDiagnostic[];
 }
 
 export interface SourceAstMetadata {

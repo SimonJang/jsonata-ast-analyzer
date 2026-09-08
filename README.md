@@ -71,7 +71,25 @@ analyzeExpression(
 
 For example, `$count(items)` consumes the collection value and reports `items` as `exact`, while returning `items` directly reports it as `subtree`. When the same path is both consumed and selected, `subtree` wins without changing its first-seen position.
 
-The optional `opaqueFunctions` list treats recognized built-ins as opaque host functions for one analysis. Names may include or omit the leading `$`:
+Use `externalFunctions` when the host registers a function whose dependency semantics differ from JSONata's built-ins:
+
+```javascript
+analyzeExpression("$hydrate(payload, settings)", {
+  externalFunctions: {
+    hydrate: { arguments: ["value", "subtree"] },
+  },
+});
+// payload  -> exact: the function consumes that value
+// settings -> subtree: any descendant may affect the function result
+```
+
+A single mode applies to every argument. An array applies by argument index, and omitted indexes default to `value`. `value` means the argument value itself is read. `subtree` means the external function may inspect any descendant; it does not mean JSONata eagerly evaluates every child.
+
+`subtree` follows the argument value, not every dependency used to compute it. For example,
+`$host($count(items))` keeps `items` as `exact` because the host receives a number. If an input object is passed
+directly, selected conditionally, or embedded in a constructed argument, that escaping input value is `subtree`.
+
+`opaqueFunctions` remains as a backwards-compatible value-only shorthand. Names in either option may include or omit the leading `$`:
 
 ```javascript
 analyzeExpression("$eval(payload).x", {
@@ -84,7 +102,31 @@ analyzeExpression("$eval(payload).x", {
 // }
 ```
 
-This is useful when a host replaces a built-in with different semantics. Arguments are still analyzed as consumed values, but built-in result and callback semantics are skipped. A JSONata-local lambda, partial, transform, or stored callable with the same name takes precedence. Options are immutable and scoped to the individual call.
+External functions have opaque return values: built-in result, suffix, and callback semantics are skipped. A JSONata-local lambda, partial, transform, or stored callable with the same name takes precedence. Options are immutable and scoped to the individual call.
+
+### analyzeExpressionWithContext(expression, options?): ContextualAnalysisResult
+
+Retains the origin and kind needed by host adapters without encoding context as fake field names:
+
+```javascript
+analyzeExpressionWithContext(
+  "[$$.account.id, $.description, $parent.currency]",
+  {
+    context: {
+      currentPath: "order.lines",
+      parentPath: "order",
+      parentVariable: "parent",
+    },
+  },
+);
+```
+
+Each access has an `origin` of `root`, `current`, or `parent`, plus a `kind` of `path`, `wildcard`, `dynamic`, or `unresolved`. JSONata does not parse a standalone `%` expression, so a host that analyzes fragments rewrites `%` to the configured `parentVariable`; the analyzer binds that variable directly to `parentPath`. It is a variable binding, not a synthetic path segment, and cannot leak into public paths.
+
+Contextual analysis is non-throwing for malformed expressions and unexpected analysis failures. It returns an empty
+`accesses` array plus a `diagnostics` entry whose `kind` is `parse` or `analysis`. Host adapters should report parse
+diagnostics and treat analysis diagnostics as a failed analysis, rather than silently interpreting either case as
+"no dependencies".
 
 With no options, removing `coverage` from `analyzeExpression(expression).accesses` produces exactly the same paths, confidence, and order as `extractPaths(expression)`.
 
@@ -106,10 +148,26 @@ interface PathAccess extends PathResult {
 
 interface AnalyzeOptions {
   opaqueFunctions?: readonly string[];
+  externalFunctions?: Readonly<Record<string, {
+    arguments?: "value" | "subtree" | readonly ("value" | "subtree")[];
+  }>>;
+  context?: {
+    currentPath?: string;
+    parentPath?: string;
+    parentVariable?: string;
+  };
 }
 
 interface AnalysisResult {
   accesses: PathAccess[];
+}
+
+interface ContextualAnalysisResult {
+  accesses: ContextualPathAccess[];
+  diagnostics: Array<{
+    kind: "parse" | "analysis";
+    message: string;
+  }>;
 }
 ```
 
@@ -308,7 +366,7 @@ The analyzer is designed to over-approximate: it reports a superset of the paths
 
 **Transform writes** -- Transform locations and update/delete expressions are analyzed for reads, but write targets are not exposed as a separate public API. Literal delete targets such as `["password"]` do not create input reads.
 
-**External function contracts** -- `opaqueFunctions` can suppress recognized built-in semantics, but this release does not model argument or return contracts for arbitrary host functions.
+**External function returns** -- External-function argument reads are explicit, but return values remain opaque. A contract cannot currently describe a returned alias or callback invocation.
 
 **Internal benchmark helper** -- `__benchmarkExpression()` is exported only so the repository benchmark can measure raw and deduped path counts. Treat it as internal; `extractPaths()` and `analyzeExpression()` are the supported APIs.
 
