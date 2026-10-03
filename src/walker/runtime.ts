@@ -53,6 +53,7 @@ export interface PathOperations {
 }
 
 export interface AliasOperations {
+  chainedPathContext(node: PathNode, scope: ScopeTracker): { prefix: AstNode; tail: PathNode; scope: ScopeTracker } | null;
   bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[];
   staticObjectKey(node: AstNode): string | null;
   objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAlias | null;

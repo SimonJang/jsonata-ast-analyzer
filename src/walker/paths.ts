@@ -183,12 +183,45 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     return false;
   }
 
+  function walkChainedContext(node: AstNode, scope: ScopeTracker): string[] {
+    // Process chains stage by stage, avoiding recursive local and contextual
+    // walks of the complete remaining tail at every stage.
+    if (node.type === "path" && runtime.aliases.chainedPathContext(node as PathNode, scope)) {
+      return walkPath(node as PathNode, scope);
+    }
+    const objectAlias = resolveObjectAlias(scope, "");
+    const dynamicAlias = resolveDynamicObjectAlias(scope, "");
+    if (objectAlias || dynamicAlias) {
+      return runtime.aliases.selectAliasExpressionPaths(
+        objectAlias, dynamicAlias, node, scope,
+        resolveSuffixBasePaths(scope, "") ?? [],
+      );
+    }
+    const basePaths = resolveVariable(scope, "") ?? [];
+    return basePaths.length > 0
+      ? basePaths.flatMap((basePath) => walkContextExpression(node, basePath, scope))
+      : runtime.core.walkNode(node, scope);
+  }
+
   /**
    * Extract paths from a path node's steps, handling variable steps,
    * filter stages on name steps, sort steps, and group-by expressions.
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     if (node.steps.length === 0) return [];
+
+    const chained = runtime.aliases.chainedPathContext(node, scope);
+    if (chained) {
+      const prefixSteps = chained.prefix.type === "path"
+        ? (chained.prefix as PathNode).steps : [chained.prefix];
+      const structuralPrefix = prefixSteps.every((step) => step.type === "name" &&
+        !(step as NameNode).stages?.length && !(step as NameNode).focusBinding &&
+        !(step as NameNode).indexBinding);
+      return [
+        ...(structuralPrefix ? [] : walkChainedContext(chained.prefix, scope)),
+        ...walkChainedContext(chained.tail, chained.scope),
+      ];
+    }
 
     if (
       !node.group &&
@@ -360,6 +393,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                 "lookup",
                 lookup.arguments,
                 lookup.position,
+                scope,
               ),
             },
             ...node.steps.slice(1),

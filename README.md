@@ -121,7 +121,7 @@ When a path matches multiple confidence levels, the highest priority wins: parti
 | Level | Meaning | Cause | Example |
 |-------|---------|-------|---------|
 | `static` | Fully resolved at analysis time | All path segments are known | `account.name` |
-| `dynamic` | Contains unresolvable segments | Variable used in bracket filter position | `item[$field]` |
+| `dynamic` | Contains unresolvable segments | Non-literal lookup key or unresolved bracket filter variable | `$lookup(item, field)` |
 | `partial` | Contains parent operator approximation | Parent operator (`%`) in path | `orders.items.%.orderRef` |
 
 ## CLI Usage
@@ -203,9 +203,26 @@ const paths = extractPaths('products[price > 50 and inStock].name');
 // ]
 ```
 
-### Dynamic computed path
+### Dynamic dictionary lookup
 
-An unbound variable in bracket position produces a `[*]` wildcard -- the analyzer knows a field is accessed but not which one.
+Use `$lookup(object, key)` to access a property whose name comes from runtime data. Iterating over dictionary keys preserves the selected input dependencies:
+
+```javascript
+const analysis = analyzeExpression(
+  '($d := inventory; $keys($d).$lookup($d, $).quantity)'
+);
+// { accesses: [
+//   { path: "inventory", confidence: "static", coverage: "exact" },
+//   { path: "inventory[*]", confidence: "dynamic", coverage: "exact" },
+//   { path: "inventory[*].quantity", confidence: "dynamic", coverage: "subtree" }
+// ] }
+```
+
+The analyzer cannot enumerate keys supplied by the input, so `[*]` means any selected property. A literal lookup key produces a concrete path; keys held in variables or computed expressions remain conservative wildcards, even when their value is constant.
+
+### Dynamic bracket selector
+
+JSONata brackets filter or index a sequence; they do not implement JavaScript-style computed property access. An unbound variable in bracket position produces a conservative `[*]` marker for the unresolved selection.
 
 ```javascript
 const paths = extractPaths('inventory[$category].quantity');
@@ -292,7 +309,7 @@ expression string → parse → walk → dedupe → classify → PathResult[]
 
 **Dedupe** -- Removes duplicate paths using Set-based deduplication. Complex expressions often reference the same data path through multiple code paths; the output contains each unique path exactly once.
 
-**Classify** -- Annotates each unique path with a confidence level: `static` when every segment is fully resolved, `dynamic` when the path contains a `[*]` wildcard from an unresolvable variable in bracket position, or `partial` when the path contains a `%` parent marker whose target depends on runtime context.
+**Classify** -- Annotates each unique path with a confidence level: `static` when every segment is fully resolved, `dynamic` when the path contains a `[*]` wildcard from a non-literal lookup key or unresolved bracket variable, or `partial` when the path contains a `%` parent marker whose target depends on runtime context.
 
 The analyzer is designed to over-approximate: it reports a superset of the paths that may be accessed at runtime. Both branches of a conditional are walked, and unresolvable variables produce wildcards rather than being silently omitted. This is a deliberate trade-off -- false positives (extra paths reported) are safe for downstream consumers that use path lists for data dependency tracking, while false negatives (missed paths) could silently break those consumers.
 
@@ -300,7 +317,7 @@ The analyzer is designed to over-approximate: it reports a superset of the paths
 
 **Static analysis only** -- The analyzer works from the expression text alone, without evaluating it or requiring sample input data. This means it cannot resolve values that depend on runtime state, but it can run anywhere without a live environment.
 
-**Dynamic path wildcards** -- When a variable in bracket position cannot be statically resolved, the analyzer emits a `[*]` wildcard segment and marks the path as `dynamic`. This acknowledges that a field is accessed while signaling that the exact field name depends on runtime data.
+**Dynamic path wildcards** -- Non-literal `$lookup` keys and unresolved bracket variables produce a `[*]` segment marked as `dynamic`. Consumers must match this as a wildcard, alongside `*` from explicit wildcards or object iteration. The analyzer does not return the concrete keys of an input dictionary.
 
 **Parent operator approximation** -- The parent operator (`%`) navigates to an enclosing context that is only fully determined at runtime. The analyzer preserves `%` as a literal path segment and marks the result as `partial`, recording the structural relationship without claiming to know the exact target.
 

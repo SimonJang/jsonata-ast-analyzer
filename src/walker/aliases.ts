@@ -116,6 +116,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: PathNode,
     scope: ScopeTracker,
   ): ObjectAlias | null {
+    const chained = chainedPathContext(node, scope);
+    if (chained) {
+      return groupResultObjectAliasForNode(
+        chained.tail.steps.length === 1 && !chained.tail.group
+          ? chained.tail.steps[0] : chained.tail,
+        chained.scope,
+      );
+    }
     const projectionStep = node.steps[node.steps.length - 1];
     if (projectionStep?.type === "block") {
       const contextPrefix = buildPathString(node.steps.slice(0, -1)) ?? "";
@@ -1054,6 +1062,16 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: AstNode,
     scope: ScopeTracker,
   ): DynamicObjectAlias | null {
+    if (node.type === "path") {
+      const chained = chainedPathContext(node as PathNode, scope);
+      if (chained) {
+        return groupResultDynamicObjectAliasForNode(
+          chained.tail.steps.length === 1 && !chained.tail.group
+            ? chained.tail.steps[0] : chained.tail,
+          chained.scope,
+        );
+      }
+    }
     const source = dynamicObjectSource(node, scope);
     if (source) return source;
     if (node.type === "variable") {
@@ -1253,6 +1271,90 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       step.type === "array" ||
       step.type === "object"
     );
+  }
+
+  function isFunctionResultStep(step: AstNode): boolean {
+    // Parentheses preserve the final expression's value, including a function
+    // followed by a field selection inside the block.
+    while (step.type === "block") {
+      const expressions = (step as BlockNode).expressions;
+      if (expressions.length === 0) return false;
+      step = expressions[expressions.length - 1];
+    }
+    return step.type === "path"
+      ? (step as PathNode).steps.some(isFunctionResultStep)
+      : step.type === "function";
+  }
+
+  function chainedPathContext(node: PathNode, scope: ScopeTracker) {
+    const index = node.steps.findIndex((step, index) =>
+      index > 0 && (isResultAliasStep(step) ||
+        (isFunctionResultStep(node.steps[index - 1]) &&
+          (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
+      (node.steps.slice(0, index).some(isFunctionResultStep) ||
+        (step.type === "function" && (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding) ||
+        (step.type === "function" && runtime.callables.resolveBuiltinCallableNames(
+          (step as FunctionNode).procedure, scope,
+        ).includes("lookup"))) &&
+      // Stored callable procedures need their full producer path so that the
+      // callable resolver can inspect the function's returned container.
+      !(step.type === "function" && (step as FunctionNode).procedure.type === "path" &&
+        runtime.callables.resolveCallableValues({
+          ...((step as FunctionNode).procedure as PathNode),
+          steps: [
+            ...node.steps.slice(0, index),
+            ...((step as FunctionNode).procedure as PathNode).steps,
+          ],
+        } as PathNode, scope).length > 0),
+    );
+    if (index < 0) return null;
+
+    // A later projection consumes the preceding value, rather than the path
+    // string obtained by skipping its function or constructor steps.
+    const prefixSteps = node.steps.slice(0, index);
+    const prefixNode = (steps: AstNode[]): AstNode => steps.length === 1 && steps[0].type !== "name"
+      ? steps[0] : { ...node, steps, group: undefined };
+    const prefix = prefixNode(prefixSteps);
+    const lastStep = prefixSteps[prefixSteps.length - 1] as AstNode & {
+      focusBinding?: { name: string };
+    };
+    // A focus binding stores the selected value while leaving the current
+    // context at the value before that step.
+    const context = lastStep.focusBinding
+      ? prefixSteps.length > 1
+        ? prefixNode(prefixSteps.slice(0, -1))
+        : { type: "variable", value: "", position: 0 } as VariableNode
+      : prefix;
+    let contextScope = childScope(scope);
+    let beforeLastFocus = contextScope;
+    for (const [index, step] of prefixSteps.entries()) {
+      const bindingStep = step as AstNode & {
+        focusBinding?: { name: string };
+        indexBinding?: { name: string };
+      };
+      if (bindingStep.focusBinding) {
+        if (index === prefixSteps.length - 1) beforeLastFocus = contextScope;
+        const focused = prefixNode([
+          ...prefixSteps.slice(0, index),
+          { ...step, focusBinding: undefined, indexBinding: undefined } as AstNode,
+        ]);
+        contextScope = runtime.higherOrder.bindArgumentParameter(
+          contextScope, { type: "variable", value: bindingStep.focusBinding.name, position: 0 },
+          bindingAliasPaths(focused, contextScope), focused, contextScope,
+        );
+      }
+      if (bindingStep.indexBinding) contextScope = bindVariable(contextScope, bindingStep.indexBinding.name, []);
+    }
+    const sourceScope = lastStep.focusBinding ? beforeLastFocus : contextScope;
+    contextScope = runtime.higherOrder.bindArgumentParameter(
+      contextScope, { type: "variable", value: "", position: 0 },
+      bindingAliasPaths(context, sourceScope), context, sourceScope,
+    );
+    return {
+      prefix,
+      tail: { ...node, steps: node.steps.slice(index) },
+      scope: contextScope,
+    };
   }
 
   function firstUnboundPathVariableIndex(steps: AstNode[]): number {
@@ -1882,6 +1984,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   return {
+    chainedPathContext,
     bindingAliasPaths,
     staticObjectKey,
     objectAliasFromObject,

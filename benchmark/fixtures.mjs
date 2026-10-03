@@ -4,6 +4,7 @@ export const smokeFixtures = [
   "payload ~> |Account.Order.Product|{\"Price\": Price * 1.2}|",
   "items[active].{\"value\": price ?: fallback}",
   "$contains(Customer.Email, /@example\\.com$/) and $match(description, /urgent/i)",
+  '$reverse(items)' + '.$lookup($, "child")'.repeat(16) + '.amount',
 ];
 
 export const scalingFixtures = {

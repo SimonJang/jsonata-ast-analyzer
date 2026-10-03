@@ -5,6 +5,7 @@ import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, PATH_PRESERVING_RESULT_FUNCTIONS } from "./constants.js";
 import { appendPath, resolveParentPathSegments, filterToBasePaths } from "./path-utils.js";
 import type { ResultOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
+import { createSelectionOperations } from "./selection.js";
 
 const DEFAULT_OPTIONS: WalkerOptions = { opaqueFunctions: new Set() };
 
@@ -12,6 +13,8 @@ export function createResultOperations(
   runtime: WalkerRuntime,
   options: WalkerOptions = DEFAULT_OPTIONS,
 ): ResultOperations {
+  const selection = createSelectionOperations(runtime);
+
   function getFunctionResultObjectAlias(
     node: FunctionNode,
     scope: ScopeTracker,
@@ -1516,6 +1519,13 @@ export function createResultOperations(
     if (node.type === "path") {
       const pathNode = node as PathNode;
       if (pathNode.group) return [];
+      const chained = runtime.aliases.chainedPathContext(pathNode, scope);
+      if (chained) {
+        return getResultSuffixBasePaths(
+          chained.tail.steps.length === 1 && !chained.tail.group ? chained.tail.steps[0] : chained.tail,
+          chained.scope,
+        );
+      }
       const resultAliasStepIndex = pathNode.steps.findIndex(runtime.aliases.isResultAliasStep);
       if (
         resultAliasStepIndex < pathNode.steps.length - 1 &&
@@ -2105,6 +2115,14 @@ export function createResultOperations(
   
     if (node.type === "path") {
       const pathNode = node as PathNode;
+      const chained = runtime.aliases.chainedPathContext(pathNode, scope);
+      if (chained) {
+        const tail = chained.tail.steps.length === 1 && !chained.tail.group
+          ? chained.tail.steps[0] : chained.tail;
+        return tail.type === "path"
+          ? getResultBasePathsFromArg(tail, chained.scope)
+          : selection.getSelectedResultPaths(tail, chained.scope);
+      }
       if (runtime.aliases.hasResultAliasObjectSuffixSelection(pathNode, scope)) {
         return runtime.aliases.pathResultAliasContextBasePaths(pathNode, scope).map(resolveParentPathSegments);
       }

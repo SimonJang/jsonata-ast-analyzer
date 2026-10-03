@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Preserve source paths and selected-value coverage through dynamic dictionary lookup chains, including callback results, filters, sorting, constructors, and focus bindings.
+- Resolve array projections and grouping against parenthesized function results, including nested parentheses and block-local bindings.
+- Prevent repeated lookup chains from rewalking the full remaining tail at each step.
+
 ## 1.1.0 - 2026-08-27
 
 ### Added
