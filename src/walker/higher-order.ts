@@ -126,7 +126,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
   }
 
   function functionArgumentResultPaths(node: AstNode, scope: ScopeTracker): string[] {
-    if (["array", "object", "condition", "block", "bind"].includes(node.type)) {
+    if (["array", "object", "condition", "block", "bind", "binary", "negate"].includes(node.type)) {
       return selection.getSelectedResultPaths(node, scope);
     }
     return node.type === "name" || node.type === "path" &&

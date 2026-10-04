@@ -1981,7 +1981,11 @@ export function createResultOperations(
     }
   
     if (paths.length > 0) return paths;
-    if (objectArg.type === "object" && (objectAlias || dynamicObjectAlias)) return [];
+    // A constructed or bound result can have no input-backed fields.
+    // Its evaluation reads must not become origins for a later lookup.
+    if (objectArg.type === "object" || objectAlias || dynamicObjectAlias ||
+        objectArg.type === "variable" &&
+        resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) !== null) return [];
   
     const basePaths =
       runtime.functions.identityReferencePaths(objectArg, scope) ??
