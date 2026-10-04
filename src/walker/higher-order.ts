@@ -1214,14 +1214,14 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       role === "value" &&
       arg
     ) {
-      const valueScope = bindVariable(scope, param.value, argPaths);
+      let valueScope = bindVariable(scope, param.value, argPaths);
       const values: PathNode = {
         type: "path", steps: [arg, { type: "wildcard", value: "*", position: 0 }],
       };
       const valueAlias = runtime.aliases.groupResultObjectAliasForNode(values, argScope);
       const valueDynamicAlias = runtime.aliases.groupResultDynamicObjectAliasForNode(values, argScope);
       if (valueAlias || valueDynamicAlias) {
-        return runtime.aliases.bindFocusObjectAliasScope(
+        valueScope = runtime.aliases.bindFocusObjectAliasScope(
           valueScope, param.value, valueAlias, valueDynamicAlias, argPaths,
           runtime.aliases.groupResultSuffixBasePaths(values, argScope),
         );

@@ -199,6 +199,11 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     const objectAlias = resolveObjectAlias(scope, "");
     const dynamicAlias = resolveDynamicObjectAlias(scope, "");
     if (objectAlias || dynamicAlias) {
+      if (resolveValue(scope, "")) {
+        // Rebuilding only the data aliases would hide callable object entries
+        // already bound to this current context.
+        return runtime.core.walkNode(runtime.functions.explicitContextExpression(node, ""), scope);
+      }
       return runtime.aliases.selectAliasExpressionPaths(
         objectAlias, dynamicAlias, node, scope,
         resolveSuffixBasePaths(scope, "") ?? [],
