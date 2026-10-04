@@ -1047,10 +1047,18 @@ export function createFunctionOperations(
   function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
     if (!node.predicate || node.predicate.length === 0) return [];
     const source = { ...node, predicate: undefined } as FunctionNode;
-    if (!node.focusBinding && !node.indexBinding &&
-        (runtime.callables.resolveCallableValues(source, scope).length > 0 ||
-         runtime.callables.resolveBuiltinCallableNames(source, scope).length > 0)) {
-      return runtime.paths.walkValueFilterStages(node.predicate, source, scope);
+    const earlyProducerPredicate = node.source && !node.source.tupleStages;
+    const value = earlyProducerPredicate
+      ? { ...source, focusBinding: undefined, indexBinding: undefined } as FunctionNode : source;
+    if ((earlyProducerPredicate || !node.focusBinding && !node.indexBinding) &&
+        (runtime.callables.resolveCallableValues(value, scope).length > 0 ||
+         runtime.callables.resolveBuiltinCallableNames(value, scope).length > 0)) {
+      const incomingBinding = [node.focusBinding?.name, node.indexBinding?.name].some((name) =>
+        name !== undefined && resolveVariable(scope, name) !== null,
+      );
+      const predicateScope = earlyProducerPredicate && !incomingBinding
+        ? runtime.aliases.bindStepFocusScope(source, scope) : scope;
+      return runtime.paths.walkValueFilterStages(node.predicate, value, predicateScope);
     }
   
     const predicateScope = runtime.aliases.bindStepFocusScope(node, scope);

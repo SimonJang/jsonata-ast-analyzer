@@ -2520,11 +2520,27 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
          collectVariableNames(expression).has(""))) {
       const contextName = "\u0000alias-expression";
       const rewritten = runtime.functions.explicitContextExpression(expression, contextName);
-      const aliasScope = (parent: ScopeTracker): ScopeTracker =>
-        bindFocusObjectAliasScope(
+      const current: VariableNode = { type: "variable", value: "", position: 0 };
+      const currentSuffixPaths = resolveSuffixBasePaths(scope, "") ?? [];
+      // Preserve the callable value only when these aliases describe the
+      // existing current context, rather than a separately selected field.
+      const preserveCallableContext = objectAlias === resolveObjectAlias(scope, "") &&
+        dynamicObject === resolveDynamicObjectAlias(scope, "") &&
+        suffixBasePaths.length === currentSuffixPaths.length &&
+        suffixBasePaths.every((path, index) => path === currentSuffixPaths[index]) &&
+        (runtime.callables.resolveCallableValues(current, scope).length > 0 ||
+         runtime.callables.resolveBuiltinCallableNames(current, scope).length > 0);
+      const aliasScope = (parent: ScopeTracker): ScopeTracker => {
+        let nextScope = bindFocusObjectAliasScope(
           bindFocusObjectAliasScope(parent, "", objectAlias, dynamicObject, suffixBasePaths, suffixBasePaths),
           contextName, objectAlias, dynamicObject, suffixBasePaths, suffixBasePaths,
         );
+        if (parent === scope && preserveCallableContext) {
+          nextScope = runtime.functions.bindCallableValue(nextScope, "", current, scope);
+          nextScope = runtime.functions.bindCallableValue(nextScope, contextName, current, scope);
+        }
+        return nextScope;
+      };
       const mappedPaths = runtime.core.walkNode(rewritten, aliasScope(scope));
       if (!skipLocalPaths) return mappedPaths;
       const localMappedPaths = new Set(runtime.core.walkNode(rewritten, aliasScope(createScope())));

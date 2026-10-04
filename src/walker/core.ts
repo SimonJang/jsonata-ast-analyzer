@@ -76,12 +76,17 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       }
     }
     const predicate = (node as AstNode & { predicate?: AstNode[] }).predicate;
+    const predicateNode = node as AstNode & { focusBinding?: { name: string }; indexBinding?: { name: string } };
+    const earlyProducerPredicate = node.source && !node.source.tupleStages;
     if (node.type !== "path" && predicate?.length &&
-        !tupleNode.focusBinding && !tupleNode.indexBinding) {
+        (earlyProducerPredicate || !predicateNode.focusBinding && !predicateNode.indexBinding)) {
       const source = { ...node, predicate: undefined } as AstNode;
-      if (runtime.callables.resolveCallableValues(source, scope).length > 0 ||
-          runtime.callables.resolveBuiltinCallableNames(source, scope).length > 0) {
-        return [...walkNode(source, scope), ...runtime.paths.walkValueFilterStages(predicate, source, scope)];
+      const value = earlyProducerPredicate
+        ? { ...source, focusBinding: undefined, indexBinding: undefined } as AstNode : source;
+      if (runtime.callables.resolveCallableValues(value, scope).length > 0 ||
+          runtime.callables.resolveBuiltinCallableNames(value, scope).length > 0) {
+        const predicateScope = earlyProducerPredicate ? runtime.aliases.bindStepFocusScope(source, scope) : scope;
+        return [...walkNode(source, scope), ...runtime.paths.walkValueFilterStages(predicate, value, predicateScope)];
       }
     }
     switch (node.type) {

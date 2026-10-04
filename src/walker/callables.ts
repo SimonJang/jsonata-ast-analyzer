@@ -436,12 +436,23 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     );
   }
 
+  function terminalFocusResultNode(node: AstNode): AstNode | null {
+    if (node.type !== "path" || (node as PathNode).group ||
+        !((node as PathNode).steps.at(-1) as NameNode | undefined)?.focusBinding) return null;
+    // A terminal focus stores the selected child but returns its input context.
+    const prefix = (node as PathNode).steps.slice(0, -1);
+    return prefix.length ? { type: "path", steps: prefix } as PathNode
+      : { type: "variable", value: "", position: 0 };
+  }
+
   function unwrapCallableContainerNode(
     node: AstNode,
     scope: ScopeTracker,
     depth = 0,
   ): { readonly node: AstNode; readonly scope: ScopeTracker } {
     if (depth >= 16) return { node, scope };
+    const focusResult = terminalFocusResultNode(node);
+    if (focusResult) return unwrapCallableContainerNode(focusResult, scope, depth + 1);
     if (node.type === "variable") {
       const value = resolveValue(scope, (node as VariableNode).value);
       if (value) {
@@ -971,6 +982,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
+    const focusResult = terminalFocusResultNode(node);
+    if (focusResult) return resolveCallableValues(focusResult, scope);
     if ((node.type === "name" || node.type === "path" &&
          (node as PathNode).steps[0]?.type === "name") && resolveValue(scope, "")) {
       return resolveCallableValues(runtime.functions.explicitContextExpression(node, ""), scope);
@@ -1340,6 +1353,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {
+    const focusResult = terminalFocusResultNode(node);
+    if (focusResult) return resolveBuiltinCallableNames(focusResult, scope);
     if ((node.type === "name" || node.type === "path" &&
          (node as PathNode).steps[0]?.type === "name") && resolveValue(scope, "")) {
       return resolveBuiltinCallableNames(runtime.functions.explicitContextExpression(node, ""), scope);
