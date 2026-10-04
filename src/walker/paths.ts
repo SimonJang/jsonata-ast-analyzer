@@ -310,6 +310,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
           [], selected.suffixBasePaths,
         );
+        if (runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
+            runtime.callables.resolveBuiltinCallableNames(prefix, scope).length > 0) {
+          focusScope = runtime.functions.bindCallableValue(focusScope, focusStep.focusBinding!.name, prefix, scope);
+        }
         if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
         const parent: AstNode = focusIndex === 0 ? { type: "variable", value: "", position: 0 }
           : focusIndex === 1 ? node.steps[0]

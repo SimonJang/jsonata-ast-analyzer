@@ -397,6 +397,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
           [], selected.suffixBasePaths,
         );
+        const prefix: PathNode = { type: "path", steps: prefixSteps };
+        if (runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
+            runtime.callables.resolveBuiltinCallableNames(prefix, scope).length > 0) {
+          focusScope = runtime.functions.bindCallableValue(focusScope, focusStep.focusBinding!.name, prefix, scope);
+        }
         if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
         const stagedFocus = focusStep as NameNode & { predicate?: AstNode[] };
         for (const stage of stagedFocus.stages ?? stagedFocus.predicate ?? []) {
