@@ -352,6 +352,9 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     const paths: string[] = [];
     let currentScope = scope;
     for (const expr of node.expressions) {
+      // Array entries start concurrently. A sibling may read the entry binding
+      // before an assignment completes, or the updated binding after awaiting.
+      if (currentScope !== scope) paths.push(...walkValueExpression(expr, scope));
       if (expr.type === "bind") {
         const bindNode = expr as BindNode;
         const closureScope = currentScope;

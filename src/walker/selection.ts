@@ -94,6 +94,9 @@ export function createSelectionOperations(
     let currentScope = scope;
     const selectedPaths: string[] = [];
     for (const expression of node.expressions) {
+      if (currentScope !== scope) {
+        selectedPaths.push(...getSelectedResultPaths(expression, scope));
+      }
       if (expression.type === "bind") {
         selectedPaths.push(...getSelectedResultPaths((expression as BindNode).rhs, currentScope));
         currentScope = bindValue(currentScope, expression as BindNode);
