@@ -1526,6 +1526,11 @@ export function createResultOperations(
           chained.scope,
         );
       }
+      if (pathNode.steps[0]?.type === "name" &&
+          resolveVariable(scope, "")?.length &&
+          !pathNode.steps.some(runtime.aliases.isResultAliasStep)) {
+        return runtime.aliases.bindingAliasPaths(pathNode, scope);
+      }
       const resultAliasStepIndex = pathNode.steps.findIndex(runtime.aliases.isResultAliasStep);
       if (
         resultAliasStepIndex < pathNode.steps.length - 1 &&

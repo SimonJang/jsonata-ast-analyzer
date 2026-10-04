@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, PathNode, SortNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { ROOT_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex } from "./path-utils.js";
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
@@ -1297,11 +1297,24 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   function chainedPathContext(node: PathNode, scope: ScopeTracker) {
+    // Mixed source aliases and focused variables have dedicated suffix handling.
+    const hasUnmixedVariableSource = (step: AstNode): boolean => {
+      if (step.type !== "variable" || (step as VariableNode).focusBinding) return false;
+      const name = (step as VariableNode).value;
+      const objectAlias = resolveObjectAlias(scope, name);
+      if (objectAlias) {
+        return unmatchedAliasSuffixBasePaths(
+          objectAlias, resolveSuffixBasePaths(scope, name) ?? [],
+        ).length === 0;
+      }
+      return !resolveDynamicObjectAlias(scope, name) && resolveVariable(scope, name)?.length === 1;
+    };
     const index = node.steps.findIndex((step, index) =>
       index > 0 && (isResultAliasStep(step) ||
         (isFunctionResultStep(node.steps[index - 1]) &&
           (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
       (node.steps.slice(0, index).some(isFunctionResultStep) ||
+        node.steps.slice(0, index).some(hasUnmixedVariableSource) ||
         (step.type === "function" && (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding) ||
         (step.type === "function" && runtime.callables.resolveBuiltinCallableNames(
           (step as FunctionNode).procedure, scope,
