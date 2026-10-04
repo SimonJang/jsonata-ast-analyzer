@@ -197,6 +197,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
     if (node.type === "bind") return groupResultObjectAliasForNode((node as BindNode).rhs, scope);
     if (node.type === "object") return objectAliasFromObject(node as ObjectNode, scope);
+    if (node.type === "sort" || node.type === "path" && !(node as PathNode).group &&
+        (node as PathNode).steps.length > 0 && (node as PathNode).steps.every((step) => step.type === "sort")) {
+      return resolveObjectAlias(scope, "");
+    }
     if (node.type === "path") {
       const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
       return method ? objectAliasForNode(method.node, method.scope)
@@ -1371,6 +1375,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     scope: ScopeTracker,
   ): DynamicObjectAlias | null {
     if (node.type === "bind") return groupResultDynamicObjectAliasForNode((node as BindNode).rhs, scope);
+    if (node.type === "sort" || node.type === "path" && !(node as PathNode).group &&
+        (node as PathNode).steps.length > 0 && (node as PathNode).steps.every((step) => step.type === "sort")) {
+      return resolveDynamicObjectAlias(scope, "");
+    }
     if (node.type === "path") {
       const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
       if (method) return dynamicObjectAliasForNode(method.node, method.scope);
