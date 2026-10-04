@@ -359,7 +359,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         (!focused.predicate?.length || focused.indexBinding ||
           focused.predicate.some((stage) => stage.type === "position-binding")));
     });
-    if (focusIndex >= 0 && (focusIndex > 0 || node.steps.length > 1)) {
+    if (focusIndex >= 0) {
       const focusStep = node.steps[focusIndex] as NameNode;
       const prefixSteps = [
         ...node.steps.slice(0, focusIndex),
@@ -371,7 +371,15 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffixBasePaths: groupResultSuffixBasePaths(prefixSteps[0], scope),
       } : selectedPathAliasContext({ type: "path", steps: prefixSteps }, scope);
       if (selected?.objectAlias || selected?.dynamicObjectAlias) {
-        if (focusIndex === node.steps.length - 1) return selected;
+        if (focusIndex === node.steps.length - 1) {
+          if (focusIndex > 0) return selected;
+          const context: VariableNode = { type: "variable", value: "", position: 0 };
+          return {
+            objectAlias: groupResultObjectAliasForNode(context, scope),
+            dynamicObjectAlias: groupResultDynamicObjectAliasForNode(context, scope),
+            suffixBasePaths: groupResultSuffixBasePaths(context, scope),
+          };
+        }
         let focusScope = bindFocusObjectAliasScope(
           scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
           [], selected.suffixBasePaths,
@@ -2101,7 +2109,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const suffixSteps = node.steps.slice(resultAliasStepIndex + 1);
     const suffix = buildPathString(suffixSteps);
     let resultScope = scope;
-    if (resultAliasStepIndex > 0 && collectVariableNames(resultAliasStep).has("")) {
+    if (resultAliasStepIndex > 0 && (collectVariableNames(resultAliasStep).has("") ||
+      runtime.functions.resultUsesContextDefault(resultAliasStep, scope))) {
       const prefix: AstNode = {
         type: "path", steps: node.steps.slice(0, resultAliasStepIndex),
       } as PathNode;

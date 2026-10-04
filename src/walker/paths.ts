@@ -108,6 +108,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     node: AstNode,
     scope: ScopeTracker,
   ): boolean {
+    if (node.type === "path" && runtime.functions.resultUsesContextDefault(node, scope)) return true;
     if (node.type === "function") {
       const functionNode = node as FunctionNode;
       // Local procedures can create callbacks from call-site arguments. Capture
@@ -221,7 +222,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         (!focused.predicate?.length || focused.indexBinding ||
           focused.predicate.some((stage) => stage.type === "position-binding")));
     });
-    if (focusIndex >= 0 && (focusIndex > 0 || node.steps.length > 1)) {
+    if (focusIndex >= 0) {
       const focusStep = node.steps[focusIndex] as NameNode & { predicate?: FilterStage[] };
       const prefix: PathNode = { type: "path", steps: [
         ...node.steps.slice(0, focusIndex),
@@ -260,6 +261,8 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         return [
           ...walkPath(prefix, scope),
           ...stagePaths,
+          ...(focusIndex === 0 && node.steps.length === 1 && !node.group
+            ? runtime.aliases.bindingAliasPaths(parent, scope) : []),
           ...(focusIndex < node.steps.length - 1
             ? walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope)
             : node.group ? walkAliasGroupEntries(

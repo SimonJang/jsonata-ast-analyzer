@@ -21,6 +21,35 @@ const producers = [
 ];
 
 describe("constructed focus scopes", () => {
+  for (const binding of ['@$child#$i', '@$child[$child.other.different.details]#$i']) {
+    const predicateReads = binding.includes("[") ? [exact("envelope.other.details"), exact("envelope.other.details.*")] : [];
+    const nestedInput = { envelope: { ...input, unrelated: { nested: "context" } } };
+
+    it.each(producers)(`returns the input context from terminal first focus ${binding} using %s`, async (producer) => {
+      const expression = `envelope.($v:=${shape};(${producer})${binding})`;
+      expect(await jsonata(expression).evaluate(nestedInput)).toEqual(nestedInput.envelope);
+      expect(accesses(expression)).toEqual([
+        subtree("envelope"), exact("envelope.key"), exact("envelope.other"), ...predicateReads, exact("envelope.record"),
+      ]);
+    });
+
+    it.each(producers)(`stringifies the input context from terminal first focus ${binding} using %s`, async (producer) => {
+      const expression = `envelope.($v:=${shape};$string((${producer})${binding}))`;
+      expect(await jsonata(expression).evaluate(nestedInput)).toBe(JSON.stringify(nestedInput.envelope));
+      expect(accesses(expression)).toEqual([
+        exact("envelope"), exact("envelope.**"), exact("envelope.key"), exact("envelope.other"), ...predicateReads, exact("envelope.record"),
+      ]);
+    });
+
+    it.each(producers)(`counts the input context from terminal first focus ${binding} using %s`, async (producer) => {
+      const expression = `envelope.($v:=${shape};$count((${producer})${binding}))`;
+      expect(await jsonata(expression).evaluate(nestedInput)).toBe(1);
+      expect(accesses(expression)).toEqual([
+        exact("envelope"), exact("envelope.key"), exact("envelope.other"), ...predicateReads, exact("envelope.record"),
+      ]);
+    });
+  }
+
   it.each(producers)("shadows data with a position declared after a wildcard predicate from %s", async (producer) => {
     const expression = `($i:=record;$v:=${shape};(${producer}).*@$child[$child.copy.details]#$i.$i)`;
     expect(await jsonata(expression).evaluate(input)).toBe(0);

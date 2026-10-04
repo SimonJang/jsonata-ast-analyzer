@@ -108,7 +108,9 @@ export function createFunctionOperations(
       );
     }
     if (node.type === "path") {
-      const firstStep = (node as PathNode).steps[0];
+      const path = node as PathNode;
+      const firstStep = path.steps[0] as AstNode & { focusBinding?: unknown };
+      if (path.steps.length === 1 && !path.group && firstStep?.focusBinding) return true;
       return firstStep ? resultUsesContextDefault(firstStep, scope) : false;
     }
     if (node.type === "block") {
