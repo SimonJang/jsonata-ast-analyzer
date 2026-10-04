@@ -182,7 +182,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
     if (node.type === "bind") return groupResultObjectAliasForNode((node as BindNode).rhs, scope);
     if (node.type === "object") return objectAliasFromObject(node as ObjectNode, scope);
-    if (node.type === "path") return objectAliasFromPathProjection(node as PathNode, scope);
+    if (node.type === "path") {
+      const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
+      return method ? objectAliasForNode(method.node, method.scope)
+        : objectAliasFromPathProjection(node as PathNode, scope);
+    }
     if (node.type === "array") {
       return mergeObjectAliases(
         (node as ArrayNode).expressions.map((expr) =>
@@ -1091,6 +1095,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   ): DynamicObjectAlias | null {
     if (node.type === "bind") return groupResultDynamicObjectAliasForNode((node as BindNode).rhs, scope);
     if (node.type === "path") {
+      const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
+      if (method) return dynamicObjectAliasForNode(method.node, method.scope);
       const chained = chainedPathContext(node as PathNode, scope);
       if (chained) {
         return groupResultDynamicObjectAliasForNode(
@@ -1925,13 +1931,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
     const resultAliasStep = node.steps[resultAliasStepIndex];
     const objectAlias = objectAliasForNode(resultAliasStep, scope);
-    if (!objectAlias) return false;
+    const dynamicAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
+    if (!objectAlias && !dynamicAlias) return false;
   
     return (
       selectAliasSuffixContextPaths(
         node.steps.slice(resultAliasStepIndex + 1),
         objectAlias,
-        dynamicObjectAliasForNode(resultAliasStep, scope),
+        dynamicAlias,
         bindStepFocusScope(resultAliasStep, scope),
         runtime.results.getResultSuffixBasePaths(resultAliasStep, scope),
       ).length > 0

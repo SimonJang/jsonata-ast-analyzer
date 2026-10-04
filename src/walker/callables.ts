@@ -6,6 +6,65 @@ import { markAbsolute, collectVariableNames, buildProjectionContextPath } from "
 import type { CallableOperations, WalkerRuntime, ResolvedCallable } from "./runtime.js";
 
 export function createCallableOperations(runtime: WalkerRuntime): CallableOperations {
+  function resolveStoredMethodPath(node: PathNode, scope: ScopeTracker) {
+    const procedurePath = (procedure: FunctionNode["procedure"]): PathNode | null =>
+      procedure.type === "path" ? procedure
+        : procedure.type === "function" ? procedurePath(procedure.procedure) : null;
+    const index = node.steps.findIndex((step, index) =>
+      index > 0 && step.type === "function" &&
+      procedurePath((step as FunctionNode).procedure) !== null,
+    );
+    if (index < 0) return null;
+    const method = node.steps[index] as FunctionNode;
+    const prefixSteps = node.steps.slice(0, index);
+    const relativeProcedure = procedurePath(method.procedure)!;
+    const procedure: PathNode = {
+      ...relativeProcedure,
+      steps: [...prefixSteps, ...relativeProcedure.steps],
+    };
+    if (resolveCallableValues(procedure, scope).length === 0 &&
+        resolveBuiltinCallableNames(procedure, scope).length === 0) return null;
+
+    const prefix: AstNode = prefixSteps.length === 1 && prefixSteps[0].type !== "name"
+      ? prefixSteps[0] : { ...node, steps: prefixSteps, group: undefined };
+    const procedureName = `\0method-procedure-${method.position}`;
+    const contextName = `\0method-context-${method.position}`;
+    // Resolve the callable in its producer scope, while evaluating arguments
+    // against the object that contains the method.
+    let methodScope = runtime.functions.bindCallableValue(
+      childScope(scope), procedureName, procedure, scope,
+    );
+    const contextPaths = runtime.aliases.bindingAliasPaths(prefix, scope);
+    for (const name of ["", contextName]) {
+      methodScope = runtime.higherOrder.bindArgumentParameter(
+        methodScope, { type: "variable", value: name, position: method.position },
+        contextPaths, prefix, scope,
+      );
+    }
+    const rewriteProcedure = (procedure: FunctionNode["procedure"]): FunctionNode["procedure"] =>
+      procedure.type === "function" ? { type: "path", steps: [{
+        ...procedure,
+        procedure: rewriteProcedure(procedure.procedure),
+        arguments: procedure.arguments.map((argument) =>
+          runtime.functions.explicitContextExpression(argument, contextName),
+        ),
+      }] } : { type: "variable", value: procedureName, position: method.position };
+    return {
+      node: {
+        ...node,
+        steps: [{
+          ...method,
+          procedure: rewriteProcedure(method.procedure),
+          arguments: method.arguments.map((argument) =>
+            runtime.functions.explicitContextExpression(argument, contextName),
+          ),
+        } as FunctionNode, ...node.steps.slice(index + 1)],
+      },
+      scope: methodScope,
+      procedure,
+    };
+  }
+
   const definitelyDataCache = new WeakMap<
     AstNode,
     WeakMap<ScopeTracker, boolean>
@@ -940,6 +999,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "path") {
       const path = node as PathNode;
+      const method = resolveStoredMethodPath(path, scope);
+      if (method) return resolveCallableValues(method.node, method.scope);
       const groupedValues = groupedPathCallableValues(path, scope);
       if (groupedValues.length > 0) return groupedValues;
       const projectionValues = pathProjectionCallableValues(path, scope);
@@ -1042,6 +1103,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       ) {
         return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
           selector.type === "wildcard" ||
+          runtime.aliases.staticObjectKey(key) === null ||
           runtime.aliases.staticObjectKey(key) === (selector as NameNode).value
             ? resolveCallableValues(
                 rest.length > 0
@@ -1243,6 +1305,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "path") {
       const path = node as PathNode;
+      const method = resolveStoredMethodPath(path, scope);
+      if (method) return resolveBuiltinCallableNames(method.node, method.scope);
       const groupedNames = groupedPathBuiltinCallableNames(path, scope);
       if (groupedNames.length > 0) return groupedNames;
       const projectionNames = pathProjectionBuiltinCallableNames(path, scope);
@@ -1349,6 +1413,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       ) {
         return (sourceNode as ObjectNode).entries.flatMap(([key, value]) =>
           selector.type === "wildcard" ||
+          runtime.aliases.staticObjectKey(key) === null ||
           runtime.aliases.staticObjectKey(key) === (selector as NameNode).value
             ? resolveBuiltinCallableNames(
                 rest.length > 0
@@ -1529,6 +1594,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
   }
 
   return {
+    resolveStoredMethodPath,
     isFunctionProcedureNode,
     isFilteredCallableVariable,
     resolvedCallableNames,

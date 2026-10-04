@@ -2383,7 +2383,7 @@ describe("function semantics", () => {
   it("traces a lambda selected from a stored object", () => {
     expect(
       extractPaths(
-        '($functions := {"project": function($x){$x.first.name}}; $functions.project(record))',
+        '($functions := {"project": function($x){$x.first.name}}; $functions.project($$.record))',
       ),
     ).toEqual([
       { path: "record", confidence: "static" },
@@ -2393,7 +2393,7 @@ describe("function semantics", () => {
 
   it("traces callables selected from parenthesized inline objects", () => {
     for (const expression of [
-      '({"go":function($x){$x.children.name}}).go(detail)',
+      '({"go":function($x){$x.children.name}}).go($$.detail)',
       "($project := " +
         '({"go":function($x){$x}}).go; ' +
         "$project(detail).children.name)",

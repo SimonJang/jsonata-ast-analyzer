@@ -107,6 +107,7 @@ export interface AliasOperations {
 }
 
 export interface CallableOperations {
+  resolveStoredMethodPath(node: PathNode, scope: ScopeTracker): { node: PathNode; scope: ScopeTracker; procedure: PathNode } | null;
   isFunctionProcedureNode(node: AstNode): node is FunctionNode["procedure"];
   isFilteredCallableVariable(node: AstNode): boolean;
   resolvedCallableNames(callable: ResolvedCallable, depth?: number): string[];
@@ -129,6 +130,7 @@ export interface CallableOperations {
 }
 
 export interface FunctionOperations {
+  explicitContextExpression(node: AstNode, contextName?: string): AstNode;
   bindCallableValue(scope: ScopeTracker, name: string, value: AstNode, closureScope: ScopeTracker): ScopeTracker;
   builtinUsesContextDefault(funcName: string, args: AstNode[]): boolean;
   resultUsesContextDefault(node: AstNode, scope: ScopeTracker): boolean;

@@ -934,20 +934,20 @@ export function createFunctionOperations(
   
     try {
       const expression = parse((source as { value: string }).value);
-      return args[1] ? explicitEvalContext(expression) : expression;
+      return args[1] ? explicitContextExpression(expression) : expression;
     } catch {
       return null;
     }
   }
 
-  function explicitEvalContext(node: AstNode): AstNode {
+  function explicitContextExpression(node: AstNode, contextName = EVAL_CONTEXT): AstNode {
     const rewrite = (value: unknown, pathStep = false): unknown => {
       if (Array.isArray(value)) return value.map((entry) => rewrite(entry, pathStep));
       if (!value || typeof value !== "object" || value instanceof RegExp) return value;
       const record = value as Record<string, unknown>;
       // Transform bodies receive their input when the transform is invoked.
       if (record.type === "transform") return value;
-      const current: VariableNode = { type: "variable", value: EVAL_CONTEXT, position: 0 };
+      const current: VariableNode = { type: "variable", value: contextName, position: 0 };
       if (record.type === "path") {
         const steps = record.steps as AstNode[];
         const first = rewrite(steps[0], true) as AstNode;
@@ -967,7 +967,7 @@ export function createFunctionOperations(
       // Bare input paths and explicit $ paths must use the same context
       // binding, including aliases for fields in constructed objects.
       if (rewritten.type === "variable" && rewritten.value === "") {
-        return { ...rewritten, value: EVAL_CONTEXT };
+        return { ...rewritten, value: contextName };
       }
       if (!pathStep && ["name", "wildcard", "descendant"].includes(String(rewritten.type))) {
         return { type: "path", steps: [current, rewritten] };
@@ -1201,6 +1201,7 @@ export function createFunctionOperations(
     identityReferencePaths,
     deepValueReadPaths,
     appliedFunctionFromApply,
+    explicitContextExpression,
     isPlaceholder,
     walkPartial,
     walkVariable,

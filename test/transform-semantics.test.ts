@@ -856,7 +856,7 @@ describe("transform semantics", () => {
     expect(
       sortPaths(
         extractPaths(
-          '($operations := {"apply": |first|{"seen": name}|}; $operations.apply(record))',
+          '($operations := {"apply": |first|{"seen": name}|}; $operations.apply($$.record))',
         ),
       ),
     ).toEqual(
@@ -904,7 +904,7 @@ describe("transform semantics", () => {
   it("maps stored-object transform output fields back to their update sources", () => {
     for (const expression of [
       '({"apply": |first|{"seen": name}|}.apply)(record).first.seen',
-      '($operations := {"apply": |first|{"seen": name}|}; $operations.apply(record).first.seen)',
+      '($operations := {"apply": |first|{"seen": name}|}; $operations.apply($$.record).first.seen)',
       '$lookup({"apply": |first|{"seen": name}|}, "apply")(record).first.seen',
     ]) {
       expect(sortPaths(extractPaths(expression))).toEqual(

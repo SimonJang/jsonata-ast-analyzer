@@ -1619,6 +1619,8 @@ export function createResultOperations(
     if (node.type === "path") {
       const pathNode = node as PathNode;
       if (pathNode.group) return [];
+      const method = runtime.callables.resolveStoredMethodPath(pathNode, scope);
+      if (method) return getResultSuffixBasePaths(method.node, method.scope);
       const chained = runtime.aliases.chainedPathContext(pathNode, scope);
       if (chained) {
         return getResultSuffixBasePaths(
@@ -2218,6 +2220,8 @@ export function createResultOperations(
   
     if (node.type === "path") {
       const pathNode = node as PathNode;
+      const method = runtime.callables.resolveStoredMethodPath(pathNode, scope);
+      if (method) return getResultBasePathsFromArg(method.node, method.scope);
       const chained = runtime.aliases.chainedPathContext(pathNode, scope);
       if (chained) {
         const tail = chained.tail.steps.length === 1 && !chained.tail.group

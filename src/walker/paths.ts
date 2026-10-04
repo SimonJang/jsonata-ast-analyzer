@@ -210,6 +210,12 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     if (node.steps.length === 0) return [];
 
+    const method = runtime.callables.resolveStoredMethodPath(node, scope);
+    if (method) return [
+      ...runtime.functions.walkCallableSelection(method.procedure, scope),
+      ...walkPath(method.node, method.scope),
+    ];
+
     const chained = runtime.aliases.chainedPathContext(node, scope);
     if (chained) {
       const prefixSteps = chained.prefix.type === "path"
@@ -246,34 +252,6 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       transparentSteps
     ) {
       return walkPath({ ...node, steps: transparentSteps }, scope);
-    }
-  
-    const storedCallableFunctionIndex = node.steps.findIndex(
-      (step, index) =>
-        index > 0 && step.type === "function" &&
-        (step as FunctionNode).procedure.type === "path",
-    );
-    if (storedCallableFunctionIndex > 0) {
-      const functionStep = node.steps[storedCallableFunctionIndex] as FunctionNode;
-      const procedure = {
-        ...(functionStep.procedure as PathNode),
-        steps: [
-          ...node.steps.slice(0, storedCallableFunctionIndex),
-          ...(functionStep.procedure as PathNode).steps,
-        ],
-      } as PathNode;
-      if (runtime.callables.resolveCallableValues(procedure, scope).length > 0) {
-        return walkPath(
-          {
-            ...node,
-            steps: [
-              { ...functionStep, procedure },
-              ...node.steps.slice(storedCallableFunctionIndex + 1),
-            ],
-          },
-          scope,
-        );
-      }
     }
   
     let stageScope = childScope(scope);
