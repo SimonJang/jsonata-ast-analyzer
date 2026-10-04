@@ -21,6 +21,46 @@ const producers = [
 ];
 
 describe("constructed focus scopes", () => {
+  it.each(producers)("shadows data with a position declared after a wildcard predicate from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer}).*@$child[$child.copy.details]#$i.$i)`;
+    expect(await jsonata(expression).evaluate(input)).toBe(0);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("record"), exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("shadows data with a position declared after a named predicate from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer}).other@$child[$child.different.details]#$i.$i)`;
+    expect(await jsonata(expression).evaluate(input)).toBe(0);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("other.details"), exact("other.details.*"), exact("record"),
+    ]);
+  });
+
+  it.each(producers)("shadows data with a position after the first focus predicate from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer})@$child[$child.other.different.details]#$i.$i)`;
+    expect(await jsonata(expression).evaluate(input)).toBe(0);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("other.details"), exact("other.details.*"), exact("record"),
+    ]);
+  });
+
+  it.each(producers)("keeps outer reads before a post-filter position declaration from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer}).*@$child[$i.details]#$i[$i=0].$i)`;
+    expect(await jsonata(expression).evaluate(input)).toBe(0);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("record"), exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("keeps grouped positions scalar after named focus predicates from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer}).other@$child[$child.different.details]#$i{"group":{"position":$i,"value":$child.different}})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ group: { position: 0, value: input.other } });
+    expect(accesses(expression)).toEqual([
+      exact("key"), subtree("other"), exact("other.details"), exact("other.details.*"), exact("record"),
+    ]);
+  });
+
   it.each(producers)("returns parent data after a first focus from %s", async (producer) => {
     const expression = `($v:=${shape};(${producer})@$child.other.details)`;
     expect(await jsonata(expression).evaluate(input)).toEqual(input.other.details);

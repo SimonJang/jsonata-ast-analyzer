@@ -241,18 +241,25 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         const parent: AstNode = focusIndex === 0 ? { type: "variable", value: "", position: 0 }
           : focusIndex === 1 ? node.steps[0]
           : { type: "path", steps: node.steps.slice(0, focusIndex) };
-        const contextScope = runtime.higherOrder.bindArgumentParameter(
+        let contextScope = runtime.higherOrder.bindArgumentParameter(
           childScope(focusScope), { type: "variable", value: "", position: 0 },
           runtime.aliases.bindingAliasPaths(parent, focusScope), parent, focusScope,
         );
+        const stagePaths: string[] = [];
+        for (const stage of focusStep.stages ?? focusStep.predicate ?? []) {
+          if (stage.type === "position-binding") {
+            contextScope = bindVariable(contextScope, (stage as PositionBindingNode).name, []);
+          } else if (stage.type === "filter") {
+            stagePaths.push(...runtime.aliases.selectAliasExpressionPaths(
+              resolveObjectAlias(contextScope, ""), resolveDynamicObjectAlias(contextScope, ""),
+              runtime.functions.asBooleanExpression((stage as FilterStage).expr), contextScope,
+              resolveSuffixBasePaths(contextScope, "") ?? [],
+            ));
+          }
+        }
         return [
           ...walkPath(prefix, scope),
-          ...(focusStep.stages ?? focusStep.predicate ?? []).flatMap((stage) => stage.type === "filter"
-            ? runtime.aliases.selectAliasExpressionPaths(
-                resolveObjectAlias(contextScope, ""), resolveDynamicObjectAlias(contextScope, ""),
-                runtime.functions.asBooleanExpression((stage as FilterStage).expr), contextScope,
-                resolveSuffixBasePaths(contextScope, "") ?? [],
-              ) : []),
+          ...stagePaths,
           ...(focusIndex < node.steps.length - 1
             ? walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope)
             : node.group ? walkAliasGroupEntries(

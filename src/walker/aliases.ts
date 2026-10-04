@@ -1,4 +1,4 @@
-import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, PathNode, SortNode, VariableNode, WildcardNode } from "../types.js";
+import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, PathNode, PositionBindingNode, SortNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { ROOT_PATH } from "./constants.js";
@@ -377,6 +377,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           [], selected.suffixBasePaths,
         );
         if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
+        const stagedFocus = focusStep as NameNode & { predicate?: AstNode[] };
+        for (const stage of stagedFocus.stages ?? stagedFocus.predicate ?? []) {
+          if (stage.type === "position-binding") focusScope = bindVariable(focusScope, (stage as PositionBindingNode).name, []);
+        }
         const parent: AstNode = focusIndex === 0 ? { type: "variable", value: "", position: 0 }
           : focusIndex === 1 ? node.steps[0]
           : { type: "path", steps: node.steps.slice(0, focusIndex) };
@@ -1407,6 +1411,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       }
       if (bindingStep.indexBinding) {
         groupScope = bindVariable(groupScope, bindingStep.indexBinding.name, []);
+      }
+      const stagedStep = step as NameNode & { predicate?: AstNode[] };
+      for (const stage of stagedStep.stages ?? stagedStep.predicate ?? []) {
+        if (stage.type === "position-binding") groupScope = bindVariable(groupScope, (stage as PositionBindingNode).name, []);
       }
     }
     let finalIndex = steps.length - 1;
