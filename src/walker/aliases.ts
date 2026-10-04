@@ -402,12 +402,26 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         for (const stage of stagedFocus.stages ?? stagedFocus.predicate ?? []) {
           if (stage.type === "position-binding") focusScope = bindVariable(focusScope, (stage as PositionBindingNode).name, []);
         }
-        const contextScope = runtime.higherOrder.bindArgumentParameter(
+        let contextScope = runtime.higherOrder.bindArgumentParameter(
           childScope(focusScope), { type: "variable", value: "", position: 0 },
           bindingAliasPaths(parent, focusScope), parent, focusScope,
         );
+        const tailSteps = node.steps.slice(focusIndex + 1);
+        for (const step of tailSteps) {
+          if (step.type !== "sort") break;
+          const sort = step as SortNode;
+          for (const stage of sort.predicate ?? []) {
+            if (stage.type === "position-binding") contextScope = bindVariable(contextScope, (stage as PositionBindingNode).name, []);
+          }
+        }
+        const selectors = tailSteps.filter((step) => step.type !== "sort");
+        if (!selectors.length) return {
+          objectAlias: resolveObjectAlias(contextScope, ""),
+          dynamicObjectAlias: resolveDynamicObjectAlias(contextScope, ""),
+          suffixBasePaths: [...(resolveSuffixBasePaths(contextScope, "") ?? [])],
+        };
         const tail = (runtime.functions.explicitContextExpression(
-          { type: "path", steps: node.steps.slice(focusIndex + 1) }, "",
+          { type: "path", steps: selectors }, "",
         ) as PathNode).steps;
         if (tail.length === 1) return {
           objectAlias: groupResultObjectAliasForNode(tail[0], contextScope),
@@ -425,11 +439,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
             suffixBasePaths: groupResultSuffixBasePaths(result, chained.scope),
           };
         }
-        return selectedPathAliasContext(tailNode, contextScope) ?? (focusIndex === 0 ? {
+        return selectedPathAliasContext(tailNode, contextScope) ?? {
           objectAlias: groupResultObjectAliasForNode(tailNode, contextScope),
           dynamicObjectAlias: groupResultDynamicObjectAliasForNode(tailNode, contextScope),
           suffixBasePaths: groupResultSuffixBasePaths(tailNode, contextScope),
-        } : null);
+        };
       }
     }
     const [first, ...selectors] = node.steps.filter((step) => step.type !== "sort");
@@ -1439,13 +1453,20 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       ? prefix[0]
       : { type: "path", steps: prefix } as PathNode;
     let groupScope = childScope(scope);
+    let usesTupleStream = false;
+    let hasTupleBindings = false;
     for (const [index, step] of steps.entries()) {
-      if (source.type === "path" && index === 0 && step.type === "array" &&
-        (step as ArrayNode).initialPathPredicate) continue;
       const bindingStep = step as AstNode & {
         focusBinding?: { name: string };
         indexBinding?: { name: string };
+        tuple?: boolean;
       };
+      const stagedStep = step as NameNode & { predicate?: AstNode[] };
+      const stages = stagedStep.stages ?? stagedStep.predicate ?? [];
+      usesTupleStream ||= Boolean(bindingStep.tuple || bindingStep.focusBinding || bindingStep.indexBinding ||
+        stages.some((stage) => stage.type === "position-binding"));
+      if (source.type === "path" && index === 0 && step.type === "array" &&
+        (step as ArrayNode).initialPathPredicate) continue;
       if (bindingStep.focusBinding) {
         const focused = prefixNode([
           ...steps.slice(0, index),
@@ -1459,13 +1480,15 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           groupScope,
         );
       }
-      if (bindingStep.indexBinding) {
+      // Sorting existing tuples retains their bindings; only the sort that
+      // starts the tuple stream assigns its direct positional variable.
+      if (bindingStep.indexBinding && !(step.type === "sort" && hasTupleBindings)) {
         groupScope = bindVariable(groupScope, bindingStep.indexBinding.name, []);
       }
-      const stagedStep = step as NameNode & { predicate?: AstNode[] };
-      for (const stage of stagedStep.stages ?? stagedStep.predicate ?? []) {
+      for (const stage of stages) {
         if (stage.type === "position-binding") groupScope = bindVariable(groupScope, (stage as PositionBindingNode).name, []);
       }
+      hasTupleBindings ||= usesTupleStream;
     }
     let finalIndex = steps.length - 1;
     while (finalIndex >= 0 && steps[finalIndex].type === "sort") finalIndex--;
@@ -1727,9 +1750,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (paths.length === 1) return true;
       return paths.length > 0 && projectsDataPath(projection);
     };
-    const projectsPosition = (step: AstNode, prefixSteps: AstNode[]): boolean => {
+    const projectsVariable = (step: AstNode, prefixSteps: AstNode[]): boolean => {
       if (step.type !== "variable") return false;
       const name = (step as VariableNode).value;
+      if (name && name !== "$" && prefixSteps.some((prefix) => prefix.type === "sort")) return true;
       return prefixSteps.some((prefix) => {
         const staged = prefix as NameNode & { predicate?: AstNode[] };
         const stages = staged.stages ?? staged.predicate ?? [];
@@ -1738,7 +1762,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       });
     };
     const index = node.steps.findIndex((step, index) =>
-      index > 0 && (projectsPosition(step, node.steps.slice(0, index)) || (isResultAliasStep(step) ||
+      index > 0 && (projectsVariable(step, node.steps.slice(0, index)) || (isResultAliasStep(step) ||
         (isFunctionResultStep(node.steps[index - 1]) &&
           (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
       (node.steps.slice(0, index).some(isFunctionResultStep) ||
@@ -1763,7 +1787,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     // A later projection consumes the preceding value, rather than the path
     // string obtained by skipping its function or constructor steps.
     const prefixSteps = node.steps.slice(0, index);
-    const prefixNode = (steps: AstNode[]): AstNode => steps.length === 1 && steps[0].type !== "name"
+    const prefixNode = (steps: AstNode[]): AstNode => steps.length === 1 && !["name", "sort"].includes(steps[0].type)
       ? steps[0] : { ...node, steps, group: undefined };
     const prefix = prefixNode(prefixSteps);
     const lastStep = prefixSteps[prefixSteps.length - 1] as AstNode & {

@@ -268,7 +268,9 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           ...(focusIndex === 0 && node.steps.length === 1 && !node.group
             ? runtime.aliases.bindingAliasPaths(parent, scope) : []),
           ...(focusIndex < node.steps.length - 1
-            ? walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope)
+            ? walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1).map((step) =>
+                step.type === "sort" ? { ...step, indexBinding: undefined } as AstNode : step,
+              ) }, contextScope)
             : node.group ? walkAliasGroupEntries(
                 node.group, resolveObjectAlias(contextScope, ""), resolveDynamicObjectAlias(contextScope, ""),
                 contextScope, resolveSuffixBasePaths(contextScope, "") ?? [],

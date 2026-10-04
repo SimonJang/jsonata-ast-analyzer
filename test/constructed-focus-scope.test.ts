@@ -21,6 +21,76 @@ const producers = [
 ];
 
 describe("constructed focus scopes", () => {
+  it.each(producers)("preserves grouped outer values when sorting existing focus tuples from %s", async (producer) => {
+    const expression = `($i:=record;$v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount)#$i{"group":$i})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ group: input.record });
+    expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), subtree("record")]);
+  });
+
+  it.each(producers)("keeps grouped positions scalar after a sorted focus filter from %s", async (producer) => {
+    const expression = `($i:=record;$v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount)[true]#$i{"group":$i})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ group: 0 });
+    expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), exact("record")]);
+  });
+
+  it.each(producers)("preserves a value selected before a sort rebinds its variable from %s", async (producer) => {
+    const expression = `($i:=record;$v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child.$i^(<details.amount)#$i)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record);
+    expect(accesses(expression)).toEqual([
+      exact("other"), subtree("record"), exact("record.details.amount"),
+    ]);
+  });
+
+  it.each(producers)("preserves an outer index variable when a sort retains existing tuples from %s", async (producer) => {
+    const expression = `($i:=record;$v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount)#$i.$i)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record);
+    expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), subtree("record")]);
+  });
+
+  it.each(producers)("keeps an index declared after a sort filter scalar from %s", async (producer) => {
+    const expression = `($i:=record;$v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount)[true]#$i.$i)`;
+    expect(await jsonata(expression).evaluate(input)).toBe(0);
+    expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), exact("record")]);
+  });
+
+  it.each(producers)("reads outer variable fields after a sort retains existing tuples from %s", async (producer) => {
+    const expression = `($i:=record;$v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount)#$i.$i.name)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record.name);
+    expect(accesses(expression)).toEqual([
+      exact("other"), exact("other.details.amount"), exact("record"), subtree("record.name"),
+    ]);
+  });
+
+  it.each(producers)("preserves sorted terminal focus sibling origins from %s", async (producer) => {
+    const expression = `($v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount))`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ left: { copy: input.record }, other: { different: input.other } });
+    expect(accesses(expression)).toEqual([
+      subtree("other"), exact("other.details.amount"), subtree("record"),
+    ]);
+  });
+
+  it.each(producers)("preserves parent selections after a sorted focus from %s", async (producer) => {
+    const expression = `($v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount).left.copy)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record);
+    expect(accesses(expression)).toEqual([
+      exact("other"), exact("other.details.amount"), subtree("record"),
+    ]);
+  });
+
+  it.each(producers)("reads stringified parent values after a sorted focus from %s", async (producer) => {
+    const expression = `($v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};$string((${producer}).other@$child^(<$child.different.details.amount)))`;
+    expect(await jsonata(expression).evaluate(input)).toBe(JSON.stringify({ left: { copy: input.record }, other: { different: input.other } }));
+    expect(accesses(expression)).toEqual([
+      exact("other"), exact("other.**"), exact("other.details.amount"), exact("record"), exact("record.**"),
+    ]);
+  });
+
+  it.each(producers)("keeps a count of sorted focus results exact from %s", async (producer) => {
+    const expression = `($v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};$count((${producer}).other@$child^(<$child.different.details.amount)))`;
+    expect(await jsonata(expression).evaluate(input)).toBe(1);
+    expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), exact("record")]);
+  });
+
   for (const binding of ['.other@$child', '.other@$child[$child.different.details]']) {
     const staticShape = '{"wrap":{"left":{"copy":record},"other":{"different":other}}}';
     const expected = { left: { copy: input.record }, other: { different: input.other } };
