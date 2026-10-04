@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, PathNode, PositionBindingNode, SortNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveValue, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { ROOT_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex, buildProjectionContextPath, hasPendingProjectionFocusReset, isTransparentPathBlock } from "./path-utils.js";
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
@@ -1855,6 +1855,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       }
       if (step.type !== "variable" || (step as VariableNode).focusBinding) return false;
       const name = (step as VariableNode).value;
+      if (resolveValue(scope, name) &&
+          (runtime.callables.resolveCallableValues(step, scope).length > 0 ||
+           runtime.callables.resolveBuiltinCallableNames(step, scope).length > 0)) return true;
       const objectAlias = resolveObjectAlias(scope, name);
       if (objectAlias) {
         return (resolveSuffixBasePaths(scope, name)?.length ?? 0) === 0 || projectsDataPath(projection);
