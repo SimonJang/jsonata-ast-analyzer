@@ -1,5 +1,5 @@
 import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
-import { type ScopeTracker, childScope, bindVariable } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, resolveVariable } from "../scope.js";
 import { appendPath } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
@@ -58,6 +58,15 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {
+    // Ordinary evaluation applies producer predicates and groups before the
+    // containing path creates its focus/index tuple bindings.
+    const tupleNode = node as AstNode & { focusBinding?: { name: string }; indexBinding?: { name: string } };
+    if (node.type !== "path" && node.source && !node.source.tupleStages &&
+        [tupleNode.focusBinding?.name, tupleNode.indexBinding?.name].some((name) =>
+          name !== undefined && resolveVariable(scope, name) !== null,
+        )) {
+      node = { ...node, focusBinding: undefined, indexBinding: undefined } as AstNode;
+    }
     switch (node.type) {
       case "path":
         return runtime.paths.walkPath(node as PathNode, scope);
@@ -298,7 +307,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       } else if (expr.type === "block") {
         // Inner block: create a child scope so bindings don't leak
         const innerScope = childScope(currentScope);
-        paths.push(...walkBlock(expr as BlockNode, innerScope));
+        paths.push(...walkNode(expr, innerScope));
       } else {
         paths.push(...walkNode(expr, currentScope));
       }

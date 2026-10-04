@@ -16,6 +16,7 @@ function sourceOf(node: RawAstNode): SourceAstMetadata {
   const source: SourceAstMetadata = { type: String(node.type) };
   if ("value" in node) source.value = node.value;
   if (typeof node.position === "number") source.position = node.position;
+  if (Array.isArray(node.stages) && node.stages.length > 0) source.tupleStages = true;
   return source;
 }
 

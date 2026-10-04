@@ -30,6 +30,7 @@ export interface SourceAstMetadata {
   type: string;
   value?: unknown;
   position?: number;
+  tupleStages?: boolean;
 }
 
 interface AnalyzerNode {

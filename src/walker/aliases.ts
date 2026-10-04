@@ -1453,6 +1453,16 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
 
   function groupResultScope(node: AstNode, scope: ScopeTracker): ScopeTracker {
     const source = { ...node, group: undefined } as AstNode;
+    const tupleSource = source as AstNode & { focusBinding?: { name: string }; indexBinding?: { name: string } };
+    const tupleBindingNames = [tupleSource.focusBinding?.name, tupleSource.indexBinding?.name];
+    if (source.type !== "path" && (tupleBindingNames.every((name) => name === undefined) ||
+        source.source && tupleBindingNames.some((name) => name !== undefined && resolveVariable(scope, name) !== null))) {
+      const value = { ...source, focusBinding: undefined, indexBinding: undefined } as AstNode;
+      return runtime.higherOrder.bindArgumentParameter(
+        childScope(scope), { type: "variable", value: "", position: 0 },
+        bindingAliasPaths(value, scope), value, scope,
+      );
+    }
     const steps = source.type === "path" ? (source as PathNode).steps : [source];
     const prefixNode = (prefix: AstNode[]): AstNode => prefix.length === 1
       ? prefix[0]

@@ -77,8 +77,8 @@ export function createSelectionOperations(
         );
         currentScope = bindValue(currentScope, bindNode);
       } else if (expression.type === "block") {
-        selectedPaths = getBlockSelectedResultPaths(
-          expression as BlockNode,
+        selectedPaths = getSelectedResultPaths(
+          expression,
           childScope(currentScope),
         );
       } else {
