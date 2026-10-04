@@ -21,6 +21,43 @@ const producers = [
 ];
 
 describe("constructed focus scopes", () => {
+  it.each(producers)("returns parent data after a first focus from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer})@$child.other.details)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.other.details);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), subtree("other.details"), exact("record"),
+    ]);
+  });
+
+  for (const binding of [
+    '@$child#$i[$child.other.different.details]',
+    '@$child[$child.other.different.details]#$i',
+  ]) {
+    it.each(producers)(`returns parent data after first focus ${binding} from %s`, async (producer) => {
+      const expression = `($v:=${shape};(${producer})${binding}.other.details)`;
+      expect(await jsonata(expression).evaluate(input)).toEqual(input.other.details);
+      expect(accesses(expression)).toEqual([
+        exact("key"), exact("other"), subtree("other.details"), exact("other.details.*"), exact("record"),
+      ]);
+    });
+
+    it.each(producers)(`reads stringified parent data after first focus ${binding} from %s`, async (producer) => {
+      const expression = `($v:=${shape};$string((${producer})${binding}.other.details))`;
+      expect(await jsonata(expression).evaluate(input)).toBe(JSON.stringify(input.other.details));
+      expect(accesses(expression)).toEqual([
+        exact("key"), exact("other"), exact("other.details"), exact("other.details.*"), exact("other.details.**"), exact("record"),
+      ]);
+    });
+
+    it.each(producers)(`keeps counted parent data exact after first focus ${binding} from %s`, async (producer) => {
+      const expression = `($v:=${shape};$count((${producer})${binding}.other.details))`;
+      expect(await jsonata(expression).evaluate(input)).toBe(1);
+      expect(accesses(expression)).toEqual([
+        exact("key"), exact("other"), exact("other.details"), exact("other.details.*"), exact("record"),
+      ]);
+    });
+  }
+
   it.each(producers)("keeps a predicate's focus binding before bare selections from %s", async (producer) => {
     const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details].other.different.details.amount)`;
     expect(await jsonata(expression).evaluate(input)).toBe(20);

@@ -215,23 +215,31 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const focusIndex = node.steps.findIndex((step, index) => {
-      const focus = (step as NameNode).focusBinding;
-      return index > 0 && Boolean(focus);
+      const focused = step as NameNode & { predicate?: AstNode[] };
+      // First-step predicates without an index run before the focus is bound.
+      return Boolean(focused.focusBinding) && (index > 0 || step.type !== "variable" &&
+        (!focused.predicate?.length || focused.indexBinding ||
+          focused.predicate.some((stage) => stage.type === "position-binding")));
     });
-    if (focusIndex > 0) {
+    if (focusIndex >= 0 && (focusIndex > 0 || node.steps.length > 1)) {
       const focusStep = node.steps[focusIndex] as NameNode & { predicate?: FilterStage[] };
       const prefix: PathNode = { type: "path", steps: [
         ...node.steps.slice(0, focusIndex),
         { ...focusStep, focusBinding: undefined, indexBinding: undefined, stages: undefined, predicate: undefined } as AstNode,
       ] };
-      const selected = runtime.aliases.selectedPathAliasContext(prefix, scope);
+      const selected = focusIndex === 0 ? {
+        objectAlias: runtime.aliases.groupResultObjectAliasForNode(prefix.steps[0], scope),
+        dynamicObjectAlias: runtime.aliases.groupResultDynamicObjectAliasForNode(prefix.steps[0], scope),
+        suffixBasePaths: runtime.aliases.groupResultSuffixBasePaths(prefix.steps[0], scope),
+      } : runtime.aliases.selectedPathAliasContext(prefix, scope);
       if (selected?.objectAlias || selected?.dynamicObjectAlias) {
         let focusScope = runtime.aliases.bindFocusObjectAliasScope(
           scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
           [], selected.suffixBasePaths,
         );
         if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
-        const parent: AstNode = focusIndex === 1 ? node.steps[0]
+        const parent: AstNode = focusIndex === 0 ? { type: "variable", value: "", position: 0 }
+          : focusIndex === 1 ? node.steps[0]
           : { type: "path", steps: node.steps.slice(0, focusIndex) };
         const contextScope = runtime.higherOrder.bindArgumentParameter(
           childScope(focusScope), { type: "variable", value: "", position: 0 },

@@ -353,15 +353,23 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
 
   function selectedPathAliasContext(node: PathNode, scope: ScopeTracker): SelectedAliasContext | null {
     const focusIndex = node.steps.findIndex((step, index) => {
-      const focus = (step as NameNode).focusBinding;
-      return index > 0 && Boolean(focus);
+      const focused = step as NameNode & { predicate?: AstNode[] };
+      // First-step predicates without an index run before the focus is bound.
+      return Boolean(focused.focusBinding) && (index > 0 || step.type !== "variable" &&
+        (!focused.predicate?.length || focused.indexBinding ||
+          focused.predicate.some((stage) => stage.type === "position-binding")));
     });
-    if (focusIndex > 0) {
+    if (focusIndex >= 0 && (focusIndex > 0 || node.steps.length > 1)) {
       const focusStep = node.steps[focusIndex] as NameNode;
-      const selected = selectedPathAliasContext({ type: "path", steps: [
+      const prefixSteps = [
         ...node.steps.slice(0, focusIndex),
         { ...focusStep, focusBinding: undefined, indexBinding: undefined } as AstNode,
-      ] }, scope);
+      ];
+      const selected = focusIndex === 0 ? {
+        objectAlias: groupResultObjectAliasForNode(prefixSteps[0], scope),
+        dynamicObjectAlias: groupResultDynamicObjectAliasForNode(prefixSteps[0], scope),
+        suffixBasePaths: groupResultSuffixBasePaths(prefixSteps[0], scope),
+      } : selectedPathAliasContext({ type: "path", steps: prefixSteps }, scope);
       if (selected?.objectAlias || selected?.dynamicObjectAlias) {
         if (focusIndex === node.steps.length - 1) return selected;
         let focusScope = bindFocusObjectAliasScope(
@@ -369,7 +377,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           [], selected.suffixBasePaths,
         );
         if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
-        const parent: AstNode = focusIndex === 1 ? node.steps[0]
+        const parent: AstNode = focusIndex === 0 ? { type: "variable", value: "", position: 0 }
+          : focusIndex === 1 ? node.steps[0]
           : { type: "path", steps: node.steps.slice(0, focusIndex) };
         const contextScope = runtime.higherOrder.bindArgumentParameter(
           childScope(focusScope), { type: "variable", value: "", position: 0 },
@@ -394,7 +403,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
             suffixBasePaths: groupResultSuffixBasePaths(result, chained.scope),
           };
         }
-        return selectedPathAliasContext(tailNode, contextScope);
+        return selectedPathAliasContext(tailNode, contextScope) ?? (focusIndex === 0 ? {
+          objectAlias: groupResultObjectAliasForNode(tailNode, contextScope),
+          dynamicObjectAlias: groupResultDynamicObjectAliasForNode(tailNode, contextScope),
+          suffixBasePaths: groupResultSuffixBasePaths(tailNode, contextScope),
+        } : null);
       }
     }
     const [first, ...selectors] = node.steps.filter((step) => step.type !== "sort");
