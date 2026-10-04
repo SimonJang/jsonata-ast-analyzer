@@ -354,8 +354,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   function selectedPathAliasContext(node: PathNode, scope: ScopeTracker): SelectedAliasContext | null {
     const focusIndex = node.steps.findIndex((step, index) => {
       const focus = (step as NameNode).focusBinding;
-      const next = node.steps[index + 1];
-      return index > 0 && Boolean(focus) && Boolean(next);
+      return index > 0 && Boolean(focus);
     });
     if (focusIndex > 0) {
       const focusStep = node.steps[focusIndex] as NameNode;
@@ -364,6 +363,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         { ...focusStep, focusBinding: undefined, indexBinding: undefined } as AstNode,
       ] }, scope);
       if (selected?.objectAlias || selected?.dynamicObjectAlias) {
+        if (focusIndex === node.steps.length - 1) return selected;
         const focusScope = bindFocusObjectAliasScope(
           scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
           [], selected.suffixBasePaths,

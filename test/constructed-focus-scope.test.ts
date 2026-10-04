@@ -48,4 +48,22 @@ describe("constructed focus scopes", () => {
     ]);
   });
 
+
+  it.each(producers)("reads terminal wildcard focus predicates consumed by count from %s", async (producer) => {
+    const expression = `($v:=${shape};$count((${producer}).*@$child[$child.copy.details]))`;
+    expect(await jsonata(expression).evaluate(input)).toBe(1);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("record"),
+      exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("reads terminal named focus predicates consumed by count from %s", async (producer) => {
+    const expression = `($v:=${shape};$count((${producer}).other@$child[$child.different.details]))`;
+    expect(await jsonata(expression).evaluate(input)).toBe(1);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("other.details"), exact("other.details.*"), exact("record"),
+    ]);
+  });
+
 });

@@ -216,8 +216,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
     const focusIndex = node.steps.findIndex((step, index) => {
       const focus = (step as NameNode).focusBinding;
-      const next = node.steps[index + 1];
-      return index > 0 && Boolean(focus) && Boolean(next);
+      return index > 0 && Boolean(focus);
     });
     if (focusIndex > 0) {
       const focusStep = node.steps[focusIndex] as NameNode & { predicate?: FilterStage[] };
@@ -246,7 +245,8 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                 runtime.functions.asBooleanExpression((stage as FilterStage).expr), contextScope,
                 resolveSuffixBasePaths(contextScope, "") ?? [],
               ) : []),
-          ...walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope),
+          ...(focusIndex < node.steps.length - 1
+            ? walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope) : []),
         ];
       }
     }
