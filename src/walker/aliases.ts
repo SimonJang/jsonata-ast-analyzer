@@ -898,11 +898,19 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
               suffixBasePaths,
             )
           : [];
-      const selectedScope = aliasSuffixContextScope(
-        suffixSteps.slice(0, index + 1), objectAlias, dynamicObjectAlias, scope, suffixBasePaths,
+      let predicateScope = nameStep.indexBinding
+        ? bindVariable(childScope(scope), nameStep.indexBinding.name, []) : scope;
+      let selectedScope = aliasSuffixContextScope(
+        suffixSteps.slice(0, index + 1), objectAlias, dynamicObjectAlias, predicateScope, suffixBasePaths,
       );
       const stages = step.type === "wildcard" ? (step as WildcardNode).predicate : nameStep.stages;
       for (const stage of stages ?? []) {
+        if (stage.type === "position-binding") {
+          const name = (stage as PositionBindingNode).name;
+          predicateScope = bindVariable(predicateScope, name, []);
+          if (selectedScope) selectedScope = bindVariable(selectedScope, name, []);
+          continue;
+        }
         if (stage.type !== "filter") continue;
   
         const filterStage = stage as unknown as FilterStage;
@@ -921,14 +929,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
             predicate,
             contextPaths,
             parentContextPaths,
-            scope,
+            predicateScope,
           ),
           ...(collectVariableNames(filterStage.expr).size > 0
             ? selectAliasExpressionPaths(
                 objectAlias,
                 dynamicObjectAlias,
                 predicate,
-                bindObjectAlias(bindVariable(childScope(scope), "", []), "", new Map()),
+                bindObjectAlias(bindVariable(childScope(predicateScope), "", []), "", new Map()),
                 suffixBasePaths,
                 preserveUnmappedLocalPaths,
                 true,
@@ -1671,8 +1679,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const name = (step as VariableNode).value;
       return prefixSteps.some((prefix) => {
         const staged = prefix as NameNode & { predicate?: AstNode[] };
-        return (staged.stages ?? staged.predicate ?? [])
-          .some((stage) => stage.type === "position-binding" && (stage as PositionBindingNode).name === name);
+        const stages = staged.stages ?? staged.predicate ?? [];
+        return staged.indexBinding?.name === name && stages.some((stage) => stage.type === "filter") ||
+          stages.some((stage) => stage.type === "position-binding" && (stage as PositionBindingNode).name === name);
       });
     };
     const index = node.steps.findIndex((step, index) =>

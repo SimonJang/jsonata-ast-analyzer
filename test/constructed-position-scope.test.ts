@@ -21,10 +21,16 @@ describe("constructed positions without focus bindings", () => {
     ['.other[different.details]#$i.$i', "other"],
     ['[other.different.details]#$i.$i', "other"],
     ['.*[$i.details]#$i[$i=0].$i', "record"],
+    ['.*#$i[copy.details].$i', "record"],
+    ['.other#$i[different.details].$i', "other"],
+    ['#$i[other.different.details].$i', "other"],
+    ['.*#$i[$i].$i', "none"],
   ]) {
     it.each(producers)(`reads predicates and returns a scalar index through ${suffix} from %s`, async (producer) => {
       const expression = `($i:=record;$v:=${shape};(${producer})${suffix})`;
-      expect(await jsonata(expression).evaluate(input)).toBe(0);
+      const result = await jsonata(expression).evaluate(input);
+      if (predicateBase === "none") expect(Array.from(result)).toEqual([0, 1]);
+      else expect(result).toBe(0);
       expect(accesses(expression)).toEqual([
         exact("other"), ...(predicateBase === "other" ? [exact("other.details"), exact("other.details.*")] : []),
         exact("record"), ...(predicateBase === "record" ? [exact("record.details"), exact("record.details.*")] : []),
