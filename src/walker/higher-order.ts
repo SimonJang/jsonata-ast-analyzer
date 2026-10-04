@@ -1215,6 +1215,17 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       arg
     ) {
       const valueScope = bindVariable(scope, param.value, argPaths);
+      const values: PathNode = {
+        type: "path", steps: [arg, { type: "wildcard", value: "*", position: 0 }],
+      };
+      const valueAlias = runtime.aliases.groupResultObjectAliasForNode(values, argScope);
+      const valueDynamicAlias = runtime.aliases.groupResultDynamicObjectAliasForNode(values, argScope);
+      if (valueAlias || valueDynamicAlias) {
+        return runtime.aliases.bindFocusObjectAliasScope(
+          valueScope, param.value, valueAlias, valueDynamicAlias, argPaths,
+          runtime.aliases.groupResultSuffixBasePaths(values, argScope),
+        );
+      }
       return runtime.callables.resolveCallableValues(arg, argScope).length > 0 ||
         runtime.callables.resolveBuiltinCallableNames(arg, argScope).length > 0
         ? runtime.functions.bindCallableValue(valueScope, param.value, arg, argScope)
