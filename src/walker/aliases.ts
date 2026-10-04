@@ -369,6 +369,30 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     return { objectAlias: fields.size ? fields : null, suffixBasePaths };
   }
 
+  function wildcardSuffixContextScope(
+    selectors: AstNode[],
+    objectAlias: ObjectAlias | null,
+    dynamicObject: DynamicObjectAlias | null,
+    scope: ScopeTracker,
+    suffixBasePaths: readonly string[],
+  ): ScopeTracker | null {
+    if (!objectAlias || !selectors.some((step) => step.type === "wildcard")) return null;
+    const contextName = "\u0000wildcard-stage";
+    const sourceScope = bindFocusObjectAliasScope(
+      scope, contextName, objectAlias, dynamicObject, [], suffixBasePaths,
+    );
+    const source: PathNode = {
+      type: "path", steps: [{ type: "variable", value: contextName, position: 0 }, ...selectors],
+    };
+    const selected = selectedWildcardPathAliasContext(source, sourceScope);
+    if (!selected) return null;
+    return bindFocusObjectAliasScope(
+      scope, "", selected.objectAlias, dynamicObjectAliasForNode(source, sourceScope),
+      selectAliasSuffixContextPaths(selectors, objectAlias, dynamicObject, scope, suffixBasePaths),
+      selected.suffixBasePaths,
+    );
+  }
+
   function selectDynamicObjectValuePaths(
     node: ObjectNode,
     suffixSteps: AstNode[],
@@ -732,7 +756,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const paths: string[] = [];
   
     for (const [index, step] of suffixSteps.entries()) {
-      if (step.type !== "name") continue;
+      if (step.type !== "name" && step.type !== "wildcard") continue;
   
       const nameStep = step as NameNode;
       const contextPaths = selectAliasSuffixContextPaths(
@@ -752,11 +776,22 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
               suffixBasePaths,
             )
           : [];
-      for (const stage of nameStep.stages ?? []) {
+      const selectedScope = wildcardSuffixContextScope(
+        suffixSteps.slice(0, index + 1), objectAlias, dynamicObjectAlias, scope, suffixBasePaths,
+      );
+      const stages = step.type === "wildcard" ? (step as WildcardNode).predicate : nameStep.stages;
+      for (const stage of stages ?? []) {
         if (stage.type !== "filter") continue;
   
         const filterStage = stage as unknown as FilterStage;
         if (isNumericIndex(filterStage.expr)) continue;
+        if (selectedScope) {
+          paths.push(...selectAliasExpressionPaths(
+            resolveObjectAlias(selectedScope, ""), resolveDynamicObjectAlias(selectedScope, ""),
+            filterStage.expr, selectedScope, resolveSuffixBasePaths(selectedScope, "") ?? [],
+          ));
+          continue;
+        }
   
         paths.push(
           ...walkAliasSuffixContextExpression(
@@ -797,6 +832,17 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (step.type !== "sort") continue;
   
       const contextPrefixSteps = suffixSteps.slice(0, index);
+      const selectedScope = wildcardSuffixContextScope(
+        contextPrefixSteps, objectAlias, dynamicObjectAlias, scope, suffixBasePaths,
+      );
+      if (selectedScope) {
+        paths.push(...selectSortAliasPaths(
+          step as SortNode, resolveObjectAlias(selectedScope, ""),
+          resolveDynamicObjectAlias(selectedScope, ""), selectedScope,
+          resolveSuffixBasePaths(selectedScope, "") ?? [],
+        ));
+        continue;
+      }
       const contextPaths =
         contextPrefixSteps.length > 0
           ? selectAliasSuffixContextPaths(
@@ -2096,8 +2142,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     preserveUnmappedLocalPaths = false,
     skipLocalPaths = false,
   ): string[] {
-    // Re-parsing a rendered path loses the distinction between quoted names
-    // and structural dots, wildcards, parent steps, or index notation.
+    // Re-parsing rendered paths loses literal selector boundaries. Explicit $
+    // references also need their alias context before block-local walks run.
     const hasLiteralSelector = (value: unknown): boolean => {
       if (!value || typeof value !== "object" || value instanceof RegExp) return false;
       const record = value as Record<string, unknown>;
@@ -2105,13 +2151,16 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           (!record.value || /[.%[\]*]/.test(record.value))) return true;
       return Object.values(record).some(hasLiteralSelector);
     };
-    if (!preserveUnmappedLocalPaths && hasLiteralSelector(expression)) {
+    if (!preserveUnmappedLocalPaths &&
+        (hasLiteralSelector(expression) ||
+         (objectAlias?.size || dynamicObject || suffixBasePaths.length) &&
+         collectVariableNames(expression).has(""))) {
       const contextName = "\u0000alias-expression";
       const rewritten = runtime.functions.explicitContextExpression(expression, contextName);
       const aliasScope = (parent: ScopeTracker): ScopeTracker =>
         bindFocusObjectAliasScope(
-          bindFocusObjectAliasScope(parent, "", objectAlias, dynamicObject, [], suffixBasePaths),
-          contextName, objectAlias, dynamicObject, [], suffixBasePaths,
+          bindFocusObjectAliasScope(parent, "", objectAlias, dynamicObject, suffixBasePaths, suffixBasePaths),
+          contextName, objectAlias, dynamicObject, suffixBasePaths, suffixBasePaths,
         );
       const mappedPaths = runtime.core.walkNode(rewritten, aliasScope(scope));
       if (!skipLocalPaths) return mappedPaths;

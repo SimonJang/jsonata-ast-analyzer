@@ -275,6 +275,18 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       firstStep.type === "variable" && (firstStep as VariableNode).value === ""
         ? resolveVariable(scope, "")
         : null;
+    const currentObjectAlias = capturedCurrentPaths !== null ? resolveObjectAlias(scope, "") : null;
+    const currentDynamicAlias = capturedCurrentPaths !== null ? resolveDynamicObjectAlias(scope, "") : null;
+    if (capturedCurrentPaths !== null && (currentObjectAlias?.size || currentDynamicAlias)) {
+      const contextName = "\u0000path-current";
+      const contextScope = runtime.aliases.bindFocusObjectAliasScope(
+        scope, contextName, currentObjectAlias, currentDynamicAlias,
+        capturedCurrentPaths, resolveSuffixBasePaths(scope, "") ?? [],
+      );
+      return walkPath({
+        ...node, steps: [{ ...firstStep, value: contextName } as VariableNode, ...node.steps.slice(1)],
+      }, contextScope);
+    }
     if (capturedCurrentPaths && capturedCurrentPaths.length > 0) {
       const currentStep = firstStep as VariableNode;
       const suffixSteps = node.steps.slice(1);
