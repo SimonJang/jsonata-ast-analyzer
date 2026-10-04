@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Preserve selected-value coverage for static `$eval` object results and keep consumed arguments out of chained result paths.
 - Preserve source paths and selected-value coverage through dynamic dictionary lookup chains, including callback results, filters, sorting, constructors, and focus bindings.
 - Resolve array projections and grouping against parenthesized function results, including nested parentheses and block-local bindings.
 - Prevent repeated lookup chains from rewalking the full remaining tail at each step.

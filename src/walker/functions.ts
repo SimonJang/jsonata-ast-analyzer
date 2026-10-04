@@ -6,6 +6,7 @@ import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, IMPLICIT_ROOT_SHALLOW_FUNCTIONS, IMPLICIT_ROOT_DEEP_FUNCTIONS, MATCHER_CALLBACK_FUNCTIONS, CONTEXT_DEFAULT_BUILTINS } from "./constants.js";
 import { prefixPaths, appendPath, isRootReference, markAbsolute, isNumericIndex } from "./path-utils.js";
 import type { FunctionOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
+import { createSelectionOperations } from "./selection.js";
 
 const DEFAULT_OPTIONS: WalkerOptions = { opaqueFunctions: new Set() };
 
@@ -13,6 +14,7 @@ export function createFunctionOperations(
   runtime: WalkerRuntime,
   options: WalkerOptions = DEFAULT_OPTIONS,
 ): FunctionOperations {
+  const selection = createSelectionOperations(runtime);
   function bindCallableValue(
     scope: ScopeTracker,
     name: string,
@@ -885,13 +887,18 @@ export function createFunctionOperations(
     const expression = getStaticEvalExpression(args);
     if (!expression) return [];
   
-    if (runtime.results.getSuffixableResultBasePaths(expression, scope).length === 0) return [];
-    const contextArg = args[1];
-    if (!contextArg) return runtime.results.getSuffixableResultBasePaths(expression, scope);
-  
-    return runtime.results.getResultBasePathsFromArg(contextArg, scope).flatMap((basePath) =>
-      runtime.paths.walkContextExpression(expression, basePath, scope),
-    );
+    return selection.getSelectedResultPaths(expression, getStaticEvalScope(args, scope));
+  }
+
+  function getStaticEvalResultSuffixBasePaths(
+    args: AstNode[],
+    scope: ScopeTracker,
+  ): string[] {
+    const expression = getStaticEvalExpression(args);
+    if (!expression || runtime.results.getSuffixableResultBasePaths(expression, scope).length === 0) {
+      return [];
+    }
+    return getStaticEvalResultBasePaths(args, scope);
   }
 
   function getStaticEvalExpression(args: AstNode[]): AstNode | null {
@@ -1147,6 +1154,7 @@ export function createFunctionOperations(
     conditionalProcedureCalls,
     walkFunction,
     getStaticEvalResultBasePaths,
+    getStaticEvalResultSuffixBasePaths,
     getStaticEvalExpression,
     getStaticEvalScope,
     getStaticEvalResultObjectAlias,

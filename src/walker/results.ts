@@ -1465,7 +1465,7 @@ export function createResultOperations(
     if (options.opaqueFunctions.has(funcName)) return [];
   
     if (funcName === "eval") {
-      return runtime.functions.getStaticEvalResultBasePaths(args, argScope);
+      return runtime.functions.getStaticEvalResultSuffixBasePaths(args, argScope);
     }
   
     if (funcName === "map" || funcName === "each") {

@@ -142,6 +142,7 @@ export interface FunctionOperations {
   conditionalProcedureCalls(node: FunctionNode): FunctionNode[];
   walkFunction(node: FunctionNode, scope: ScopeTracker): string[];
   getStaticEvalResultBasePaths(args: AstNode[], scope: ScopeTracker): string[];
+  getStaticEvalResultSuffixBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalExpression(args: AstNode[]): AstNode | null;
   getStaticEvalScope(args: AstNode[], scope: ScopeTracker): ScopeTracker;
   getStaticEvalResultObjectAlias(args: AstNode[], scope: ScopeTracker): ObjectAlias | null;
