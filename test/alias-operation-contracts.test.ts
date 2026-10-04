@@ -43,7 +43,7 @@ describe("alias operation contracts", () => {
     const node: AstNode = { type: "path", steps: [name("items")], group: { type: "group", position: 42, entries: [[name("key"), name("price")]] } };
     const alias = walkerRuntime().aliases.groupResultDynamicObjectAliasForNode(node, createScope());
     expect(alias?.variants[0].node.position).toBe(42);
-    expect(walkerRuntime().aliases.selectLookupDynamicObjectAliasPaths(alias!, [])).toEqual(["items.price"]);
+    expect(walkerRuntime().aliases.selectLookupDynamicObjectAliasPaths(alias!, [])).toEqual([`${ROOT_PATH}.items.price`]);
     const withoutPosition: AstNode = { ...node, group: { type: "group", entries: [[name("key"), name("price")]] } };
     expect(walkerRuntime().aliases.groupResultDynamicObjectAliasForNode(withoutPosition, createScope())?.variants[0].node.position).toBe(0);
   });
@@ -102,7 +102,7 @@ describe("alias operation contracts", () => {
   it("keeps only statically named fields with source reads in a grouped alias", () => {
     const runtime = walkerRuntime();
     const node = parse('items{(key):price,"copy":amount,"literal":1}');
-    expect(runtime.aliases.groupResultObjectAliasForNode(node, createScope())).toEqual(new Map([["copy", ["items.amount"]]]));
+    expect(runtime.aliases.groupResultObjectAliasForNode(node, createScope())).toEqual(new Map([["copy", [`${ROOT_PATH}.items.amount`]]]));
   });
 
   it("leaves unsupported focus-binding nodes in the original scope", () => {

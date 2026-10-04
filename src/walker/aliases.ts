@@ -4,11 +4,23 @@ import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBas
 import { ROOT_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex, buildProjectionContextPath, hasPendingProjectionFocusReset } from "./path-utils.js";
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
+import { createSelectionOperations } from "./selection.js";
 
 const LOCAL_CONTEXT = "\u0001context";
 
 export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
+  const selection = createSelectionOperations(runtime);
   function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
+    if ((node as AstNode & { group?: GroupByNode }).group) {
+      return selection.getSelectedResultPaths(node, scope);
+    }
+    if ((node.type === "name" || node.type === "path" &&
+        (node as PathNode).steps.every((step) =>
+          ["name", "variable", "wildcard", "descendant", "parent"].includes(step.type),
+        )) && resolveVariable(scope, "") !== null &&
+        (resolveObjectAlias(scope, "") || resolveDynamicObjectAlias(scope, ""))) {
+      return selection.getSelectedResultPaths(node, scope);
+    }
     const identityPaths = runtime.functions.identityReferencePaths(node, scope);
     if (identityPaths) return identityPaths;
   
@@ -1124,18 +1136,22 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const group = (node as AstNode & { group?: GroupByNode }).group;
     if (!group) return objectAliasForNode(node, scope);
   
-    const contextPaths = runtime.results.getResultBasePathsFromArg(
-      { ...node, group: undefined } as AstNode,
-      scope,
-    );
+    const groupScope = groupResultScope(node, scope);
     const fields = new Map<string, string[]>();
     for (const [keyNode, valueNode] of group.entries) {
       const key = staticObjectKey(keyNode);
-      if (!key) continue;
-      const aliases = contextPaths.flatMap((contextPath) =>
-        runtime.paths.walkContextExpression(valueNode, contextPath, scope),
-      );
+      if (key === null) continue;
+      const nestedAlias = groupResultObjectAliasForNode(valueNode, groupScope);
+      const dynamicAlias = groupResultDynamicObjectAliasForNode(valueNode, groupScope);
+      const aliases = nestedAlias || dynamicAlias
+        ? groupResultSuffixBasePaths(valueNode, groupScope)
+        : selection.getSelectedResultPaths(valueNode, groupScope);
       if (aliases.length > 0) fields.set(key, aliases);
+      if (nestedAlias) {
+        for (const [nestedKey, nestedPaths] of nestedAlias) {
+          fields.set(`${key}.${nestedKey}`, [...nestedPaths]);
+        }
+      }
     }
     return fields.size > 0 ? fields : null;
   }
@@ -1252,13 +1268,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       position: group.position ?? 0,
       entries: group.entries,
     };
-    return runtime.higherOrder.prefixDynamicObjectAlias(
-      dynamicObjectAliasFromObject(groupObject, scope),
-      runtime.results.getResultBasePathsFromArg(
-        { ...node, group: undefined } as AstNode,
-        scope,
-      ),
-    );
+    return dynamicObjectAliasFromObject(groupObject, groupResultScope(node, scope));
   }
 
   function groupResultSuffixBasePaths(
