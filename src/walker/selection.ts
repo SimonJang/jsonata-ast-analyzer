@@ -93,9 +93,13 @@ export function createSelectionOperations(
     node: ArrayNode,
     scope: ScopeTracker,
   ): string[] {
+    const concurrentScope = runtime.core.bindArrayAssignmentEffects(node, scope);
     let currentScope = scope;
     const selectedPaths: string[] = [];
     for (const expression of node.expressions) {
+      if (concurrentScope !== scope) {
+        selectedPaths.push(...getSelectedResultPaths(expression, concurrentScope));
+      }
       if (currentScope !== scope) {
         selectedPaths.push(...getSelectedResultPaths(expression, scope));
       }

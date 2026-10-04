@@ -396,6 +396,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   /** Extract paths from array constructor entries. */
   function walkArray(node: ArrayNode, scope: ScopeTracker): string[] {
     const paths: string[] = [];
+    const concurrentScope = bindArrayAssignmentEffects(node, scope);
     let currentScope = scope;
     for (const expr of node.expressions) {
       // Array entries start concurrently. A sibling may read the entry binding
@@ -438,6 +439,15 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         );
       } else {
         paths.push(...walkValueExpression(expr, currentScope));
+      }
+    }
+    if (concurrentScope !== scope) {
+      const seen = new Set(paths);
+      for (const expression of node.expressions) {
+        for (const path of walkValueExpression(expression, concurrentScope)) {
+          if (!seen.has(path)) paths.push(path);
+          seen.add(path);
+        }
       }
     }
     if (node.predicate && node.predicate.length > 0) {

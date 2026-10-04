@@ -11,7 +11,7 @@ describe("selected-result boundaries", () => {
     ] });
   });
 
-  it("makes an array-local binding available to later selected elements", () => {
+  it("selects values returned by array assignments", () => {
     expect(analyzeExpression("[$x := items, $x]")).toEqual({ accesses: [
       { path: "items", confidence: "static", coverage: "subtree" },
     ] });
