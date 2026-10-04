@@ -1009,6 +1009,11 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "bind") return resolveCallableValues((node as BindNode).rhs, scope);
     if (node.type === "variable" && (node as VariableNode).resolvedBuiltin) return [];
+    if (node.type === "path" && (node as PathNode).steps.some((step, index) => index > 0 &&
+        step.type === "function" && runtime.functions.resultUsesContextDefault(step, scope))) {
+      const chained = runtime.aliases.chainedPathContext(node as PathNode, scope);
+      if (chained) return resolveCallableValues(chained.tail, chained.scope);
+    }
     if (node.type === "path" && isDefinitelyDataValue(node, scope)) return [];
     if (node.type !== "path" && callableGroup(node)) {
       return groupedNodeCallableValues(node, scope);
@@ -1377,6 +1382,11 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     const focusResult = terminalFocusResultNode(node);
     if (focusResult) return resolveBuiltinCallableNames(focusResult, scope);
+    if (node.type === "path" && (node as PathNode).steps.some((step, index) => index > 0 &&
+        step.type === "function" && runtime.functions.resultUsesContextDefault(step, scope))) {
+      const chained = runtime.aliases.chainedPathContext(node as PathNode, scope);
+      if (chained) return resolveBuiltinCallableNames(chained.tail, chained.scope);
+    }
     if ((node.type === "name" || node.type === "path" &&
          (node as PathNode).steps[0]?.type === "name") && resolveValue(scope, "")) {
       return resolveBuiltinCallableNames(runtime.functions.explicitContextExpression(node, ""), scope);

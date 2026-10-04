@@ -1228,7 +1228,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       }
       return runtime.callables.resolveCallableValues(arg, argScope).length > 0 ||
         runtime.callables.resolveBuiltinCallableNames(arg, argScope).length > 0
-        ? runtime.functions.bindCallableValue(valueScope, param.value, arg, argScope)
+        ? runtime.functions.bindCallableValue(valueScope, param.value, values, argScope)
         : valueScope;
     }
   
