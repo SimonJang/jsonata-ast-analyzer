@@ -1513,7 +1513,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         const outerAlias = resolveObjectAlias(scope, name);
         const outerDynamicAlias = resolveDynamicObjectAlias(scope, name);
         const outerSuffixPaths = resolveSuffixBasePaths(scope, name) ?? [];
-        if (!outerPaths.length && !outerAlias && !outerDynamicAlias && !outerSuffixPaths.length) continue;
+        const reference: VariableNode = { type: "variable", value: name, position: 0 };
+        const callableScopes = [resultScope, scope].filter((sourceScope) =>
+          runtime.callables.resolveCallableValues(reference, sourceScope).length > 0 ||
+          runtime.callables.resolveBuiltinCallableNames(reference, sourceScope).length > 0,
+        );
+        if (!outerPaths.length && !outerAlias && !outerDynamicAlias && !outerSuffixPaths.length &&
+            !callableScopes.includes(scope)) continue;
         resultScope = bindFocusObjectAliasScope(
           resultScope, name,
           mergeObjectAliases([resolveObjectAlias(resultScope, name), outerAlias]),
@@ -1521,6 +1527,17 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           [...(resolveVariable(resultScope, name) ?? []), ...outerPaths],
           [...(resolveSuffixBasePaths(resultScope, name) ?? []), ...outerSuffixPaths],
         );
+        if (callableScopes.length) {
+          let callableScope = childScope(resultScope);
+          const expressions = callableScopes.map((sourceScope, index): VariableNode => {
+            const captureName = `\0tuple-callable-${name}-${index}`;
+            callableScope = runtime.functions.bindCallableValue(callableScope, captureName, reference, sourceScope);
+            return { type: "variable", value: captureName, position: 0 };
+          });
+          resultScope = runtime.functions.bindCallableValue(
+            resultScope, name, { type: "array", expressions } as ArrayNode, callableScope,
+          );
+        }
       }
       return resultScope;
     };
@@ -1575,9 +1592,15 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       );
       if (!alias && !dynamicAlias && suffixPaths.length === 0) suffixPaths = basePaths;
       if (focusStep?.focusBinding) {
+        const callableFocusScope = groupScope;
+        const reference: VariableNode = { type: "variable", value: focusStep.focusBinding.name, position: 0 };
         groupScope = bindFocusObjectAliasScope(
           groupScope, focusStep.focusBinding.name, alias, dynamicAlias, basePaths, suffixPaths,
         );
+        if (runtime.callables.resolveCallableValues(reference, callableFocusScope).length > 0 ||
+            runtime.callables.resolveBuiltinCallableNames(reference, callableFocusScope).length > 0) {
+          groupScope = runtime.functions.bindCallableValue(groupScope, reference.value, reference, callableFocusScope);
+        }
       }
       if (focusStep?.indexBinding) {
         groupScope = bindVariable(groupScope, focusStep.indexBinding.name, []);
