@@ -75,6 +75,7 @@ export interface AliasOperations {
   walkAliasSuffixGroupEntries(groupNode: GroupByNode, groupBasePaths: readonly string[], objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, scope: ScopeTracker, suffixBasePaths?: readonly string[], preserveUnmappedLocalPaths?: boolean): string[];
   dynamicObjectAliasForNode(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null;
   groupResultObjectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null;
+  groupResultScope(node: AstNode, scope: ScopeTracker): ScopeTracker;
   groupResultDynamicObjectAliasForNode(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null;
   groupResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[];
   bindObjectAliasIfPresent(scope: ScopeTracker, name: string, node: AstNode, aliasScope: ScopeTracker): ScopeTracker;

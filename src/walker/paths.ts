@@ -1647,121 +1647,22 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
 
   /**
    * Walk group-by expression on a PathNode, extracting key and value paths.
-   * Both key and value expressions are prefixed with the base path of the
-   * PathNode (computed from all steps, with sort steps skipped by buildPathString).
+   * Preserve the source's current context and tuple bindings for group entries.
    */
   function walkGroupBy(
     node: PathNode,
     scope: ScopeTracker,
-    stageVariables: ReadonlySet<string> = new Set(),
+    _stageVariables: ReadonlySet<string> = new Set(),
   ): string[] {
-    // walkPath calls this helper only after checking node.group.
-    const groupNode = node.group!;
-  
-    const resultAliasStepIndex = node.steps.findIndex(runtime.aliases.isResultAliasStep);
-    if (resultAliasStepIndex >= 0) {
-      const resultAliasStep = node.steps[resultAliasStepIndex];
-      const prefixSteps = node.steps.slice(0, resultAliasStepIndex);
-      const structuralContextPrefix = buildProjectionContextPath(prefixSteps) ?? "";
-      const contextPrefix = hasPendingProjectionFocusReset(prefixSteps)
-        ? parentPath(structuralContextPrefix)
-        : structuralContextPrefix;
-      const usesContextDefault = runtime.functions.resultUsesContextDefault(
-        resultAliasStep,
-        scope,
-      );
-      const resultScope =
-        contextPrefix && usesContextDefault
-          ? bindVariable(childScope(scope), "", [contextPrefix])
-          : scope;
-      const objectAlias =
-        resultAliasStep.type === "object"
-          ? runtime.aliases.objectConstructorContextAlias(
-              resultAliasStep as ObjectNode,
-              prefixSteps,
-              resultScope,
-            )
-          : resultAliasStep.type === "block"
-            ? runtime.aliases.prefixObjectAlias(
-                runtime.aliases.objectAliasForNode(resultAliasStep, resultScope),
-                contextPrefix,
-              )
-            : runtime.aliases.objectAliasForNode(resultAliasStep, resultScope);
-      const dynamicObjectAlias = runtime.aliases.dynamicObjectAliasForNode(
-        resultAliasStep,
-        resultScope,
-      );
-      const resultBasePaths =
-        resultAliasStep.type === "array"
-          ? runtime.aliases.arrayConstructorContextBasePaths(
-              resultAliasStep as ArrayNode,
-              contextPrefix,
-              resultScope,
-            )
-          : resultAliasStep.type === "object"
-            ? runtime.aliases.objectConstructorContextBasePaths(
-                resultAliasStep as ObjectNode,
-                contextPrefix,
-                resultScope,
-              )
-            : resultAliasStep.type === "block"
-              ? runtime.aliases.blockContextBasePaths(
-                  resultAliasStep as BlockNode,
-                  contextPrefix,
-                  resultScope,
-                )
-              : runtime.aliases.bindingAliasPaths(resultAliasStep, resultScope);
-      const focusStep =
-        resultAliasStep.type === "apply"
-          ? runtime.functions.appliedFunctionFromApply(resultAliasStep as ApplyNode)
-          : resultAliasStep.type === "block" ||
-              resultAliasStep.type === "array" ||
-              resultAliasStep.type === "object" ||
-              resultAliasStep.type === "function"
-            ? (resultAliasStep as BlockNode | ArrayNode | ObjectNode | FunctionNode)
-            : null;
-      const focusBinding = focusStep?.focusBinding;
-      const indexBinding = focusStep?.indexBinding;
-      let groupScope = resultScope;
-      if (focusBinding) {
-        groupScope = runtime.aliases.bindFocusObjectAliasScope(
-          resultScope,
-          focusBinding.name,
-          objectAlias,
-          dynamicObjectAlias,
-          resultBasePaths,
-          usesContextDefault
-            ? runtime.aliases.groupResultSuffixBasePaths(resultAliasStep, resultScope)
-            : prefixProjectionPaths(
-                contextPrefix,
-                runtime.aliases.groupResultSuffixBasePaths(resultAliasStep, resultScope),
-              ),
-        );
-      }
-      if (indexBinding) {
-        if (groupScope === resultScope) groupScope = childScope(resultScope);
-        groupScope = bindVariable(groupScope, indexBinding.name, []);
-      }
-      if (objectAlias || dynamicObjectAlias) {
-        return walkAliasGroupEntries(
-          groupNode,
-          objectAlias,
-          dynamicObjectAlias,
-          groupScope,
-        );
-      }
-  
-      const groupStageVariables = new Set(stageVariables);
-      if (focusBinding) groupStageVariables.add(focusBinding.name);
-      if (resultBasePaths.length > 0) {
-        return resultBasePaths.flatMap((basePath) =>
-          walkContextGroupEntries(groupNode, basePath, groupScope, groupStageVariables),
-        );
-      }
-    }
-  
-    const groupBasePath = buildPathString(node.steps) ?? "";
-    return walkContextGroupEntries(groupNode, groupBasePath, scope, stageVariables);
+    const groupScope = runtime.aliases.groupResultScope(node, scope);
+    const objectAlias = resolveObjectAlias(groupScope, "");
+    const dynamicObjectAlias = resolveDynamicObjectAlias(groupScope, "");
+    const suffixPaths = resolveSuffixBasePaths(groupScope, "") ?? [];
+    return node.group!.entries.flatMap(([key, value]) => [key, value].flatMap((expression) =>
+      runtime.aliases.selectAliasExpressionPaths(
+        objectAlias, dynamicObjectAlias, expression, groupScope, suffixPaths,
+      ),
+    ));
   }
 
   function walkContextGroupEntries(

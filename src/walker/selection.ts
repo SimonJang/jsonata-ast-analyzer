@@ -13,6 +13,10 @@ import type {
 import {
   bindVariable,
   childScope,
+  resolveObjectAlias,
+  resolveDynamicObjectAlias,
+  resolveSuffixBasePaths,
+  resolveVariable,
   type ScopeTracker,
 } from "../scope.js";
 import type { SelectionOperations, WalkerRuntime } from "./runtime.js";
@@ -106,11 +110,7 @@ export function createSelectionOperations(
       group?: { entries: [AstNode, AstNode][] };
     }).group;
     if (group) {
-      const basePaths = runtime.results.getResultBasePathsFromArg(
-        { ...node, group: undefined } as AstNode,
-        scope,
-      );
-      const contextScope = bindVariable(childScope(scope), "", basePaths);
+      const contextScope = runtime.aliases.groupResultScope(node, scope);
       return group.entries.flatMap(([, value]) =>
         getSelectedResultPaths(value, contextScope),
       );
@@ -155,13 +155,40 @@ export function createSelectionOperations(
         return (node as LambdaNode).thunk
           ? getSelectedResultPaths((node as LambdaNode).body, scope)
           : [];
-      case "name":
+      case "name": {
+        const hasContext = resolveVariable(scope, "") !== null;
+        const objectAlias = hasContext ? resolveObjectAlias(scope, "") : null;
+        const dynamicAlias = hasContext ? resolveDynamicObjectAlias(scope, "") : null;
+        if (objectAlias || dynamicAlias) {
+          return runtime.aliases.selectAliasExpressionPaths(
+            objectAlias, dynamicAlias,
+            { ...node, stages: undefined } as AstNode,
+            scope, resolveSuffixBasePaths(scope, "") ?? [],
+          );
+        }
         return runtime.aliases.bindingAliasPaths(node, scope);
+      }
       case "path": {
         const path = node as PathNode;
         const objectAlias = runtime.aliases.objectAliasForNode(path, scope);
         if (objectAlias) {
           return [...objectAlias.values()].flatMap((paths) => [...paths]);
+        }
+        const hasContext = resolveVariable(scope, "") !== null;
+        const contextAlias = hasContext ? resolveObjectAlias(scope, "") : null;
+        const dynamicContextAlias = hasContext ? resolveDynamicObjectAlias(scope, "") : null;
+        if ((contextAlias || dynamicContextAlias) && path.steps.every((step) =>
+          ["name", "variable", "wildcard", "descendant", "parent"].includes(step.type),
+        )) {
+          return runtime.aliases.selectAliasExpressionPaths(
+            contextAlias, dynamicContextAlias, {
+              ...path,
+              steps: path.steps.map((step) => ({
+                ...step, stages: undefined, predicate: undefined,
+              } as AstNode)),
+            }, scope,
+            resolveSuffixBasePaths(scope, "") ?? [],
+          );
         }
         return runtime.aliases.bindingAliasPaths(path, scope);
       }

@@ -2,7 +2,7 @@ import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode,
 import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { ROOT_PATH } from "./constants.js";
-import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex } from "./path-utils.js";
+import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex, buildProjectionContextPath, hasPendingProjectionFocusReset } from "./path-utils.js";
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
 
 const LOCAL_CONTEXT = "\u0001context";
@@ -1140,6 +1140,106 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     return fields.size > 0 ? fields : null;
   }
 
+  function groupResultScope(node: AstNode, scope: ScopeTracker): ScopeTracker {
+    const source = { ...node, group: undefined } as AstNode;
+    const steps = source.type === "path" ? (source as PathNode).steps : [source];
+    const prefixNode = (prefix: AstNode[]): AstNode => prefix.length === 1
+      ? prefix[0]
+      : { type: "path", steps: prefix } as PathNode;
+    let groupScope = childScope(scope);
+    for (const [index, step] of steps.entries()) {
+      const bindingStep = step as AstNode & {
+        focusBinding?: { name: string };
+        indexBinding?: { name: string };
+      };
+      if (bindingStep.focusBinding) {
+        const focused = prefixNode([
+          ...steps.slice(0, index),
+          { ...step, focusBinding: undefined, indexBinding: undefined } as AstNode,
+        ]);
+        groupScope = runtime.higherOrder.bindArgumentParameter(
+          groupScope,
+          { type: "variable", value: bindingStep.focusBinding.name, position: 0 },
+          bindingAliasPaths(focused, groupScope),
+          focused,
+          groupScope,
+        );
+      }
+      if (bindingStep.indexBinding) {
+        groupScope = bindVariable(groupScope, bindingStep.indexBinding.name, []);
+      }
+    }
+    let finalIndex = steps.length - 1;
+    while (finalIndex >= 0 && steps[finalIndex].type === "sort") finalIndex--;
+    const finalStep = steps[finalIndex];
+    const focusStep = finalStep?.type === "apply"
+      ? runtime.functions.appliedFunctionFromApply(finalStep as ApplyNode)
+      : finalStep as AstNode & { focusBinding?: { name: string }; indexBinding?: { name: string } };
+    if (finalStep && isResultAliasStep(finalStep)) {
+      const prefixSteps = steps.slice(0, finalIndex);
+      const structuralPrefix = buildProjectionContextPath(prefixSteps) ?? "";
+      const contextPrefix = hasPendingProjectionFocusReset(prefixSteps)
+        ? parentPath(structuralPrefix)
+        : structuralPrefix;
+      const resultScope = prefixSteps.length > 0
+        ? hasPendingProjectionFocusReset(prefixSteps)
+          ? bindVariable(childScope(groupScope), "", markAbsolute([contextPrefix || ROOT_PATH]))
+          : runtime.higherOrder.bindArgumentParameter(
+              childScope(groupScope),
+              { type: "variable", value: "", position: 0 },
+              markAbsolute(bindingAliasPaths(prefixNode(prefixSteps), groupScope)),
+              prefixNode(prefixSteps), groupScope,
+            )
+        : groupScope;
+      const alias = finalStep.type === "object"
+        ? objectConstructorContextAlias(finalStep as ObjectNode, prefixSteps, resultScope)
+        : prefixObjectAlias(objectAliasForNode(finalStep, resultScope), contextPrefix);
+      const resultDynamicAlias = dynamicObjectAliasForNode(finalStep, resultScope);
+      const dynamicAlias = resultDynamicAlias
+        ? runtime.higherOrder.prefixDynamicObjectAlias(
+            resultDynamicAlias, contextPrefix ? [contextPrefix] : [],
+          )
+        : null;
+      const basePaths = finalStep.type === "array"
+        ? arrayConstructorContextBasePaths(finalStep as ArrayNode, contextPrefix, resultScope)
+        : finalStep.type === "object"
+          ? objectConstructorContextBasePaths(finalStep as ObjectNode, contextPrefix, resultScope)
+          : finalStep.type === "block"
+            ? blockContextBasePaths(finalStep as BlockNode, contextPrefix, resultScope)
+            : prefixProjectionPaths(contextPrefix, bindingAliasPaths(finalStep, resultScope));
+      let suffixPaths = prefixProjectionPaths(
+        contextPrefix, groupResultSuffixBasePaths(finalStep, resultScope),
+      );
+      if (!alias && !dynamicAlias && suffixPaths.length === 0) suffixPaths = basePaths;
+      if (focusStep?.focusBinding) {
+        groupScope = bindFocusObjectAliasScope(
+          groupScope, focusStep.focusBinding.name, alias, dynamicAlias, basePaths, suffixPaths,
+        );
+      }
+      if (focusStep?.indexBinding) {
+        groupScope = bindVariable(groupScope, focusStep.indexBinding.name, []);
+      }
+      if (!focusStep?.focusBinding) {
+        return bindFocusObjectAliasScope(
+          groupScope, "", alias, dynamicAlias,
+          alias || dynamicAlias ? [] : basePaths, suffixPaths,
+        );
+      }
+    }
+    const context = focusStep?.focusBinding
+      ? finalIndex > 0
+        ? prefixNode(steps.slice(0, finalIndex))
+        : { type: "variable", value: "", position: 0 } as VariableNode
+      : source;
+    return runtime.higherOrder.bindArgumentParameter(
+      groupScope,
+      { type: "variable", value: "", position: 0 },
+      bindingAliasPaths(context, groupScope),
+      context,
+      groupScope,
+    );
+  }
+
   function groupResultDynamicObjectAliasForNode(
     node: AstNode,
     scope: ScopeTracker,
@@ -1731,10 +1831,23 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const contextPrefix = buildPathString(node.steps.slice(0, resultAliasStepIndex)) ?? "";
     const suffixSteps = node.steps.slice(resultAliasStepIndex + 1);
     const suffix = buildPathString(suffixSteps);
+    let resultScope = scope;
+    if (resultAliasStepIndex > 0 && collectVariableNames(resultAliasStep).has("")) {
+      const prefix: AstNode = {
+        type: "path", steps: node.steps.slice(0, resultAliasStepIndex),
+      } as PathNode;
+      resultScope = runtime.higherOrder.bindArgumentParameter(
+        childScope(scope),
+        { type: "variable", value: "", position: 0 },
+        markAbsolute(bindingAliasPaths(prefix, scope)),
+        prefix,
+        scope,
+      );
+    }
     if (
       suffix &&
       resultAliasStep.type === "function" &&
-      runtime.transforms.transformWritesSuffix(resultAliasStep as FunctionNode, suffixSteps, scope)
+      runtime.transforms.transformWritesSuffix(resultAliasStep as FunctionNode, suffixSteps, resultScope)
     ) {
       return [];
     }
@@ -1744,15 +1857,15 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffix ? paths.map((path) => appendPath(path, suffix)) : paths,
       );
   
-    const objectAlias = objectAliasForNode(resultAliasStep, scope);
-    const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, scope);
+    const objectAlias = objectAliasForNode(resultAliasStep, resultScope);
+    const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, resultScope);
     if (suffixSteps.length > 0 && (objectAlias || dynamicObjectAlias)) {
       const aliasPaths = selectAliasSuffixContextPaths(
         suffixSteps,
         objectAlias,
         dynamicObjectAlias,
-        bindStepFocusScope(resultAliasStep, scope),
-        runtime.results.getResultSuffixBasePaths(resultAliasStep, scope),
+        bindStepFocusScope(resultAliasStep, resultScope),
+        runtime.results.getResultSuffixBasePaths(resultAliasStep, resultScope),
       );
       if (aliasPaths.length > 0) return prefixProjectionPaths(contextPrefix, aliasPaths);
     }
@@ -1760,8 +1873,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     if (resultAliasStep.type === "array") {
       return withContext(
         suffixBasesOnly
-          ? groupResultSuffixBasePaths(resultAliasStep, scope)
-          : arrayConstructorContextBasePaths(resultAliasStep as ArrayNode, "", scope),
+          ? groupResultSuffixBasePaths(resultAliasStep, resultScope)
+          : arrayConstructorContextBasePaths(resultAliasStep as ArrayNode, "", resultScope),
       );
     }
     if (resultAliasStep.type === "object") {
@@ -1769,13 +1882,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     }
     if (resultAliasStep.type === "block") {
       return withContext(suffixBasesOnly
-        ? groupResultSuffixBasePaths(resultAliasStep, scope)
-        : blockContextBasePaths(resultAliasStep as BlockNode, "", scope));
+        ? groupResultSuffixBasePaths(resultAliasStep, resultScope)
+        : blockContextBasePaths(resultAliasStep as BlockNode, "", resultScope));
     }
   
     const resultBasePaths = suffix || suffixBasesOnly
-      ? runtime.results.getResultSuffixBasePaths(resultAliasStep, scope)
-      : bindingAliasPaths(resultAliasStep, scope);
+      ? runtime.results.getResultSuffixBasePaths(resultAliasStep, resultScope)
+      : bindingAliasPaths(resultAliasStep, resultScope);
     return resultBasePaths.length > 0 ? withContext(resultBasePaths) : [];
   }
 
@@ -2021,6 +2134,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     walkAliasSuffixGroupEntries,
     dynamicObjectAliasForNode,
     groupResultObjectAliasForNode,
+    groupResultScope,
     groupResultDynamicObjectAliasForNode,
     groupResultSuffixBasePaths,
     bindObjectAliasIfPresent,
