@@ -569,11 +569,14 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     scope: ScopeTracker,
   ): AstNode[] {
     return resolveBuiltinCallableNames(node.procedure, scope).flatMap((funcName) => {
+      const args = runtime.functions.withImplicitRootFunctionArgument(
+        funcName, node.arguments, node.position, scope,
+      );
       if (
         funcName === "reduce" &&
-        node.arguments[1] &&
-        (resolveBuiltinCallableNames(node.arguments[1], scope).includes("append") ||
-          resolveCallableValues(node.arguments[1], scope).some(
+        args[1] &&
+        (resolveBuiltinCallableNames(args[1], scope).includes("append") ||
+          resolveCallableValues(args[1], scope).some(
             (callable) => callable.kind === "partial" &&
               resolveBuiltinCallableNames(
                 callable.binding.partial.procedure,
@@ -581,13 +584,13 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
               ).includes("append"),
           ))
       ) {
-        return [node.arguments[0], node.arguments[2]].filter(
+        return [args[0], args[2]].filter(
           (input): input is AstNode => Boolean(input),
         );
       }
-      if (funcName === "append" || funcName === "zip") return node.arguments;
+      if (funcName === "append" || funcName === "zip") return args;
       if (funcName !== "lookup" && PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) {
-        return node.arguments[0] ? [node.arguments[0]] : [];
+        return args[0] ? [args[0]] : [];
       }
       return [];
     });

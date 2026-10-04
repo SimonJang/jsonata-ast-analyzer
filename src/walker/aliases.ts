@@ -1897,16 +1897,17 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           stages.some((stage) => stage.type === "position-binding" && (stage as PositionBindingNode).name === name);
       });
     };
-    const sortsCallableVariable = (step: AstNode, prefixSteps: AstNode[]): boolean => {
-      if (step.type !== "sort" || prefixSteps[0]?.type !== "variable" ||
-          !resolveValue(scope, (prefixSteps[0] as VariableNode).value)) return false;
+    const sortsCallableResult = (step: AstNode, prefixSteps: AstNode[]): boolean => {
+      if (step.type !== "sort" || !prefixSteps.some(isResultAliasStep) &&
+          (prefixSteps[0]?.type !== "variable" ||
+           !resolveValue(scope, (prefixSteps[0] as VariableNode).value))) return false;
       const prefix: PathNode = { type: "path", steps: prefixSteps };
       return runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
         runtime.callables.resolveBuiltinCallableNames(prefix, scope).length > 0;
     };
     const index = node.steps.findIndex((step, index) =>
       index > 0 && (projectsVariable(step, node.steps.slice(0, index)) ||
-      sortsCallableVariable(step, node.steps.slice(0, index)) || (isResultAliasStep(step) ||
+      sortsCallableResult(step, node.steps.slice(0, index)) || (isResultAliasStep(step) ||
         (isFunctionResultStep(node.steps[index - 1]) &&
           (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
       (node.steps.slice(0, index).some(isFunctionResultStep) ||

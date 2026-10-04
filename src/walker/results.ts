@@ -1584,6 +1584,11 @@ export function createResultOperations(
 
   /** Physical result roots that can receive a suffix; constructed fields use aliases. */
   function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+    if (resolveValue(scope, "") !== null && (node.type === "sort" || node.type === "path" &&
+        !(node as PathNode).group && (node as PathNode).steps.length > 0 &&
+        (node as PathNode).steps.every((step) => step.type === "sort"))) {
+      return getResultSuffixBasePaths({ type: "variable", value: "", position: 0 }, scope);
+    }
     if (node.type === "lambda") {
       const lambda = node as LambdaNode;
       return lambda.thunk ? getResultSuffixBasePaths(lambda.body, scope) : [];
