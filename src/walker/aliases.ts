@@ -1989,6 +1989,12 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           bindNode.rhs,
           closureScope,
         );
+        currentScope = bindObjectAliasIfPresent(
+          currentScope, bindNode.lhs.value, bindNode.rhs, closureScope,
+        );
+        currentScope = bindDynamicObjectAliasIfPresent(
+          currentScope, bindNode.lhs.value, bindNode.rhs, closureScope,
+        );
   
         currentScope = runtime.functions.bindCallableValue(
           currentScope,

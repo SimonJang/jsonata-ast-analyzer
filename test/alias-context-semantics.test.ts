@@ -10,8 +10,13 @@ describe("constructed alias contexts", () => {
     '($o := {"v": items}; $o.v.(details).amount)',
     '($o := {"v": items}; $r := $o.v.(details); $r.amount)',
     '($o := {"v": items}; $r := $o.v.{"x": details}; $r.x.amount)',
+    '($a := items; $a.(details)).amount',
+    '($o := {"v": items}; $o.v.(details)).amount',
+    '(($o := {"v": items}; $o.v.(details))).amount',
+    '($o := {"v": {"x": items}}; $o.v.x.(details)).amount',
+    '($o := {$$.selected: items}; $lookup($o, $$.selected).details).amount',
   ])("preserves selected sources through the variable projection %s", async (expression) => {
-    const value = await jsonata(expression).evaluate({ items: [
+    const value = await jsonata(expression).evaluate({ selected: "v", items: [
       { details: { amount: 10 } }, { details: { amount: 20 } },
     ] });
     expect(JSON.parse(JSON.stringify(value))).toEqual([10, 20]);
