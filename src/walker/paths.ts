@@ -309,7 +309,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           : { type: "path", steps: node.steps.slice(0, focusIndex) };
         let contextScope = runtime.higherOrder.bindArgumentParameter(
           childScope(focusScope), { type: "variable", value: "", position: 0 },
-          runtime.aliases.bindingAliasPaths(parent, focusScope), parent, focusScope,
+          runtime.aliases.bindingAliasPaths(parent, scope), parent, scope,
         );
         const stagePaths: string[] = [];
         for (const stage of focusStep.stages ?? focusStep.predicate ?? []) {

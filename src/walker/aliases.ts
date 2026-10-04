@@ -404,7 +404,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         }
         let contextScope = runtime.higherOrder.bindArgumentParameter(
           childScope(focusScope), { type: "variable", value: "", position: 0 },
-          bindingAliasPaths(parent, focusScope), parent, focusScope,
+          bindingAliasPaths(parent, scope), parent, scope,
         );
         const tailSteps = node.steps.slice(focusIndex + 1);
         for (const step of tailSteps) {
@@ -1523,7 +1523,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     while (finalIndex >= 0 && steps[finalIndex].type === "sort") finalIndex--;
     const finalStep = steps[finalIndex];
     const selectedContext = source.type === "path"
-      ? selectedPathAliasContext(source as PathNode, groupScope) : null;
+      ? selectedPathAliasContext(source as PathNode, scope) : null;
     if (selectedContext && !(finalStep as AstNode & { focusBinding?: unknown })?.focusBinding) {
       return withOuterTupleOrigins(bindFocusObjectAliasScope(
         groupScope, "", selectedContext.objectAlias, selectedContext.dynamicObjectAlias,
@@ -1589,12 +1589,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         ? prefixNode(steps.slice(0, finalIndex))
         : { type: "variable", value: "", position: 0 } as VariableNode
       : source;
+    const contextSourceScope = focusStep?.focusBinding ? scope : groupScope;
     return withOuterTupleOrigins(runtime.higherOrder.bindArgumentParameter(
       groupScope,
       { type: "variable", value: "", position: 0 },
-      bindingAliasPaths(context, groupScope),
+      bindingAliasPaths(context, contextSourceScope),
       context,
-      groupScope,
+      contextSourceScope,
     ));
   }
 
