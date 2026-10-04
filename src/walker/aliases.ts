@@ -352,7 +352,27 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   function selectedPathAliasContext(node: PathNode, scope: ScopeTracker): SelectedAliasContext | null {
-    const [first, ...selectors] = node.steps;
+    const focusIndex = node.steps.findIndex((step, index) => {
+      const focus = (step as NameNode).focusBinding;
+      const next = node.steps[index + 1];
+      return index > 0 && focus && next?.type === "variable" &&
+        (next as VariableNode).value === focus.name;
+    });
+    if (focusIndex > 0) {
+      const focusStep = node.steps[focusIndex] as NameNode;
+      const selected = selectedPathAliasContext({ type: "path", steps: [
+        ...node.steps.slice(0, focusIndex),
+        { ...focusStep, focusBinding: undefined, indexBinding: undefined } as AstNode,
+      ] }, scope);
+      if (selected?.objectAlias || selected?.dynamicObjectAlias) {
+        const focusScope = bindFocusObjectAliasScope(
+          scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
+          [], selected.suffixBasePaths,
+        );
+        return selectedPathAliasContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, focusScope);
+      }
+    }
+    const [first, ...selectors] = node.steps.filter((step) => step.type !== "sort");
     if (!first || first.type === "name" || !selectors.length ||
         !selectors.every((step) => step.type === "name" || step.type === "wildcard")) return null;
     const name = first.type === "variable" ? (first as VariableNode).value : null;
@@ -1354,6 +1374,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     let finalIndex = steps.length - 1;
     while (finalIndex >= 0 && steps[finalIndex].type === "sort") finalIndex--;
     const finalStep = steps[finalIndex];
+    const selectedContext = source.type === "path"
+      ? selectedPathAliasContext(source as PathNode, groupScope) : null;
+    if (selectedContext && !(finalStep as AstNode & { focusBinding?: unknown })?.focusBinding) {
+      return bindFocusObjectAliasScope(
+        groupScope, "", selectedContext.objectAlias, selectedContext.dynamicObjectAlias,
+        [], selectedContext.suffixBasePaths,
+      );
+    }
     const focusStep = finalStep?.type === "apply"
       ? runtime.functions.appliedFunctionFromApply(finalStep as ApplyNode)
       : finalStep as AstNode & { focusBinding?: { name: string }; indexBinding?: { name: string } };
@@ -1778,6 +1806,19 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       ...suffixBaseContextPaths,
     ];
   
+    const selectedGroupScope = groupNode ? aliasSuffixContextScope(
+      suffixSteps.filter((part) => part.type !== "sort"),
+      objectAlias, dynamicObjectAlias, suffixScope, suffixBasePaths,
+    ) : null;
+    const groupPaths = !groupNode ? [] : selectedGroupScope
+      ? groupNode.entries.flatMap(([key, value]) => [key, value].flatMap((expression) =>
+          selectAliasExpressionPaths(
+            resolveObjectAlias(selectedGroupScope, ""), resolveDynamicObjectAlias(selectedGroupScope, ""),
+            expression, selectedGroupScope, resolveSuffixBasePaths(selectedGroupScope, "") ?? [],
+          )))
+      : walkAliasSuffixGroupEntries(
+          groupNode, groupBasePaths, objectAlias, dynamicObjectAlias, suffixScope, suffixBasePaths,
+        );
     return [
       ...walkAliasSuffixFilterStages(
         suffixSteps,
@@ -1807,16 +1848,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffixScope,
         suffixBasePaths,
       ),
-      ...(groupNode
-        ? walkAliasSuffixGroupEntries(
-            groupNode,
-            groupBasePaths,
-            objectAlias,
-            dynamicObjectAlias,
-            suffixScope,
-            suffixBasePaths,
-          )
-        : []),
+      ...groupPaths,
     ];
   }
 

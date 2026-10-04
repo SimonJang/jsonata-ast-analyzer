@@ -214,6 +214,43 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
    * filter stages on name steps, sort steps, and group-by expressions.
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
+    const focusIndex = node.steps.findIndex((step, index) => {
+      const focus = (step as NameNode).focusBinding;
+      const next = node.steps[index + 1];
+      return index > 0 && focus && next?.type === "variable" &&
+        (next as VariableNode).value === focus.name;
+    });
+    if (focusIndex > 0) {
+      const focusStep = node.steps[focusIndex] as NameNode & { predicate?: FilterStage[] };
+      const prefix: PathNode = { type: "path", steps: [
+        ...node.steps.slice(0, focusIndex),
+        { ...focusStep, focusBinding: undefined, indexBinding: undefined, stages: undefined, predicate: undefined } as AstNode,
+      ] };
+      const selected = runtime.aliases.selectedPathAliasContext(prefix, scope);
+      if (selected?.objectAlias || selected?.dynamicObjectAlias) {
+        let focusScope = runtime.aliases.bindFocusObjectAliasScope(
+          scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
+          [], selected.suffixBasePaths,
+        );
+        if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
+        const parent: AstNode = focusIndex === 1 ? node.steps[0]
+          : { type: "path", steps: node.steps.slice(0, focusIndex) };
+        const contextScope = runtime.higherOrder.bindArgumentParameter(
+          childScope(focusScope), { type: "variable", value: "", position: 0 },
+          runtime.aliases.bindingAliasPaths(parent, focusScope), parent, focusScope,
+        );
+        return [
+          ...walkPath(prefix, scope),
+          ...(focusStep.stages ?? focusStep.predicate ?? []).flatMap((stage) => stage.type === "filter"
+            ? runtime.aliases.selectAliasExpressionPaths(
+                resolveObjectAlias(contextScope, ""), resolveDynamicObjectAlias(contextScope, ""),
+                runtime.functions.asBooleanExpression((stage as FilterStage).expr), contextScope,
+                resolveSuffixBasePaths(contextScope, "") ?? [],
+              ) : []),
+          ...walkPath({ ...node, steps: node.steps.slice(focusIndex + 1) }, focusScope),
+        ];
+      }
+    }
     const descendantIndex = node.steps.findIndex((step) => step.type === "descendant");
     if (descendantIndex < 0) return walkPathSteps(node, scope);
     if (node.steps[0]?.type === "name" &&

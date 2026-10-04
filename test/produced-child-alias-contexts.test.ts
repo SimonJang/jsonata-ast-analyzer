@@ -51,4 +51,48 @@ describe("produced constructed child contexts", () => {
       exact("record"),
     ]);
   });
+
+  it.each(producers)("preserves whole selected values after sorting %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*^(copy.details.amount))`;
+    expect(await jsonata(expression).evaluate(input)).toEqual([
+      { copy: input.record }, { different: input.other },
+    ]);
+    expect(accesses(expression)).toEqual([
+      exact("ignored"), exact("key"),
+      { path: "other", confidence: "static", coverage: "subtree" },
+      { path: "record", confidence: "static", coverage: "subtree" },
+      exact("record.details.amount"),
+    ]);
+  });
+
+  it.each(producers)("groups against the selected constructed child from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).other{"group":different.details})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ group: input.other.details });
+    expect(accesses(expression)).toEqual([
+      exact("ignored"), exact("key"), exact("other"),
+      { path: "other.details", confidence: "static", coverage: "subtree" },
+      exact("record"),
+    ]);
+  });
+
+  it.each(producers)("retains wildcard focus metadata from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details].$child.copy)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record);
+    expect(accesses(expression)).toEqual([
+      exact("ignored"), exact("key"), exact("other"),
+      { path: "record", confidence: "static", coverage: "subtree" },
+      exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("retains named focus metadata from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).other@$child[$child.different.details].$child.different)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.other);
+    expect(accesses(expression)).toEqual([
+      exact("ignored"), exact("key"),
+      { path: "other", confidence: "static", coverage: "subtree" },
+      exact("other.details"), exact("other.details.*"), exact("record"),
+    ]);
+  });
+
 });
