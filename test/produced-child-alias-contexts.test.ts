@@ -115,4 +115,16 @@ describe("produced constructed child contexts", () => {
     ]);
   });
 
+
+  it.each(producers.filter((producer) => !producer.includes('$string("wrap")')))("keeps the parent context beside focus arguments from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details].$append($child.copy,other.different))`;
+    expect([...(await jsonata(expression).evaluate(input))]).toEqual([input.record, input.other]);
+    expect(accesses(expression)).toEqual([
+      exact("ignored"), exact("key"),
+      { path: "other", confidence: "static", coverage: "subtree" },
+      { path: "record", confidence: "static", coverage: "subtree" },
+      exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
 });

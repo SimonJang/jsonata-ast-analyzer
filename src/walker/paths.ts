@@ -246,7 +246,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                 runtime.functions.asBooleanExpression((stage as FilterStage).expr), contextScope,
                 resolveSuffixBasePaths(contextScope, "") ?? [],
               ) : []),
-          ...walkPath({ ...node, steps: node.steps.slice(focusIndex + 1) }, focusScope),
+          ...walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope),
         ];
       }
     }
