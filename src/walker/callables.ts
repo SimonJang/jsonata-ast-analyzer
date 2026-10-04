@@ -1,5 +1,5 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, PartialNode, PathNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
-import { type ScopeTracker, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveValueFrame, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type LambdaBinding } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveValueFrame, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type LambdaBinding, type PartialBinding } from "../scope.js";
 import { BUILTIN_FUNCTIONS } from "../builtins.js";
 import { PATH_PRESERVING_RESULT_FUNCTIONS } from "./constants.js";
 import { markAbsolute, collectVariableNames, buildProjectionContextPath } from "./path-utils.js";
@@ -482,6 +482,46 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       }
     }
     return { node, scope };
+  }
+
+  function partialBuiltinResultCalls(
+    node: FunctionNode,
+    scope: ScopeTracker,
+  ): Array<{ node: FunctionNode; scope: ScopeTracker }> {
+    const expand = (
+      binding: PartialBinding,
+      callArgs: AstNode[],
+      callScope: ScopeTracker,
+      visited: ReadonlySet<PartialBinding>,
+    ): Array<{ node: FunctionNode; scope: ScopeTracker }> => {
+      if (visited.has(binding)) return [];
+      const nextVisited = new Set([...visited, binding]);
+      const args = runtime.higherOrder.applyPartialArguments(binding.partial, callArgs);
+      const argumentScopes = runtime.higherOrder.applyPartialArgumentScopes(
+        binding.partial, callArgs, binding.scope, callScope,
+      );
+      const scoped = runtime.higherOrder.scopePartialArguments(args, argumentScopes, callScope);
+      // Literal arguments have no lexical context and retain static selectors.
+      const scopedArgs = scoped.arguments.map((arg, index) =>
+        ["string", "number", "value", "regex"].includes(args[index].type) ? args[index] : arg,
+      );
+      return [
+        ...resolveBuiltinCallableNames(binding.partial.procedure, binding.scope).map((name) => ({
+          node: {
+            ...node,
+            procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
+            arguments: scopedArgs,
+          } as FunctionNode,
+          scope: scoped.scope,
+        })),
+        ...resolveCallableValues(binding.partial.procedure, binding.scope).flatMap((callable) =>
+          callable.kind === "partial" ? expand(callable.binding, scopedArgs, scoped.scope, nextVisited) : [],
+        ),
+      ];
+    };
+    return resolveCallableValues(node.procedure, scope).flatMap((callable) =>
+      callable.kind === "partial" ? expand(callable.binding, node.arguments, scope, new Set()) : [],
+    );
   }
 
   function callableContainerProducerInputs(
@@ -1065,6 +1105,10 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         const evalExpression = resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("eval")
           ? runtime.functions.getStaticEvalExpression(functionNode.arguments) : null;
         return [
+          ...partialBuiltinResultCalls(functionNode, sourceScope).flatMap((call) => resolveCallableValues(
+            suffixSteps.length > 0 ? { type: "path", steps: [call.node, ...suffixSteps] } as PathNode : call.node,
+            call.scope,
+          )),
           ...(evalExpression ? resolveCallableValues(
             suffixSteps.length > 0 ? { type: "path", steps: [evalExpression, ...suffixSteps] } as PathNode : evalExpression,
             runtime.functions.getStaticEvalScope(functionNode.arguments, sourceScope),
@@ -1133,6 +1177,13 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     if (node.type !== "function") return [];
   
     const functionNode = node as FunctionNode;
+    const partialCalls = partialBuiltinResultCalls(functionNode, scope);
+    if (partialCalls.length > 0) {
+      return [
+        ...customFunctionResultCallableValues(functionNode, scope),
+        ...partialCalls.flatMap((call) => resolveCallableValues(call.node, call.scope)),
+      ];
+    }
     const specialBuiltins = resolveBuiltinCallableNames(functionNode.procedure, scope)
       .filter((name) => name === "lookup" || name === "eval");
     if (specialBuiltins.length > 0 && resolveCallableValues(functionNode.procedure, scope).length > 0) {
@@ -1389,6 +1440,10 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         const evalExpression = resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("eval")
           ? runtime.functions.getStaticEvalExpression(functionNode.arguments) : null;
         return [
+          ...partialBuiltinResultCalls(functionNode, sourceScope).flatMap((call) => resolveBuiltinCallableNames(
+            suffixSteps.length > 0 ? { type: "path", steps: [call.node, ...suffixSteps] } as PathNode : call.node,
+            call.scope,
+          )),
           ...(evalExpression ? resolveBuiltinCallableNames(
             suffixSteps.length > 0 ? { type: "path", steps: [evalExpression, ...suffixSteps] } as PathNode : evalExpression,
             runtime.functions.getStaticEvalScope(functionNode.arguments, sourceScope),
@@ -1477,6 +1532,13 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "function") {
       const functionNode = node as FunctionNode;
+      const partialCalls = partialBuiltinResultCalls(functionNode, scope);
+      if (partialCalls.length > 0) {
+        return [
+          ...customFunctionResultBuiltinCallableNames(functionNode, scope),
+          ...partialCalls.flatMap((call) => resolveBuiltinCallableNames(call.node, call.scope)),
+        ];
+      }
       const specialBuiltins = resolveBuiltinCallableNames(functionNode.procedure, scope)
         .filter((name) => name === "lookup" || name === "eval");
       if (specialBuiltins.length > 0 && resolveCallableValues(functionNode.procedure, scope).length > 0) {

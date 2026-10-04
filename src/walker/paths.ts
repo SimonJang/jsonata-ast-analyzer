@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BlockNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, ObjectNode, ParentNode, PathNode, PositionBindingNode, SortNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, createScope, childScope, bindVariable, resolveLambda, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, createScope, childScope, bindVariable, resolveLambda, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { ROOT_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, resolveParentPathSegments, isRootReference, markAbsolute, parentPath, collectVariableNames, isNumericIndex, isTransparentPathBlock, flattenTransparentPathBlocks, buildProjectionContextPath, hasPendingProjectionFocusReset } from "./path-utils.js";
 import type { PathOperations, WalkerRuntime } from "./runtime.js";
@@ -108,6 +108,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   ): boolean {
     if (node.type === "function") {
       const functionNode = node as FunctionNode;
+      // Local procedures can create callbacks from call-site arguments. Capture
+      // their projected context even when their signature needs no default.
+      if (functionNode.procedure.type === "variable" &&
+          resolveValue(scope, functionNode.procedure.value) !== null) return true;
       const binding =
         functionNode.procedure.type === "lambda"
           ? { lambda: functionNode.procedure, scope }
@@ -1242,7 +1246,12 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         // Block expression step in path: orders.items.(expr)
         // Walk all expressions and prefix with path up to this step
         const prefixSteps = node.steps.slice(0, i);
-        const structuralContextPrefix = buildProjectionContextPath(prefixSteps) ?? "";
+        let blockResult: AstNode | undefined = step;
+        while (blockResult?.type === "block") blockResult = (blockResult as BlockNode).expressions.at(-1);
+        const inheritedFunctionContext = i === 0 &&
+          ["function", "apply"].includes(blockResult?.type ?? "")
+          ? resolveVariable(stageScope, "")?.[0] : undefined;
+        const structuralContextPrefix = buildProjectionContextPath(prefixSteps) ?? inheritedFunctionContext ?? "";
         const contextPrefix = hasPendingProjectionFocusReset(prefixSteps)
           ? parentPath(structuralContextPrefix)
           : structuralContextPrefix;

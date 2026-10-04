@@ -1407,10 +1407,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   function chainedPathContext(node: PathNode, scope: ScopeTracker) {
-    const projectsDataPath = (projection: AstNode): boolean => {
-      if (projection.type !== "block") return false;
+    const projectionResult = (projection: AstNode): AstNode | undefined => {
       let result: AstNode | undefined = projection;
       while (result?.type === "block") result = (result as BlockNode).expressions.at(-1);
+      return result;
+    };
+    const projectsDataPath = (projection: AstNode): boolean => {
+      if (projection.type !== "block") return false;
+      const result = projectionResult(projection);
       if (result?.type === "variable" && (result as VariableNode).value === "") return true;
       return result?.type === "path" && (result as PathNode).steps.every(
         (part) => ["name", "variable", "wildcard", "descendant"].includes(part.type),
@@ -1438,7 +1442,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         node.steps.slice(0, index).some((prefixStep) => hasVariableProjectionSource(prefixStep, step)) ||
         (projectsDataPath(step) && node.steps.slice(0, index).some((prefixStep) =>
           isResultAliasStep(prefixStep) && !isTransparentPathBlock(prefixStep))) ||
-        step.type === "function") &&
+        step.type === "function" ||
+        step.type === "block" && ["function", "apply"].includes(projectionResult(step)?.type ?? "")) &&
       // Stored callable procedures need their full producer path so that the
       // callable resolver can inspect the function's returned container.
       !(step.type === "function" && (step as FunctionNode).procedure.type === "path" &&
