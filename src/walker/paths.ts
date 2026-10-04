@@ -215,6 +215,67 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
    * filter stages on name steps, sort steps, and group-by expressions.
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
+    const paths = walkPathSource(node, scope);
+    return node.steps.some((step) => step.type === "sort")
+      ? [...paths, ...walkTupleSortFallbackPaths(node, scope)] : paths;
+  }
+
+  function walkTupleSortFallbackPaths(node: PathNode, scope: ScopeTracker): string[] {
+    const paths: string[] = [];
+    const tupleNames = new Set<string>();
+    let usesTupleStream = false;
+    let hasTupleBindings = false;
+    let previousTupleSort = false;
+    for (const [index, step] of node.steps.entries()) {
+      const bindingStep = step as NameNode & { predicate?: AstNode[] };
+      const stages = bindingStep.stages ?? bindingStep.predicate ?? [];
+      usesTupleStream ||= Boolean(bindingStep.tuple || bindingStep.focusBinding || bindingStep.indexBinding ||
+        stages.some((stage) => stage.type === "position-binding"));
+      if (index === 0 && step.type === "array" && (step as ArrayNode).initialPathPredicate) continue;
+      if (step.type === "sort" && hasTupleBindings &&
+          (previousTupleSort || stages.some((stage) => stage.type === "filter"))) {
+        const prefix: PathNode = { type: "path", steps: node.steps.slice(0, index) };
+        const bindingsScope = runtime.aliases.groupResultScope(prefix, scope);
+        const tuple: ObjectNode = {
+          type: "object", position: 0,
+          entries: ["@", ...tupleNames].map((name) => [
+            { type: "string", value: name, position: 0 },
+            { type: "variable", value: name === "@" ? "" : name, position: 0 },
+          ]),
+        };
+        // A multi-item sort loses the tuple-stream flag. Subsequent filters
+        // and sort keys see raw tuple fields and the original outer variables.
+        const fallbackScope = runtime.higherOrder.bindArgumentParameter(
+          childScope(scope), { type: "variable", value: "", position: 0 },
+          runtime.aliases.bindingAliasPaths(tuple, bindingsScope), tuple, bindingsScope,
+        );
+        const walkFallback = (expression: AstNode): string[] => runtime.aliases.selectAliasExpressionPaths(
+          resolveObjectAlias(fallbackScope, ""), resolveDynamicObjectAlias(fallbackScope, ""),
+          expression, fallbackScope, resolveSuffixBasePaths(fallbackScope, "") ?? [],
+        );
+        if (previousTupleSort) {
+          for (const term of (step as SortNode).terms) paths.push(...walkFallback(term.expression));
+        }
+        for (const stage of stages) {
+          if (stage.type === "filter") {
+            paths.push(...walkFallback(runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr)));
+          }
+        }
+      }
+      previousTupleSort = step.type === "sort" && hasTupleBindings;
+      if (bindingStep.focusBinding) tupleNames.add(bindingStep.focusBinding.name);
+      if (bindingStep.indexBinding && !(step.type === "sort" && hasTupleBindings)) {
+        tupleNames.add(bindingStep.indexBinding.name);
+      }
+      for (const stage of stages) {
+        if (stage.type === "position-binding") tupleNames.add((stage as PositionBindingNode).name);
+      }
+      hasTupleBindings ||= usesTupleStream;
+    }
+    return paths;
+  }
+
+  function walkPathSource(node: PathNode, scope: ScopeTracker): string[] {
     const first = node.steps[0] as ArrayNode;
     if (first?.type === "array" && first.initialPathPredicate && runtime.aliases.chainedPathContext(node, scope)) {
       return walkPathSteps(node, scope);
