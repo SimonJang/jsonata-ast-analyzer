@@ -17,7 +17,7 @@ describe("transform output contracts", () => {
   it("retains pattern predicate reads from an incomplete transform AST missing its update", () => {
     // The parser supplies an update; this exercises the walker's defensive boundary.
     const node = { type: "transform", pattern: { type: "number", value: 1, position: 0, predicate: [{ type: "filter", expr: parse("$$.settings") }] } } as unknown as TransformNode;
-    expect(walkerRuntime().transforms.walkTransform(node, createScope())).toEqual([`${ROOT_PATH}.settings`]);
+    expect(walkerRuntime().transforms.walkTransform(node, createScope())).toEqual([`${ROOT_PATH}.settings`, "\u0000.settings.*"]);
   });
 
   it("resolves a transform pattern through a dynamic object alias", () => {

@@ -26,6 +26,7 @@ describe("selected-result boundaries", () => {
   it("does not require an else branch to select a conditional result", () => {
     expect(analyzeExpression("flag ? items")).toEqual({ accesses: [
       { path: "flag", confidence: "static", coverage: "exact" },
+      { path: "flag.*", confidence: "static", coverage: "exact" },
       { path: "items", confidence: "static", coverage: "subtree" },
     ] });
   });

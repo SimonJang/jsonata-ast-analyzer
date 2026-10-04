@@ -37,6 +37,7 @@ describe("Business Rules", () => {
         expression: `customer.email ?: customer.phone`,
         expectedPaths: [
           { path: "customer.email", confidence: "static" },
+          { path: "customer.email.*", confidence: "static" },
           { path: "customer.phone", confidence: "static" },
         ],
       },
@@ -65,8 +66,11 @@ describe("Business Rules", () => {
         expression: `products[(active and inStock) or featured].title`,
         expectedPaths: [
           { path: "products.active", confidence: "static" },
+          { path: "products.active.*", confidence: "static" },
           { path: "products.featured", confidence: "static" },
+          { path: "products.featured.*", confidence: "static" },
           { path: "products.inStock", confidence: "static" },
+          { path: "products.inStock.*", confidence: "static" },
           { path: "products.title", confidence: "static" },
         ],
       },
@@ -333,6 +337,7 @@ describe("Business Rules", () => {
         expectedPaths: [
           { path: "orders", confidence: "static" },
           { path: "orders.active", confidence: "static" },
+          { path: "orders.active.*", confidence: "static" },
           { path: "orders.total", confidence: "static" },
         ],
       },

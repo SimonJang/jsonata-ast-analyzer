@@ -299,6 +299,7 @@ describe("Data Export", () => {
         expectedPaths: [
           { path: "products", confidence: "static" },
           { path: "products.active", confidence: "static" },
+          { path: "products.active.*", confidence: "static" },
           { path: "products.category", confidence: "static" },
           { path: "products.price", confidence: "static" },
         ],

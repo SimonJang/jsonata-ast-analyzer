@@ -131,6 +131,7 @@ describe("extractPaths", () => {
     it('extracts all three branches: "a ? b : c"', () => {
       expect(extractPaths("a ? b : c")).toEqual([
         { path: "a", confidence: "static" },
+        { path: "a.*", confidence: "static" },
         { path: "b", confidence: "static" },
         { path: "c", confidence: "static" },
       ]);
@@ -139,6 +140,7 @@ describe("extractPaths", () => {
     it('extracts condition and then without else: "condition ? thenBranch"', () => {
       expect(extractPaths("condition ? thenBranch")).toEqual([
         { path: "condition", confidence: "static" },
+        { path: "condition.*", confidence: "static" },
         { path: "thenBranch", confidence: "static" },
       ]);
     });
@@ -146,6 +148,7 @@ describe("extractPaths", () => {
     it('extracts dot-paths from all branches: "x.y ? a.b : c.d"', () => {
       expect(extractPaths("x.y ? a.b : c.d")).toEqual([
         { path: "x.y", confidence: "static" },
+        { path: "x.y.*", confidence: "static" },
         { path: "a.b", confidence: "static" },
         { path: "c.d", confidence: "static" },
       ]);
@@ -438,7 +441,7 @@ describe("extractPaths", () => {
     it('apply with $filter: "data ~> $filter(function($v) { $v.active })"', () => {
       expect(
         extractPaths("data ~> $filter(function($v) { $v.active })"),
-      ).toEqual([{ path: "data", confidence: "static" }, { path: "data.active", confidence: "static" }]);
+      ).toEqual([{ path: "data", confidence: "static" }, { path: "data.active", confidence: "static" }, { path: "data.active.*", confidence: "static" }]);
     });
 
     it('apply with non-higher-order built-in: "items ~> $sum()"', () => {
@@ -525,6 +528,7 @@ describe("extractPaths", () => {
       expect(extractPaths("items[active]")).toEqual([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]);
     });
 
@@ -535,9 +539,10 @@ describe("extractPaths", () => {
           { path: "orders", confidence: "static" },
           { path: "orders.items", confidence: "static" },
           { path: "orders.items.price", confidence: "static" },
+          { path: "orders.items.*", confidence: "static" },
         ]),
       );
-      expect(result).toHaveLength(3);
+      expect(result).toHaveLength(4);
     });
 
     it('filter with external variable -- no leakage: "($threshold := 50; items[price > $threshold])"', () => {

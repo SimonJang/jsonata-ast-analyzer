@@ -234,6 +234,20 @@ export function createFunctionOperations(
     return null;
   }
 
+  /** Reuse boolean's value-consumption rules for control-flow truthiness. */
+  function asBooleanExpression(node: AstNode): FunctionNode {
+    const position = (node as AstNode & { position?: number }).position ?? 0;
+    return {
+      type: "function",
+      value: "(",
+      position,
+      procedure: {
+        type: "variable", value: "boolean", position, resolvedBuiltin: true,
+      },
+      arguments: [node],
+    };
+  }
+
   function isPlaceholder(node: AstNode): boolean {
     return node.type === "operator" && (node as { value?: unknown }).value === "?";
   }
@@ -334,7 +348,7 @@ export function createFunctionOperations(
           paths.push(
             ...predicates.flatMap((stage) =>
               stage.type === "filter"
-                ? runtime.core.walkNode((stage as unknown as FilterStage).expr, scope)
+                ? runtime.core.walkNode(asBooleanExpression((stage as unknown as FilterStage).expr), scope)
                 : [],
             ),
           );
@@ -453,7 +467,7 @@ export function createFunctionOperations(
       return ((node as VariableNode).predicate ?? []).flatMap((stage) =>
         stage.type === "filter" &&
         !isNumericIndex((stage as unknown as FilterStage).expr)
-          ? runtime.core.walkNode((stage as unknown as FilterStage).expr, scope)
+          ? runtime.core.walkNode(asBooleanExpression((stage as unknown as FilterStage).expr), scope)
           : [],
       );
     }
@@ -863,6 +877,10 @@ export function createFunctionOperations(
         continue;
       }
       if (arg.type === "lambda") {
+        if (funcName === "boolean" || funcName === "not") {
+          paths.push(...runtime.core.walkNode(arg, scope));
+          continue;
+        }
         // Walk lambda body with current scope (closure capture)
         const lambda = arg as LambdaNode;
         const lambdaScope = childScope(scope);
@@ -1034,7 +1052,7 @@ export function createFunctionOperations(
           ? runtime.aliases.selectAliasExpressionPaths(
               objectAlias,
               dynamicObjectAlias,
-              (stage as unknown as FilterStage).expr,
+              asBooleanExpression((stage as unknown as FilterStage).expr),
               predicateScope,
               suffixBasePaths,
             )
@@ -1200,6 +1218,7 @@ export function createFunctionOperations(
     withImplicitRootFunctionArgument,
     identityReferencePaths,
     deepValueReadPaths,
+    asBooleanExpression,
     appliedFunctionFromApply,
     explicitContextExpression,
     isPlaceholder,

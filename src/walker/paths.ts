@@ -472,7 +472,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               ? runtime.aliases.selectAliasExpressionPaths(
                   objectAlias,
                   dynamicObjectAlias,
-                  (stage as unknown as FilterStage).expr,
+                  runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
                   aliasScope,
                   suffixBaseBinding,
                 )
@@ -1173,7 +1173,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               ...runtime.aliases.selectAliasExpressionPaths(
                 objectAlias,
                 dynamicObjectAlias,
-                (stage as unknown as FilterStage).expr,
+                runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
                 predicateScope,
               ),
             );
@@ -1416,7 +1416,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                   ...runtime.aliases.selectAliasExpressionPaths(
                     blockObjectAlias,
                     blockDynamicObjectAlias,
-                    (stage as unknown as FilterStage).expr,
+                    runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
                     predicateScope,
                   ),
                 );
@@ -1759,7 +1759,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   
       paths.push(
         ...walkContextExpression(
-          filterStage.expr,
+          runtime.functions.asBooleanExpression(filterStage.expr),
           contextPrefix,
           stageScope,
           activeStageVariables,
@@ -1788,7 +1788,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       const expression = (stage as unknown as FilterStage).expr;
       if (isNumericIndex(expression)) continue;
       paths.push(
-        ...runtime.core.walkNode(expression, stageScope).filter((path) =>
+        ...runtime.core.walkNode(runtime.functions.asBooleanExpression(expression), stageScope).filter((path) =>
           path.startsWith(ROOT_PATH),
         ),
       );

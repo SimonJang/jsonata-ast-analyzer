@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, LambdaNode, NameNode, ObjectNode, PartialNode, PathNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, childScope, bindVariable, bindLambdaReference, resolveLambda, resolvePartial, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, bindLambdaReference, bindPartial, resolveLambda, resolvePartial, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
 import { HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH } from "./constants.js";
 import { prefixProjectionPaths, appendPath, resolveParentPathSegments, isRootReference, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, filterToBasePaths, hasPendingFocusReset } from "./path-utils.js";
@@ -155,6 +155,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     const paths: string[] = [];
     const funcName =
       node.procedure.type === "variable" ? node.procedure.value : "";
+    const truthyCallback = ["filter", "single", "sift"].includes(funcName);
     const callback = findResolvedHigherOrderLambdaCallbacks(
       args,
       scope,
@@ -250,30 +251,39 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       }
       for (const binding of callback.partials) {
         for (const partialCallbackInput of partialCallbackInputs) {
+          const arguments_ = higherOrderCallbackCallArguments(
+            funcName, partialCallbackInput, dataArg ?? partialCallbackInput, args, node.position,
+          );
+          const callbackName = "\u0000truthy-callback";
+          const callbackScope = truthyCallback
+            ? bindPartial(partialCallbackScope, callbackName, binding.partial, binding.scope)
+            : partialCallbackScope;
+          const call: FunctionNode = {
+            type: "function", value: "(", position: node.position,
+            procedure: { type: "variable", value: callbackName, position: node.position },
+            arguments: arguments_,
+          };
           paths.push(
-            ...walkPartialCall(
-              binding,
-              higherOrderCallbackCallArguments(
-                funcName,
-                partialCallbackInput,
-                dataArg ?? partialCallbackInput,
-                args,
-                node.position,
-              ),
-              partialCallbackScope,
+            ...(truthyCallback
+              ? runtime.core.walkNode(runtime.functions.asBooleanExpression(call), callbackScope)
+              : walkPartialCall(binding, arguments_, partialCallbackScope)
             ).filter((path) => !syntheticPartialValuePaths.includes(path)),
           );
         }
       }
       for (const name of callback.builtins) {
         for (const callbackInput of partialCallbackInputs) {
-          paths.push(...runtime.functions.walkFunction({
+          const call: FunctionNode = {
             type: "function", value: "(", position: node.position,
             procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
             arguments: higherOrderCallbackCallArguments(
               funcName, callbackInput, dataArg ?? callbackInput, args, node.position,
             ),
-          }, partialCallbackScope).filter((path) => !syntheticPartialValuePaths.includes(path)));
+          };
+          paths.push(...runtime.core.walkNode(
+            truthyCallback ? runtime.functions.asBooleanExpression(call) : call,
+            partialCallbackScope,
+          ).filter((path) => !syntheticPartialValuePaths.includes(path)));
         }
       }
     }
@@ -1077,7 +1087,9 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       dataArgScope,
     );
   
-    return resolveCallbackParentPaths(runtime.core.walkNode(lambda.body, lambdaScope), dataArgPaths);
+    const body = ["filter", "single", "sift"].includes(funcName)
+      ? runtime.functions.asBooleanExpression(lambda.body) : lambda.body;
+    return resolveCallbackParentPaths(runtime.core.walkNode(body, lambdaScope), dataArgPaths);
   }
 
   function resolveCallbackParentPaths(

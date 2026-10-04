@@ -98,6 +98,7 @@ describe("API Reshaping", () => {
         expression: `response.data.items[active].attributes.dimensions.height`,
         expectedPaths: [
           { path: "response.data.items.active", confidence: "static" },
+          { path: "response.data.items.active.*", confidence: "static" },
           { path: "response.data.items.attributes.dimensions.height", confidence: "static" },
         ],
       },
@@ -348,6 +349,7 @@ describe("API Reshaping", () => {
         expression: `items.(active ? name : "N/A")`,
         expectedPaths: [
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.name", confidence: "static" },
         ],
       },
@@ -396,6 +398,7 @@ describe("API Reshaping", () => {
         expression: `items@$i[$i.price > 50 and $i.active].name`,
         expectedPaths: [
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.price", confidence: "static" },
           { path: "name", confidence: "static" },
         ],
@@ -482,6 +485,7 @@ describe("API Reshaping", () => {
         expectedPaths: [
           { path: "orders", confidence: "static" },
           { path: "orders.active", confidence: "static" },
+          { path: "orders.active.*", confidence: "static" },
           { path: "total", confidence: "static" },
         ],
       },

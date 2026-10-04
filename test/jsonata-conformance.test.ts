@@ -16,6 +16,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "items@$i[$i.price > 50 and $i.active].name",
     expectedPaths: [
       { path: "items.active", confidence: "static" },
+      { path: "items.active.*", confidence: "static" },
       { path: "items.price", confidence: "static" },
       { path: "name", confidence: "static" },
     ],
@@ -87,6 +88,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "customer.email ?: customer.phone",
     expectedPaths: [
       { path: "customer.email", confidence: "static" },
+      { path: "customer.email.*", confidence: "static" },
       { path: "customer.phone", confidence: "static" },
     ],
   },
@@ -164,6 +166,7 @@ const fixtures: ConformanceFixture[] = [
     expression: '"constant"[$$.stringFlag]',
     expectedPaths: [
       { path: "stringFlag", confidence: "static" },
+      { path: "stringFlag.*", confidence: "static" },
     ],
   },
   {
@@ -171,6 +174,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "1[$$.numberFlag]",
     expectedPaths: [
       { path: "numberFlag", confidence: "static" },
+      { path: "numberFlag.*", confidence: "static" },
     ],
   },
   {
@@ -178,6 +182,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "true[$$.valueFlag]",
     expectedPaths: [
       { path: "valueFlag", confidence: "static" },
+      { path: "valueFlag.*", confidence: "static" },
     ],
   },
   {
@@ -185,6 +190,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "/x/[$$.regexFlag]",
     expectedPaths: [
       { path: "regexFlag", confidence: "static" },
+      { path: "regexFlag.*", confidence: "static" },
     ],
   },
   {
@@ -192,6 +198,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "1#$i[$i = 0 and $$.indexedNumberFlag]",
     expectedPaths: [
       { path: "indexedNumberFlag", confidence: "static" },
+      { path: "indexedNumberFlag.*", confidence: "static" },
     ],
   },
   {
@@ -199,6 +206,7 @@ const fixtures: ConformanceFixture[] = [
     expression: '"constant"#$i[$i = 0 and $$.indexedStringFlag]',
     expectedPaths: [
       { path: "indexedStringFlag", confidence: "static" },
+      { path: "indexedStringFlag.*", confidence: "static" },
     ],
   },
   {
@@ -206,6 +214,7 @@ const fixtures: ConformanceFixture[] = [
     expression: '("constant")#$i[$i = 0 and $$.indexedBlockFlag]',
     expectedPaths: [
       { path: "indexedBlockFlag", confidence: "static" },
+      { path: "indexedBlockFlag.*", confidence: "static" },
     ],
   },
   {
@@ -213,6 +222,7 @@ const fixtures: ConformanceFixture[] = [
     expression: '[1, 2]#$i[$i = 0 and $$.indexedArrayFlag]',
     expectedPaths: [
       { path: "indexedArrayFlag", confidence: "static" },
+      { path: "indexedArrayFlag.*", confidence: "static" },
     ],
   },
   {
@@ -220,6 +230,7 @@ const fixtures: ConformanceFixture[] = [
     expression: '("constant")[$$.blockFlag]',
     expectedPaths: [
       { path: "blockFlag", confidence: "static" },
+      { path: "blockFlag.*", confidence: "static" },
     ],
   },
   {
@@ -227,6 +238,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "[1, 2][$$.arrayFlag]",
     expectedPaths: [
       { path: "arrayFlag", confidence: "static" },
+      { path: "arrayFlag.*", confidence: "static" },
     ],
   },
   {
@@ -234,6 +246,7 @@ const fixtures: ConformanceFixture[] = [
     expression: '$string("constant")[$$.functionFlag]',
     expectedPaths: [
       { path: "functionFlag", confidence: "static" },
+      { path: "functionFlag.*", confidence: "static" },
     ],
   },
   {
@@ -307,6 +320,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "$substring(?, 0, 1)[$$.partialFlag]",
     expectedPaths: [
       { path: "partialFlag", confidence: "static" },
+      { path: "partialFlag.*", confidence: "static" },
     ],
   },
   {
@@ -322,6 +336,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "function($x){$x}[$$.lambdaFlag]",
     expectedPaths: [
       { path: "lambdaFlag", confidence: "static" },
+      { path: "lambdaFlag.*", confidence: "static" },
     ],
   },
   {
@@ -337,6 +352,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "$substring(?, 0, 1)#$i[$i = 0 and $$.indexedPartialFlag]",
     expectedPaths: [
       { path: "indexedPartialFlag", confidence: "static" },
+      { path: "indexedPartialFlag.*", confidence: "static" },
     ],
   },
   {
@@ -344,6 +360,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "function($x){$x}#$i[$i = 0 and $$.indexedLambdaFlag]",
     expectedPaths: [
       { path: "indexedLambdaFlag", confidence: "static" },
+      { path: "indexedLambdaFlag.*", confidence: "static" },
     ],
   },
   {
@@ -352,6 +369,7 @@ const fixtures: ConformanceFixture[] = [
     expectedPaths: [
       { path: "Account", confidence: "static" },
       { path: "transformFlag", confidence: "static" },
+      { path: "transformFlag.*", confidence: "static" },
     ],
   },
   {
@@ -370,6 +388,7 @@ const fixtures: ConformanceFixture[] = [
     expectedPaths: [
       { path: "Account", confidence: "static" },
       { path: "indexedTransformFlag", confidence: "static" },
+      { path: "indexedTransformFlag.*", confidence: "static" },
     ],
   },
   {
@@ -377,6 +396,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "accounts.*[active].name",
     expectedPaths: [
       { path: "accounts.*.active", confidence: "static" },
+      { path: "accounts.*.active.*", confidence: "static" },
       { path: "accounts.*.name", confidence: "static" },
     ],
   },
@@ -401,6 +421,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "items^(age)[active].name",
     expectedPaths: [
       { path: "items.active", confidence: "static" },
+      { path: "items.active.*", confidence: "static" },
       { path: "items.age", confidence: "static" },
       { path: "items.name", confidence: "static" },
     ],
@@ -443,6 +464,7 @@ const fixtures: ConformanceFixture[] = [
     expectedPaths: [
       { path: "items", confidence: "static" },
       { path: "items.active", confidence: "static" },
+      { path: "items.active.*", confidence: "static" },
     ],
   },
   {
@@ -465,6 +487,7 @@ const fixtures: ConformanceFixture[] = [
     expression: "library.books.$[featured].title",
     expectedPaths: [
       { path: "library.books.featured", confidence: "static" },
+      { path: "library.books.featured.*", confidence: "static" },
       { path: "library.books.title", confidence: "static" },
     ],
   },
@@ -496,6 +519,7 @@ const fixtures: ConformanceFixture[] = [
     expression: 'items.("constant"[$$.config.enabled])',
     expectedPaths: [
       { path: "config.enabled", confidence: "static" },
+          { path: "config.enabled.*", confidence: "static" },
       { path: "items", confidence: "static" },
     ],
   },
@@ -522,6 +546,7 @@ const fixtures: ConformanceFixture[] = [
     expectedPaths: [
       { path: "*", confidence: "static" },
       { path: "*.profile.postcode", confidence: "static" },
+      { path: "*.profile.postcode.*", confidence: "static" },
     ],
   },
   {

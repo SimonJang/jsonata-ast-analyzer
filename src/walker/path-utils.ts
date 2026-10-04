@@ -84,7 +84,7 @@ export function stripParentRelativePath(path: string): string {
 }
 
 export function collectVariableNames(node: AstNode, names = new Set<string>()): Set<string> {
-  if (node.type === "variable") {
+  if (node.type === "variable" && !(node as VariableNode).resolvedBuiltin) {
     names.add((node as VariableNode).value);
   }
 

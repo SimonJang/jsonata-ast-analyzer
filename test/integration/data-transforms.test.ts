@@ -57,6 +57,7 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "items", confidence: "static" },
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.name", confidence: "static" },
         ],
       });
@@ -125,6 +126,7 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "items", confidence: "static" },
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.name", confidence: "static" },
         ],
       });
@@ -157,6 +159,7 @@ describe("Data Transforms", () => {
         expression: `orders.items[active].price`,
         expectedPaths: [
           { path: "orders.items.active", confidence: "static" },
+          { path: "orders.items.active.*", confidence: "static" },
           { path: "orders.items.price", confidence: "static" },
         ],
       },
@@ -172,6 +175,7 @@ describe("Data Transforms", () => {
         expression: `company.departments[active].employees.email`,
         expectedPaths: [
           { path: "company.departments.active", confidence: "static" },
+          { path: "company.departments.active.*", confidence: "static" },
           { path: "company.departments.employees.email", confidence: "static" },
         ],
       },
@@ -294,6 +298,7 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "items", confidence: "static" },
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.name", confidence: "static" },
         ],
       });
@@ -331,6 +336,7 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "items", confidence: "static" },
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.name", confidence: "static" },
           { path: "items.price", confidence: "static" },
         ],
@@ -342,6 +348,7 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "orders.items", confidence: "static" },
           { path: "orders.items.inStock", confidence: "static" },
+          { path: "orders.items.inStock.*", confidence: "static" },
           { path: "orders.items.sku", confidence: "static" },
         ],
       },
@@ -352,6 +359,7 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "items", confidence: "static" },
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.category", confidence: "static" },
         ],
       },
@@ -363,6 +371,7 @@ describe("Data Transforms", () => {
           { path: "values", confidence: "static" },
           { path: "values.amount", confidence: "static" },
           { path: "values.valid", confidence: "static" },
+          { path: "values.valid.*", confidence: "static" },
         ],
       },
       {
@@ -374,6 +383,7 @@ describe("Data Transforms", () => {
           { path: "orders.items", confidence: "static" },
           { path: "orders.items.name", confidence: "static" },
           { path: "orders.open", confidence: "static" },
+          { path: "orders.open.*", confidence: "static" },
         ],
       },
       {
@@ -393,12 +403,14 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "items", confidence: "static" },
           { path: "items.active", confidence: "static" },
+          { path: "items.active.*", confidence: "static" },
           { path: "items.name", confidence: "static" },
           { path: "items.name.**", confidence: "static" },
           { path: "users", confidence: "static" },
           { path: "users.email", confidence: "static" },
           { path: "users.email.**", confidence: "static" },
           { path: "users.verified", confidence: "static" },
+          { path: "users.verified.*", confidence: "static" },
         ],
       },
       {
@@ -408,6 +420,7 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "orders", confidence: "static" },
           { path: "orders.active", confidence: "static" },
+          { path: "orders.active.*", confidence: "static" },
           { path: "orders.total", confidence: "static" },
         ],
       },

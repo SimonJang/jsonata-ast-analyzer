@@ -146,7 +146,7 @@ describe("higher-order fallback boundaries", () => {
   });
   it.each(["each", "sift"])("binds implicit root values for a one-argument $%s callback", (name) => {
     const paths = walkerRuntime().higherOrder.walkHigherOrderCall(fn(`$${name}(function($value){$value.price})`), { 0: "value" }, createScope());
-    expect(paths).toEqual(["*", `${ROOT_PATH}.*.price`]);
+    expect(paths).toEqual(["*", `${ROOT_PATH}.*.price`, ...(name === "sift" ? [`${ROOT_PATH}.*.price.*`] : [])]);
   });
 
   it("binds a non-object each parameter to value paths without copying object aliases", () => {

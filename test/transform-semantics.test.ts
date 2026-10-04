@@ -152,6 +152,7 @@ describe("transform semantics", () => {
                   path: "payload.config.enabled",
                   confidence: "static" as const,
                 },
+                { path: "payload.config.enabled.*", confidence: "static" as const },
               ]
             : []),
           { path: "payload", confidence: "static" },
@@ -802,7 +803,7 @@ describe("transform semantics", () => {
       extractPaths(
         'config.enabled ? |first|{"seen": name}| : function($x){$x.first.name}',
       ),
-    ).toEqual([{ path: "config.enabled", confidence: "static" }]);
+    ).toEqual([{ path: "config.enabled", confidence: "static" }, { path: "config.enabled.*", confidence: "static" }]);
   });
 
   it("executes a transform selected from a stored array", () => {
@@ -831,6 +832,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.index", confidence: "static" },
+        { path: "config.index.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
@@ -962,6 +964,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "Account", confidence: "static" },
         { path: "Account.active", confidence: "static" },
+        { path: "Account.active.*", confidence: "static" },
         { path: "Account.name", confidence: "static" },
       ]),
     );
@@ -977,6 +980,7 @@ describe("transform semantics", () => {
         { path: "payload", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
         { path: "payload.Account.active", confidence: "static" },
+        { path: "payload.Account.active.*", confidence: "static" },
         { path: "payload.Account.name", confidence: "static" },
       ]),
     );
@@ -989,6 +993,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "Account", confidence: "static" },
         { path: "Account.active", confidence: "static" },
+        { path: "Account.active.*", confidence: "static" },
         { path: "Account.name", confidence: "static" },
       ]),
     );
@@ -1004,6 +1009,7 @@ describe("transform semantics", () => {
         { path: "payload", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
         { path: "payload.Account.active", confidence: "static" },
+        { path: "payload.Account.active.*", confidence: "static" },
         { path: "payload.Account.name", confidence: "static" },
       ]),
     );
@@ -1070,6 +1076,7 @@ describe("transform semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -1090,6 +1097,7 @@ describe("transform semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -1110,6 +1118,7 @@ describe("transform semantics", () => {
         { path: "fallback.x.node", confidence: "static" },
         { path: "fallback.x.node.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
         { path: "primary.node", confidence: "static" },

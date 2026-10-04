@@ -12,6 +12,7 @@ describe("constructor and fallback precision", () => {
   it("deduplicates Elvis when the fallback is literal", () => {
     expect(extractPaths("foo.bar ?: 'default'")).toEqual([
       { path: "foo.bar", confidence: "static" },
+      { path: "foo.bar.*", confidence: "static" },
     ]);
   });
 
@@ -20,7 +21,9 @@ describe("constructor and fallback precision", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.price", confidence: "static" },
+        { path: "items.price.*", confidence: "static" },
       ]),
     );
   });

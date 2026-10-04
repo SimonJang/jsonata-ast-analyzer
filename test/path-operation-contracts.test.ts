@@ -21,14 +21,14 @@ describe("path operation context contracts", () => {
     const literal: AstNode = { type: "number", value: 1, position: 0, indexBinding: index };
     const suffix: AstNode = { ...name("copy"), stages: [filter(name("active"))] };
     const node: PathNode = { type: "path", steps: [literal, variable("index"), parse('{"copy":source}'), suffix] };
-    expect(new Set(walkerRuntime().paths.walkPath(node, createScope()))).toEqual(new Set(["source", "source.active"]));
+    expect(new Set(walkerRuntime().paths.walkPath(node, createScope()))).toEqual(new Set(["source", "source.active", "source.active.*"]));
   });
 
   it("uses the resolved base for suffix contexts containing an unrepresentable variable", () => {
     const suffix: AstNode[] = [variable("unknown"), { ...name("items"), stages: [filter(name("active"))] }];
     const sort: AstNode = { type: "sort", terms: [{ descending: false, expression: name("price") }] };
     const paths = walkerRuntime().paths;
-    expect(paths.walkResolvedVariableSuffixFilterStages(suffix, "source", createScope(), new Set())).toEqual(["source.active"]);
+    expect(paths.walkResolvedVariableSuffixFilterStages(suffix, "source", createScope(), new Set())).toEqual(["source.active", "source.active.*"]);
     expect(paths.walkResolvedVariableSuffixSortTerms([...suffix, sort], "source", createScope(), new Set())).toEqual(["source.price"]);
   });
 
@@ -101,12 +101,12 @@ describe("path operation context contracts", () => {
     { type: "object", entries: [[parse('"copy"'), name("source")]], predicate: [filter(parse("$$.settings"))] },
     { type: "array", expressions: [name("source")], predicate: [filter(parse("$$.settings"))] },
   ])("accepts a $type predicate without an index binding", (step) => {
-    expect(new Set(walkerRuntime().paths.walkPath({ type: "path", steps: [name("outer"), step as AstNode] }, createScope()))).toEqual(new Set(["outer", "outer.source", `${ROOT_PATH}.settings`]));
+    expect(new Set(walkerRuntime().paths.walkPath({ type: "path", steps: [name("outer"), step as AstNode] }, createScope()))).toEqual(new Set(["outer", "outer.source", `${ROOT_PATH}.settings`, `${ROOT_PATH}.settings.*`]));
   });
 
   it("uses the preceding context for predicates on a constant block", () => {
     const block: AstNode = { type: "block", position: 0, expressions: [parse("1")], predicate: [filter(parse("$$.settings"))] };
-    expect(walkerRuntime().paths.walkPath({ type: "path", steps: [name("outer"), block] }, createScope())).toEqual([`${ROOT_PATH}.settings`, "outer"]);
+    expect(walkerRuntime().paths.walkPath({ type: "path", steps: [name("outer"), block] }, createScope())).toEqual([`${ROOT_PATH}.settings`, "\u0000.settings.*", "outer"]);
   });
 
   it("keeps empty suffix focus and position bindings source-less", () => {
@@ -122,7 +122,7 @@ describe("path operation context contracts", () => {
   });
 
   it("reads a resolved data variable used directly as a filter", () => {
-    expect(walkerRuntime().paths.walkFilterStages([filter(variable("selected"))], "items", bindVariable(createScope(), "selected", ["settings"]))).toEqual(["settings"]);
+    expect(walkerRuntime().paths.walkFilterStages([filter(variable("selected"))], "items", bindVariable(createScope(), "selected", ["settings"]))).toEqual(["settings", "settings.*"]);
   });
   it.each(["[$default()]", '$default() & "suffix"'])("binds current context for a nested call to a named defaulted lambda: %s", (expression) => {
     const scope = bindLambda(createScope(), "default", parse("function($x)<s-:s>{$x}") as LambdaNode);
@@ -150,7 +150,7 @@ describe("path operation context contracts", () => {
 
   it("binds a root focus before walking its filter", () => {
     const root = { ...variable("$"), focusBinding: focus, predicate: [filter(parse("$item.active"))] };
-    expect(walkerRuntime().paths.walkPath({ type: "path", steps: [root, name("price")] }, createScope())).toEqual([`${ROOT_PATH}.active`, `${ROOT_PATH}.price`]);
+    expect(walkerRuntime().paths.walkPath({ type: "path", steps: [root, name("price")] }, createScope())).toEqual([`${ROOT_PATH}.active`, "\u0000.active.*", `${ROOT_PATH}.price`]);
   });
 
   it("binds focus and position when a path resets to the root in its middle", () => {
@@ -165,7 +165,7 @@ describe("path operation context contracts", () => {
 
   it("resolves a focused suffix predicate against the resolved variable source", () => {
     const step = { ...name("items"), focusBinding: focus, indexBinding: index, stages: [filter(parse("$item.price")), filter(variable("index"))] };
-    expect(walkerRuntime().paths.walkResolvedVariableSuffixFilterStages([step], "orders", createScope(), new Set())).toEqual(["orders.items.price"]);
+    expect(walkerRuntime().paths.walkResolvedVariableSuffixFilterStages([step], "orders", createScope(), new Set())).toEqual(["orders.items.price", "orders.items.price.*"]);
   });
 
   it("resolves focused sort terms against the resolved variable source", () => {
@@ -175,11 +175,11 @@ describe("path operation context contracts", () => {
   });
 
   it("ignores unrelated stage kinds without losing a following filter", () => {
-    expect(walkerRuntime().paths.walkFilterStages([name("notAStage"), filter(name("active"))], "orders", createScope())).toEqual(["orders.active"]);
+    expect(walkerRuntime().paths.walkFilterStages([name("notAStage"), filter(name("active"))], "orders", createScope())).toEqual(["orders.active", "orders.active.*"]);
   });
 
   it("binds positional stages and ignores unrelated stages in source-less filters", () => {
-    expect(walkerRuntime().paths.walkSourceLessFilterStages([index, name("notAStage"), filter(variable("index")), filter(parse("$$.settings"))], createScope())).toEqual([`${ROOT_PATH}.settings`]);
+    expect(walkerRuntime().paths.walkSourceLessFilterStages([index, name("notAStage"), filter(variable("index")), filter(parse("$$.settings"))], createScope())).toEqual([`${ROOT_PATH}.settings`, "\u0000.settings.*"]);
   });
 
   it("preserves captured reads while contextualizing a callable-selection expression", () => {

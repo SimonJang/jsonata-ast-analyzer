@@ -25,6 +25,7 @@ describe("analyzeExpression", () => {
       accesses: [
         { path: "items", confidence: "static", coverage: "subtree" },
         { path: "items.active", confidence: "static", coverage: "exact" },
+        { path: "items.active.*", confidence: "static", coverage: "exact" },
       ],
     });
     expect(
@@ -195,6 +196,7 @@ describe("analyzeExpression", () => {
       expression: "condition ? customer : fallback",
       accesses: [
         { path: "condition", confidence: "static", coverage: "exact" },
+        { path: "condition.*", confidence: "static", coverage: "exact" },
         { path: "customer", confidence: "static", coverage: "subtree" },
         { path: "fallback", confidence: "static", coverage: "subtree" },
       ],
@@ -214,6 +216,7 @@ describe("analyzeExpression", () => {
       accesses: [
         { path: "items.name", confidence: "static", coverage: "subtree" },
         { path: "items.active", confidence: "static", coverage: "exact" },
+        { path: "items.active.*", confidence: "static", coverage: "exact" },
       ],
     },
     {
@@ -274,6 +277,7 @@ describe("analyzeExpression", () => {
       accesses: [
         { path: "items", confidence: "static", coverage: "exact" },
         { path: "items.active", confidence: "static", coverage: "exact" },
+        { path: "items.active.*", confidence: "static", coverage: "exact" },
         { path: "items.category", confidence: "static", coverage: "exact" },
         { path: "items.price", confidence: "static", coverage: "subtree" },
       ],

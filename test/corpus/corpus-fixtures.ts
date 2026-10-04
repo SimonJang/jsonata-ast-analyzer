@@ -54,7 +54,7 @@ for (let i = 0; i < 19; i++) {
     "path stages",
     `chained filters ${i}`,
     `${root}[active${i}][score${i} > 3].name${i}`,
-    [path(`${root}.active${i}`), path(`${root}.name${i}`), path(`${root}.score${i}`)],
+    [path(`${root}.active${i}`), path(`${root}.active${i}.*`), path(`${root}.name${i}`), path(`${root}.score${i}`)],
   );
   add(
     "path stages",
@@ -104,7 +104,7 @@ for (let i = 0; i < 25; i++) {
     "variables and functions",
     `apply filter map ${i}`,
     `items${i} ~> $filter(function($v) { $v.active${i} }) ~> $map(function($v) { $v.name${i} })`,
-    [path(`items${i}`), path(`items${i}.active${i}`), path(`items${i}.name${i}`)],
+    [path(`items${i}`), path(`items${i}.active${i}`), path(`items${i}.active${i}.*`), path(`items${i}.name${i}`)],
   );
 }
 
@@ -172,8 +172,10 @@ for (let i = 0; i < 17; i++) {
     [
       path(`items${i}`),
       path(`items${i}.active${i}`),
+      path(`items${i}.active${i}.*`),
       path(`items${i}.fallback${i}`),
       path(`items${i}.price${i}`),
+      path(`items${i}.price${i}.*`),
     ],
   );
   add("constructors", `group keep array ${i}`, `Phone${i}{type${i}:number${i}[]}`, [
@@ -261,7 +263,7 @@ for (let i = 0; i < 13; i++) {
     "mixed combinations",
     `function in map with fallback ${i}`,
     `($fn${i} := function($x) { $x.value${i} ?: default${i}.value${i} }; data${i} ~> $map(function($v) { $fn${i}($v) }))`,
-    [path(`data${i}`), path(`data${i}.value${i}`), path(`default${i}.value${i}`)],
+    [path(`data${i}`), path(`data${i}.value${i}`), path(`data${i}.value${i}.*`), path(`default${i}.value${i}`)],
   );
 }
 

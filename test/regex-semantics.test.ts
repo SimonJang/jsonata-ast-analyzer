@@ -63,16 +63,16 @@ describe("regex semantics", () => {
     const matcher =
       "$matcher := function($str){config.needle ? /x/($str) : /z/($str)}; ";
     for (const [call, expected] of [
-      ["$contains(text, $matcher)", ["text", "config.needle"]],
+      ["$contains(text, $matcher)", ["text", "config.needle", "config.needle.*"]],
       [
         "$match(text, $matcher, options.limit)",
-        ["text", "config.needle", "options.limit"],
+        ["text", "config.needle", "config.needle.*", "options.limit"],
       ],
       [
         "$split(text, $matcher, options.limit)",
-        ["text", "config.needle", "options.limit"],
+        ["text", "config.needle", "config.needle.*", "options.limit"],
       ],
-      ["$replace(text, $matcher, \"_\")", ["text", "config.needle"]],
+      ["$replace(text, $matcher, \"_\")", ["text", "config.needle", "config.needle.*"]],
     ] as const) {
       expect(
         sortPaths(extractPaths(`(${matcher}${call})`)),

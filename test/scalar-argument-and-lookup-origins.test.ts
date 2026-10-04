@@ -22,6 +22,9 @@ describe("scalar argument and constructed lookup origins", () => {
       expect(await jsonata(expression).evaluate(input)).toBeUndefined();
       expect(analyzeExpression(expression).accesses).toEqual([
         { path: "first.nested.total", confidence: "static", coverage: "exact" },
+        ...(value.includes(" and ") || value.includes(" or ")
+          ? [{ path: "first.nested.total.*", confidence: "static" as const, coverage: "exact" as const }]
+          : []),
       ]);
     }
   });

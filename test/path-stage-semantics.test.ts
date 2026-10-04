@@ -143,6 +143,7 @@ describe("path-stage semantics", () => {
     expect(sortPaths(extractPaths("items[active]#$i[$i].name"))).toEqual(
       sortPaths([
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -209,6 +210,7 @@ describe("path-stage semantics", () => {
         { path: "items.fallback", confidence: "static" },
         { path: "items.fallback.name", confidence: "static" },
         { path: "items.flag", confidence: "static" },
+        { path: "items.flag.*", confidence: "static" },
         { path: "items.primary", confidence: "static" },
         { path: "items.primary.name", confidence: "static" },
       ]),
@@ -301,6 +303,7 @@ describe("path-stage semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -343,6 +346,7 @@ describe("path-stage semantics", () => {
         { path: "orders.items.fallback", confidence: "static" },
         { path: "orders.items.fallback.name", confidence: "static" },
         { path: "orders.items.flag", confidence: "static" },
+        { path: "orders.items.flag.*", confidence: "static" },
         { path: "orders.items.primary", confidence: "static" },
         { path: "orders.items.primary.name", confidence: "static" },
       ]),
@@ -360,6 +364,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.active", confidence: "static" },
+        { path: "orders.items.active.*", confidence: "static" },
         { path: "orders.items.children", confidence: "static" },
         { path: "orders.items.children.name", confidence: "static" },
       ]),
@@ -376,6 +381,7 @@ describe("path-stage semantics", () => {
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.children", confidence: "static" },
         { path: "orders.items.children.enabled", confidence: "static" },
+        { path: "orders.items.children.enabled.*", confidence: "static" },
         { path: "orders.items.children.name", confidence: "static" },
       ]),
     );
@@ -427,10 +433,13 @@ describe("path-stage semantics", () => {
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.fallback", confidence: "static" },
         { path: "orders.items.fallback.enabled", confidence: "static" },
+        { path: "orders.items.fallback.enabled.*", confidence: "static" },
         { path: "orders.items.fallback.name", confidence: "static" },
         { path: "orders.items.flag", confidence: "static" },
+        { path: "orders.items.flag.*", confidence: "static" },
         { path: "orders.items.primary", confidence: "static" },
         { path: "orders.items.primary.enabled", confidence: "static" },
+        { path: "orders.items.primary.enabled.*", confidence: "static" },
         { path: "orders.items.primary.name", confidence: "static" },
       ]),
     );
@@ -441,9 +450,11 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.enabled", confidence: "static" },
+        { path: "fallback.enabled.*", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.enabled", confidence: "static" },
+        { path: "primary.enabled.*", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -456,9 +467,11 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children.active", confidence: "static" },
+        { path: "fallback.x.children.active.*", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.x.children.active", confidence: "static" },
+        { path: "primary.x.children.active.*", confidence: "static" },
         { path: "primary.x.children.name", confidence: "static" },
       ]),
     );
@@ -474,6 +487,7 @@ describe("path-stage semantics", () => {
         { path: "items", confidence: "static" },
         { path: "items.children", confidence: "static" },
         { path: "items.children.enabled", confidence: "static" },
+        { path: "items.children.enabled.*", confidence: "static" },
         { path: "items.children.name", confidence: "static" },
       ]),
     );
@@ -490,11 +504,14 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.enabled.*", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
       ]),
     );
@@ -506,6 +523,7 @@ describe("path-stage semantics", () => {
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.enabled", confidence: "static" },
+        { path: "primary.enabled.*", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -521,6 +539,7 @@ describe("path-stage semantics", () => {
         { path: "item", confidence: "static" },
         { path: "item.children", confidence: "static" },
         { path: "item.children.enabled", confidence: "static" },
+        { path: "item.children.enabled.*", confidence: "static" },
         { path: "item.children.name", confidence: "static" },
       ]),
     );
@@ -535,6 +554,7 @@ describe("path-stage semantics", () => {
         { path: "primary", confidence: "static" },
         { path: "primary.**", confidence: "static" },
         { path: "primary.enabled", confidence: "static" },
+        { path: "primary.enabled.*", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -591,6 +611,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
@@ -610,11 +631,14 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.enabled.*", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
       ]),
     );
@@ -633,6 +657,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
@@ -652,11 +677,14 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.enabled.*", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
         { path: "missing", confidence: "static" },
       ]),
@@ -674,11 +702,14 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "missing", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.enabled", confidence: "static" },
+        { path: "primary.enabled.*", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -696,11 +727,14 @@ describe("path-stage semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
         { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.enabled.*", confidence: "static" },
       ]),
     );
   });
@@ -716,11 +750,14 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children.enabled", confidence: "static" },
+        { path: "fallback.x.children.enabled.*", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.enabled", confidence: "static" },
+        { path: "items.detail.children.enabled.*", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
       ]),
     );
@@ -739,6 +776,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
@@ -758,6 +796,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.name", confidence: "static" },
         { path: "fallback.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
       ]),
@@ -777,6 +816,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.amount", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.amount", confidence: "static" },
@@ -798,6 +838,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
@@ -822,6 +863,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.enabled", confidence: "static" },
         { path: "fallback.x.enabled.**", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
@@ -845,11 +887,14 @@ describe("path-stage semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.children.enabled", confidence: "static" },
+        { path: "fallback.x.children.enabled.*", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.enabled", confidence: "static" },
+        { path: "items.detail.children.enabled.*", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
       ]),
     );
@@ -867,12 +912,15 @@ describe("path-stage semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children", confidence: "static" },
         { path: "fallback.x.children.enabled", confidence: "static" },
+        { path: "fallback.x.children.enabled.*", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
         { path: "items.detail.children.enabled", confidence: "static" },
+        { path: "items.detail.children.enabled.*", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
       ]),
     );
@@ -894,6 +942,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.rank", confidence: "static" },
         { path: "fallback.x.rank.**", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -918,6 +967,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.score", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -940,6 +990,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.amount", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -963,6 +1014,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -988,6 +1040,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.rank", confidence: "static" },
         { path: "fallback.x.rank.**", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1011,6 +1064,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1027,6 +1081,7 @@ describe("path-stage semantics", () => {
       { path: "fallback.x.owner", confidence: "static" },
       { path: "fallback.x.owner.name", confidence: "static" },
       { path: "flag", confidence: "static" },
+      { path: "flag.*", confidence: "static" },
       { path: "items", confidence: "static" },
       { path: "items.detail", confidence: "static" },
       { path: "items.detail.children", confidence: "static" },
@@ -1057,6 +1112,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.owner", confidence: "static" },
         { path: "fallback.x.children.owner.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1152,6 +1208,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "customer", confidence: "static" },
         { path: "customer.active", confidence: "static" },
+        { path: "customer.active.*", confidence: "static" },
         { path: "customer.name", confidence: "static" },
         { path: "inner", confidence: "static" },
       ]),
@@ -1238,8 +1295,10 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "fallback", confidence: "static" },
         { path: "fallback.enabled", confidence: "static" },
+        { path: "fallback.enabled.*", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
       ]),
     );
@@ -1249,6 +1308,7 @@ describe("path-stage semantics", () => {
     const expected = sortPaths([
       { path: "customer", confidence: "static" },
       { path: "customer.active", confidence: "static" },
+      { path: "customer.active.*", confidence: "static" },
       { path: "customer.name", confidence: "static" },
       { path: "inner", confidence: "static" },
     ]);
@@ -1282,11 +1342,14 @@ describe("path-stage semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.children", confidence: "static" },
         { path: "fallback.x.children.enabled", confidence: "static" },
+        { path: "fallback.x.children.enabled.*", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
         { path: "items.detail.children.enabled", confidence: "static" },
+        { path: "items.detail.children.enabled.*", confidence: "static" },
       ]),
     );
   });
@@ -1306,6 +1369,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1328,6 +1392,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.score", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1349,6 +1414,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children", confidence: "static" },
         { path: "fallback.x.legacy", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1372,6 +1438,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1394,6 +1461,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.enabled", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1415,11 +1483,14 @@ describe("path-stage semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
         { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.enabled.*", confidence: "static" },
       ]),
     );
   });
@@ -1437,11 +1508,14 @@ describe("path-stage semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
         { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.enabled.*", confidence: "static" },
       ]),
     );
   });
@@ -1460,6 +1534,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
@@ -1481,6 +1556,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1503,6 +1579,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.out", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
@@ -1519,6 +1596,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.%.active", confidence: "partial" },
+        { path: "orders.items.price.%.active.*", confidence: "partial" },
         { path: "orders.items.price.name", confidence: "static" },
       ]),
     );
@@ -1545,6 +1623,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
         { path: "primary.rank", confidence: "static" },
@@ -1574,6 +1653,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
         { path: "orders.items.price.name", confidence: "static" },
       ]),
     );
@@ -1589,9 +1669,11 @@ describe("path-stage semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.active.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.active", confidence: "static" },
+        { path: "primary.active.*", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -1611,6 +1693,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.score", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
@@ -1632,6 +1715,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.tag", confidence: "static" },
         { path: "fallback.x.tags", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
@@ -1655,6 +1739,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1678,6 +1763,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.name", confidence: "static" },
         { path: "fallback.x.out", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -1730,6 +1816,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.rank", confidence: "static" },
         { path: "fallback.x.rank.**", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1755,13 +1842,16 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.children.other", confidence: "static" },
         { path: "fallback.x.enabled", confidence: "static" },
+        { path: "fallback.x.enabled.*", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
         { path: "items.detail.children.name", confidence: "static" },
         { path: "items.detail.children.other", confidence: "static" },
         { path: "items.detail.enabled", confidence: "static" },
+        { path: "items.detail.enabled.*", confidence: "static" },
       ]),
     );
   });
@@ -1780,6 +1870,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.type", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1803,6 +1894,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1824,6 +1916,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.children.type", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1850,6 +1943,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.enabled", confidence: "static" },
         { path: "fallback.x.enabled.**", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.children", confidence: "static" },
@@ -1870,6 +1964,7 @@ describe("path-stage semantics", () => {
         { path: "items.fallback", confidence: "static" },
         { path: "items.fallback.name", confidence: "static" },
         { path: "items.flag", confidence: "static" },
+        { path: "items.flag.*", confidence: "static" },
         { path: "items.primary", confidence: "static" },
         { path: "items.primary.name", confidence: "static" },
       ]),
@@ -1903,6 +1998,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -1912,6 +2008,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -1921,6 +2018,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -1932,6 +2030,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -1942,6 +2041,7 @@ describe("path-stage semantics", () => {
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -1954,6 +2054,7 @@ describe("path-stage semantics", () => {
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2012,6 +2113,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
         { path: "orders.items.price.category", confidence: "static" },
         { path: "orders.items.price.rank", confidence: "static" },
         { path: "orders.items.price.total", confidence: "static" },
@@ -2126,6 +2228,7 @@ describe("path-stage semantics", () => {
     expect(sortPaths(extractPaths("items[$.active].name"))).toEqual(
       sortPaths([
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -2196,6 +2299,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -2206,6 +2310,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2215,6 +2320,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.active", confidence: "static" },
+        { path: "orders.items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2224,6 +2330,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2233,6 +2340,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2244,6 +2352,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2284,6 +2393,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
         { path: "orders.items.price.category", confidence: "static" },
         { path: "orders.items.price.rank", confidence: "static" },
         { path: "orders.items.price.total", confidence: "static" },
@@ -2298,6 +2408,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2318,6 +2429,7 @@ describe("path-stage semantics", () => {
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2329,6 +2441,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2351,6 +2464,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
         { path: "orders.items.price.name", confidence: "static" },
       ]),
     );
@@ -2363,6 +2477,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2445,6 +2560,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "orders.items.price.active", confidence: "static" },
+        { path: "orders.items.price.active.*", confidence: "static" },
         { path: "orders.items.price.category", confidence: "static" },
         { path: "orders.items.price.rank", confidence: "static" },
         { path: "orders.items.price.total", confidence: "static" },
@@ -2463,6 +2579,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "orders.items", confidence: "static" },
         { path: "orders.items.active", confidence: "static" },
+        { path: "orders.items.active.*", confidence: "static" },
         { path: "orders.items.category", confidence: "static" },
         { path: "orders.items.rank", confidence: "static" },
         { path: "orders.items.total", confidence: "static" },
@@ -2477,6 +2594,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -2487,6 +2605,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2517,6 +2636,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.children", confidence: "static" },
         { path: "items.children.name", confidence: "static" },
       ]),
@@ -2542,6 +2662,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.category", confidence: "static" },
         { path: "fallback.total", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.category", confidence: "static" },
         { path: "items.total", confidence: "static" },
@@ -2653,6 +2774,7 @@ describe("path-stage semantics", () => {
         { path: "fallback.x.name", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },

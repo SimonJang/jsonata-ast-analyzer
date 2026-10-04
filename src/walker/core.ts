@@ -204,7 +204,10 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
 
   /** Extract paths from both sides of a binary operator. */
   function walkBinary(node: BinaryNode, scope: ScopeTracker): string[] {
-    const paths = [...walkNode(node.lhs, scope), ...walkNode(node.rhs, scope)];
+    const booleanOperands = node.value === "and" || node.value === "or";
+    const paths = [node.lhs, node.rhs].flatMap((operand) =>
+      walkNode(booleanOperands ? runtime.functions.asBooleanExpression(operand) : operand, scope),
+    );
     if (node.value === "=" || node.value === "!=") {
       const scalarComparison = [node.lhs, node.rhs].some((operand) =>
         ["string", "number", "value"].includes(operand.type),
@@ -227,7 +230,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   /** Extract paths from condition, then-branch, and optional else-branch. */
   function walkCondition(node: ConditionNode, scope: ScopeTracker): string[] {
     return [
-      ...walkNode(node.condition, scope),
+      ...walkNode(runtime.functions.asBooleanExpression(node.condition), scope),
       ...walkValueExpression(node.then, scope),
       ...(node.else ? walkValueExpression(node.else, scope) : []),
     ];
@@ -346,7 +349,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
               ? runtime.aliases.selectAliasExpressionPaths(
                   objectAlias,
                   dynamicObjectAlias,
-                  (stage as unknown as FilterStage).expr,
+                  runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
                   predicateScope,
                   runtime.results.getBlockResultSuffixBasePaths(node, scope),
                 )
@@ -482,7 +485,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
               ? runtime.aliases.selectAliasExpressionPaths(
                   objectAlias,
                   dynamicObjectAlias,
-                  (stage as unknown as FilterStage).expr,
+                  runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
                   predicateScope,
                   runtime.results.getResultSuffixBasePaths(node, scope),
                 )
@@ -573,7 +576,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
           ...runtime.aliases.selectAliasExpressionPaths(
             objectAlias,
             dynamicObjectAlias,
-            (stage as unknown as FilterStage).expr,
+            runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
             predicateScope,
           ),
         );

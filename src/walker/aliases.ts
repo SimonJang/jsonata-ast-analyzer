@@ -835,17 +835,18 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
         const filterStage = stage as unknown as FilterStage;
         if (isNumericIndex(filterStage.expr)) continue;
+        const predicate = runtime.functions.asBooleanExpression(filterStage.expr);
         if (selectedScope) {
           paths.push(...selectAliasExpressionPaths(
             resolveObjectAlias(selectedScope, ""), resolveDynamicObjectAlias(selectedScope, ""),
-            filterStage.expr, selectedScope, resolveSuffixBasePaths(selectedScope, "") ?? [],
+            predicate, selectedScope, resolveSuffixBasePaths(selectedScope, "") ?? [],
           ));
           continue;
         }
   
         paths.push(
           ...walkAliasSuffixContextExpression(
-            filterStage.expr,
+            predicate,
             contextPaths,
             parentContextPaths,
             scope,
@@ -854,7 +855,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
             ? selectAliasExpressionPaths(
                 objectAlias,
                 dynamicObjectAlias,
-                filterStage.expr,
+                predicate,
                 bindObjectAlias(bindVariable(childScope(scope), "", []), "", new Map()),
                 suffixBasePaths,
                 preserveUnmappedLocalPaths,

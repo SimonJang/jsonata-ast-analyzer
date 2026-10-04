@@ -292,6 +292,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "tree", confidence: "static" },
         { path: "tree.children", confidence: "static" },
+        { path: "tree.children.*", confidence: "static" },
         { path: "tree.children.**", confidence: "static" },
         { path: "tree.name", confidence: "static" },
       ]),
@@ -311,6 +312,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "tree", confidence: "static" },
         { path: "tree.children", confidence: "static" },
+        { path: "tree.children.*", confidence: "static" },
         { path: "tree.children.**", confidence: "static" },
         { path: "tree.name", confidence: "static" },
       ]),
@@ -328,6 +330,7 @@ describe("function semantics", () => {
         sortPaths([
           { path: "tree", confidence: "static" },
           { path: "tree.children", confidence: "static" },
+          { path: "tree.children.*", confidence: "static" },
           { path: "tree.children.**", confidence: "static" },
           { path: "tree.name", confidence: "static" },
         ]),
@@ -344,6 +347,7 @@ describe("function semantics", () => {
         sortPaths([
           { path: "tree", confidence: "static" },
           { path: "tree.children", confidence: "static" },
+          { path: "tree.children.*", confidence: "static" },
           { path: "tree.children.**", confidence: "static" },
           { path: "tree.name", confidence: "static" },
         ]),
@@ -582,6 +586,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "record", confidence: "static" },
         { path: "record.*.active", confidence: "static" },
+        { path: "record.*.active.*", confidence: "static" },
       ]),
     );
     expect(
@@ -591,6 +596,7 @@ describe("function semantics", () => {
         { path: "record", confidence: "static" },
         { path: "record.*", confidence: "static" },
         { path: "record.*.active", confidence: "static" },
+        { path: "record.*.active.*", confidence: "static" },
       ]),
     );
   });
@@ -1128,6 +1134,7 @@ describe("function semantics", () => {
         { path: "customer.x.name", confidence: "static" },
         { path: "fallback", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -1277,9 +1284,11 @@ describe("function semantics", () => {
       sortPaths([
         { path: "detail", confidence: "static" },
         { path: "detail.active", confidence: "static" },
+        { path: "detail.active.*", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.active.*", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -1324,6 +1333,9 @@ describe("function semantics", () => {
           { path: "detail", confidence: "static" },
           { path: "record.first", confidence: "static" },
           { path: "record.first.children.name", confidence: "static" },
+          ...(expression.includes("$sift")
+            ? [{ path: "record.first.children.name.*", confidence: "static" as const }]
+            : []),
         ]),
       );
     }
@@ -1341,6 +1353,9 @@ describe("function semantics", () => {
           { path: "detail", confidence: "static" },
           { path: "record", confidence: "static" },
           { path: "record.*.children.name", confidence: "static" },
+          ...(expression.includes("$sift")
+            ? [{ path: "record.*.children.name.*", confidence: "static" as const }]
+            : []),
         ]),
       );
     }
@@ -1478,6 +1493,7 @@ describe("function semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.amount", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.amount", confidence: "static" },
       ]),
@@ -1703,7 +1719,7 @@ describe("function semantics", () => {
       ["items[0]", ["items", "items.name"]],
       [
         "items[active][0]",
-        ["items", "items.active", "items.name"],
+        ["items", "items.active", "items.active.*", "items.name"],
       ],
     ] as const) {
       expect(
@@ -2155,6 +2171,7 @@ describe("function semantics", () => {
         { path: "detail", confidence: "static" },
         { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
       ]),
     );
   });
@@ -2182,13 +2199,13 @@ describe("function semantics", () => {
         "$filter([function($x){$x.children.name}]," +
           "function(){ $$.config.enabled })",
         "($callbacks[0])(detail)",
-        ["config.enabled", "detail", "detail.children.name"],
+        ["config.enabled", "config.enabled.*", "detail", "detail.children.name"],
       ],
       [
         "$single([function($x){$x.children.name}]," +
           "function(){ $$.config.enabled })",
         "$callbacks(detail)",
-        ["config.enabled", "detail", "detail.children.name"],
+        ["config.enabled", "config.enabled.*", "detail", "detail.children.name"],
       ],
       [
         "$shuffle([function($x){$x.children.name}])",
@@ -2278,6 +2295,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.index", confidence: "static" },
+        { path: "config.index.*", confidence: "static" },
         { path: "detail", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "detail.children.rank", confidence: "static" },
@@ -2306,6 +2324,7 @@ describe("function semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "config.enabled", confidence: "static" },
+          { path: "config.enabled.*", confidence: "static" },
           ...invocationPaths.map((path) => ({
             path,
             confidence: "static" as const,
@@ -2457,6 +2476,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -2469,7 +2489,9 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
+        { path: "items.name.*", confidence: "static" },
       ]),
     );
   });
@@ -2752,6 +2774,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.*", confidence: "static" },
         { path: "record.**", confidence: "static" },
@@ -3218,9 +3241,11 @@ describe("function semantics", () => {
       sortPaths([
         { path: "detail", confidence: "static" },
         { path: "detail.active", confidence: "static" },
+        { path: "detail.active.*", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.active.*", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -3240,6 +3265,7 @@ describe("function semantics", () => {
         { path: "record.*", confidence: "static" },
         { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
+        { path: "record.flag.*", confidence: "static" },
       ]),
     );
   });
@@ -3326,6 +3352,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -3484,6 +3511,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -3516,6 +3544,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
+        { path: "items.active.*", confidence: "static" },
         { path: "items.name", confidence: "static" },
       ]),
     );
@@ -3646,6 +3675,12 @@ describe("function semantics", () => {
         expected.push(
           { path: `detail.${callbackField}`, confidence: "static" },
           { path: `fallback.x.${callbackField}`, confidence: "static" },
+        );
+      }
+      if (callbackField === "active") {
+        expected.push(
+          { path: "detail.active.*", confidence: "static" },
+          { path: "fallback.x.active.*", confidence: "static" },
         );
       }
       expect(sortPaths(extractPaths(expression))).toEqual(sortPaths(expected));
@@ -3983,6 +4018,7 @@ describe("function semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -4192,6 +4228,12 @@ describe("function semantics", () => {
           { path: "detail.children.name", confidence: "static" },
           { path: "fallback.x", confidence: "static" },
           { path: "fallback.x.children.name", confidence: "static" },
+          ...(expression.includes("$sift")
+            ? [
+                { path: "detail.children.name.*", confidence: "static" as const },
+                { path: "fallback.x.children.name.*", confidence: "static" as const },
+              ]
+            : []),
           ...(expression.includes("config.suffix")
             ? [{ path: "config.suffix", confidence: "static" as const }]
             : []),
@@ -4383,6 +4425,12 @@ describe("function semantics", () => {
           { path: `fallback.x.${callbackField}`, confidence: "static" },
         );
       }
+      if (callbackField === "active") {
+        expected.push(
+          { path: "detail.active.*", confidence: "static" },
+          { path: "fallback.x.active.*", confidence: "static" },
+        );
+      }
       expect(sortPaths(extractPaths(expression))).toEqual(sortPaths(expected));
     }
   });
@@ -4393,6 +4441,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.*.active.*", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
         { path: "record.*.active", confidence: "static" },
       ]),
@@ -4407,6 +4456,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.*.active.*", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
         { path: "record.*.active", confidence: "static" },
       ]),
@@ -4495,6 +4545,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -4586,6 +4637,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -4598,6 +4650,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -4612,6 +4665,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -4629,6 +4683,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -4798,6 +4853,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -4812,6 +4868,7 @@ describe("function semantics", () => {
         { path: "fallback.detail", confidence: "static" },
         { path: "fallback.detail.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary.detail", confidence: "static" },
         { path: "primary.detail.name", confidence: "static" },
       ]),
@@ -4824,6 +4881,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "primary", confidence: "static" },
+        { path: "primary.*", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -5186,6 +5244,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
@@ -5231,6 +5290,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "obj", confidence: "static" },
         { path: "obj.*.detail", confidence: "static" },
@@ -5348,6 +5408,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -5361,6 +5422,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -5376,6 +5438,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -5391,6 +5454,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -5458,6 +5522,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -5542,10 +5607,13 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.active", confidence: "static" },
+        { path: "fallback.x.active.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.active", confidence: "static" },
+        { path: "primary.active.*", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -5622,6 +5690,7 @@ describe("function semantics", () => {
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
+        { path: "primary.name.*", confidence: "static" },
       ]),
     );
   });
@@ -5674,6 +5743,7 @@ describe("function semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.fixed.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -5684,6 +5754,7 @@ describe("function semantics", () => {
       { path: "fallback.x", confidence: "static" },
       { path: "fallback.x.name", confidence: "static" },
       { path: "flag", confidence: "static" },
+      { path: "flag.*", confidence: "static" },
       { path: "primary", confidence: "static" },
       { path: "primary.name", confidence: "static" },
     ]);
@@ -5719,6 +5790,7 @@ describe("function semantics", () => {
         { path: "fallback[*]", confidence: "dynamic" },
         { path: "fallback[*].fixed.name", confidence: "dynamic" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
       ]),
     );
@@ -5739,6 +5811,7 @@ describe("function semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.fixed.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
 
@@ -5756,6 +5829,7 @@ describe("function semantics", () => {
         { path: "fallback[*]", confidence: "dynamic" },
         { path: "fallback[*].fixed.name", confidence: "dynamic" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "key", confidence: "static" },
       ]),
     );
@@ -5811,6 +5885,7 @@ describe("function semantics", () => {
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -5922,6 +5997,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -5934,6 +6010,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -6013,6 +6090,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -6027,6 +6105,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -6055,6 +6134,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
@@ -6076,6 +6156,7 @@ describe("function semantics", () => {
         { path: "fallback.x.node", confidence: "static" },
         { path: "fallback.x.node.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
         { path: "primary.node", confidence: "static" },
@@ -6094,6 +6175,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.y.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
       ]),
@@ -6114,6 +6196,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -6140,6 +6223,7 @@ describe("function semantics", () => {
         { path: "fallback.x.rank", confidence: "static" },
         { path: "fallback.x.rank.**", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -6166,6 +6250,7 @@ describe("function semantics", () => {
         { path: "fallback.x.rank", confidence: "static" },
         { path: "fallback.x.rank.**", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
       ]),
     );
   });
@@ -6182,6 +6267,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
@@ -6243,6 +6329,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "item", confidence: "static" },
         { path: "item.detail", confidence: "static" },
         { path: "item.detail.name", confidence: "static" },
@@ -6260,6 +6347,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "item", confidence: "static" },
         { path: "item.detail", confidence: "static" },
         { path: "item.detail.name", confidence: "static" },
@@ -6279,6 +6367,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "item", confidence: "static" },
         { path: "item.detail", confidence: "static" },
         { path: "item.detail.name", confidence: "static" },
@@ -6297,6 +6386,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.*.detail", confidence: "static" },
         { path: "record.*.detail.name", confidence: "static" },
@@ -6364,6 +6454,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
@@ -6385,6 +6476,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
@@ -6406,6 +6498,7 @@ describe("function semantics", () => {
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
+        { path: "flag.*", confidence: "static" },
         { path: "items", confidence: "static" },
         { path: "items.detail", confidence: "static" },
         { path: "items.detail.name", confidence: "static" },
