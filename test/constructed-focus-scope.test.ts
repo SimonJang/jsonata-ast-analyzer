@@ -21,6 +21,34 @@ const producers = [
 ];
 
 describe("constructed focus scopes", () => {
+  for (const binding of ['.other@$child', '.other@$child[$child.different.details]']) {
+    const staticShape = '{"wrap":{"left":{"copy":record},"other":{"different":other}}}';
+    const expected = { left: { copy: input.record }, other: { different: input.other } };
+    const predicateReads = binding.includes("[") ? [exact("other.details"), exact("other.details.*")] : [];
+
+    it.each(producers)(`returns siblings from terminal focus ${binding} using %s`, async (producer) => {
+      const expression = `($v:=${staticShape};(${producer})${binding})`;
+      expect(await jsonata(expression).evaluate(input)).toEqual(expected);
+      expect(accesses(expression)).toEqual([
+        subtree("other"), ...predicateReads, subtree("record"),
+      ]);
+    });
+
+    it.each(producers)(`stringifies siblings from terminal focus ${binding} using %s`, async (producer) => {
+      const expression = `($v:=${staticShape};$string((${producer})${binding}))`;
+      expect(await jsonata(expression).evaluate(input)).toBe(JSON.stringify(expected));
+      expect(accesses(expression)).toEqual([
+        exact("other"), exact("other.**"), ...predicateReads, exact("record"), exact("record.**"),
+      ]);
+    });
+
+    it.each(producers)(`keeps counted siblings exact from terminal focus ${binding} using %s`, async (producer) => {
+      const expression = `($v:=${staticShape};$count((${producer})${binding}))`;
+      expect(await jsonata(expression).evaluate(input)).toBe(1);
+      expect(accesses(expression)).toEqual([exact("other"), ...predicateReads, exact("record")]);
+    });
+  }
+
   for (const binding of ['@$child#$i', '@$child[$child.other.different.details]#$i']) {
     const predicateReads = binding.includes("[") ? [exact("envelope.other.details"), exact("envelope.other.details.*")] : [];
     const nestedInput = { envelope: { ...input, unrelated: { nested: "context" } } };

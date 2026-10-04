@@ -371,13 +371,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffixBasePaths: groupResultSuffixBasePaths(prefixSteps[0], scope),
       } : selectedPathAliasContext({ type: "path", steps: prefixSteps }, scope);
       if (selected?.objectAlias || selected?.dynamicObjectAlias) {
+        const parent: AstNode = focusIndex === 0 ? { type: "variable", value: "", position: 0 }
+          : focusIndex === 1 ? node.steps[0]
+          : { type: "path", steps: node.steps.slice(0, focusIndex) };
         if (focusIndex === node.steps.length - 1) {
-          if (focusIndex > 0) return selected;
-          const context: VariableNode = { type: "variable", value: "", position: 0 };
           return {
-            objectAlias: groupResultObjectAliasForNode(context, scope),
-            dynamicObjectAlias: groupResultDynamicObjectAliasForNode(context, scope),
-            suffixBasePaths: groupResultSuffixBasePaths(context, scope),
+            objectAlias: groupResultObjectAliasForNode(parent, scope),
+            dynamicObjectAlias: groupResultDynamicObjectAliasForNode(parent, scope),
+            suffixBasePaths: groupResultSuffixBasePaths(parent, scope),
           };
         }
         let focusScope = bindFocusObjectAliasScope(
@@ -389,9 +390,6 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         for (const stage of stagedFocus.stages ?? stagedFocus.predicate ?? []) {
           if (stage.type === "position-binding") focusScope = bindVariable(focusScope, (stage as PositionBindingNode).name, []);
         }
-        const parent: AstNode = focusIndex === 0 ? { type: "variable", value: "", position: 0 }
-          : focusIndex === 1 ? node.steps[0]
-          : { type: "path", steps: node.steps.slice(0, focusIndex) };
         const contextScope = runtime.higherOrder.bindArgumentParameter(
           childScope(focusScope), { type: "variable", value: "", position: 0 },
           bindingAliasPaths(parent, focusScope), parent, focusScope,
