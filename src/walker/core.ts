@@ -75,6 +75,15 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         return [...walkNode(source, scope), ...runtime.paths.walkGroupBy(node, scope)];
       }
     }
+    const predicate = (node as AstNode & { predicate?: AstNode[] }).predicate;
+    if (node.type !== "path" && predicate?.length &&
+        !tupleNode.focusBinding && !tupleNode.indexBinding) {
+      const source = { ...node, predicate: undefined } as AstNode;
+      if (runtime.callables.resolveCallableValues(source, scope).length > 0 ||
+          runtime.callables.resolveBuiltinCallableNames(source, scope).length > 0) {
+        return [...walkNode(source, scope), ...runtime.paths.walkValueFilterStages(predicate, source, scope)];
+      }
+    }
     switch (node.type) {
       case "path":
         return runtime.paths.walkPath(node as PathNode, scope);

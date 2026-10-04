@@ -434,6 +434,17 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       firstStep.type === "variable" && (firstStep as VariableNode).value === ""
         ? resolveVariable(scope, "")
         : null;
+    if (capturedCurrentPaths !== null) {
+      const current = firstStep as VariableNode;
+      const value = { ...current, predicate: undefined } as VariableNode;
+      if (current.predicate?.length && current.predicate.every((stage) => stage.type === "filter") &&
+          !current.focusBinding && !current.indexBinding &&
+          (runtime.callables.resolveCallableValues(value, scope).length > 0 ||
+           runtime.callables.resolveBuiltinCallableNames(value, scope).length > 0)) {
+        const source = { ...node, steps: [value, ...node.steps.slice(1)] };
+        return [...walkPath(source, scope), ...walkValueFilterStages(current.predicate, value, scope)];
+      }
+    }
     const currentObjectAlias = capturedCurrentPaths !== null ? resolveObjectAlias(scope, "") : null;
     const currentDynamicAlias = capturedCurrentPaths !== null ? resolveDynamicObjectAlias(scope, "") : null;
     if (capturedCurrentPaths !== null && (currentObjectAlias?.size || currentDynamicAlias)) {
@@ -602,6 +613,14 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   
     if (varStepIndex >= 0) {
       const varStep = node.steps[varStepIndex] as VariableNode;
+      const value = { ...varStep, predicate: undefined } as VariableNode;
+      if (varStep.predicate?.length && varStep.predicate.every((stage) => stage.type === "filter") &&
+          !varStep.focusBinding && !varStep.indexBinding &&
+          (runtime.callables.resolveCallableValues(value, scope).length > 0 ||
+           runtime.callables.resolveBuiltinCallableNames(value, scope).length > 0)) {
+        const source = { ...node, steps: node.steps.map((step, index) => index === varStepIndex ? value : step) };
+        return [...walkPath(source, scope), ...walkValueFilterStages(varStep.predicate, value, scope)];
+      }
       const objectAlias = resolveObjectAlias(scope, varStep.value);
       const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
       if (objectAlias || dynamicObjectAlias) {
@@ -1959,6 +1978,24 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     return paths;
   }
 
+  function walkValueFilterStages(stages: AstNode[], value: AstNode, scope: ScopeTracker): string[] {
+    let stageScope = runtime.higherOrder.bindArgumentParameter(
+      childScope(scope), { type: "variable", value: "", position: 0 },
+      runtime.aliases.bindingAliasPaths(value, scope), value, scope,
+    );
+    const paths: string[] = [];
+    for (const stage of stages) {
+      if (stage.type === "position-binding") {
+        stageScope = bindVariable(stageScope, (stage as PositionBindingNode).name, []);
+      } else if (stage.type === "filter") {
+        paths.push(...runtime.core.walkNode(runtime.functions.explicitContextExpression(
+          runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr), "",
+        ), stageScope));
+      }
+    }
+    return paths;
+  }
+
   function walkSourceLessGroupEntries(
     groupNode: GroupByNode,
     scope: ScopeTracker,
@@ -1983,6 +2020,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     walkGroupBy,
     walkFilterStages,
     walkSourceLessFilterStages,
+    walkValueFilterStages,
     walkSourceLessGroupEntries,
   };
 }

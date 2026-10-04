@@ -52,6 +52,7 @@ export interface PathOperations {
   walkGroupBy(node: AstNode, scope: ScopeTracker): string[];
   walkFilterStages(stages: AstNode[], contextPrefix: string, scope: ScopeTracker, nonPathVariables?: ReadonlySet<string>, stageVariables?: ReadonlySet<string>): string[];
   walkSourceLessFilterStages(stages: AstNode[], scope: ScopeTracker): string[];
+  walkValueFilterStages(stages: AstNode[], value: AstNode, scope: ScopeTracker): string[];
   walkSourceLessGroupEntries(groupNode: GroupByNode, scope: ScopeTracker): string[];
 }
 

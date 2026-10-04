@@ -1867,6 +1867,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const projectsVariable = (step: AstNode, prefixSteps: AstNode[]): boolean => {
       if (step.type !== "variable") return false;
       const name = (step as VariableNode).value;
+      if (name === "" && prefixSteps.some(isResultAliasStep)) {
+        const prefix: PathNode = { type: "path", steps: prefixSteps };
+        if (runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
+            runtime.callables.resolveBuiltinCallableNames(prefix, scope).length > 0) return true;
+      }
       if (name && name !== "$" && prefixSteps.some((prefix) => prefix.type === "sort")) return true;
       return prefixSteps.some((prefix) => {
         const staged = prefix as NameNode & { predicate?: AstNode[] };
