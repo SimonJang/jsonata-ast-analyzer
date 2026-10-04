@@ -484,16 +484,16 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     return { node, scope };
   }
 
-  function partialBuiltinResultCalls(
+  function partialResultTargets(
     node: FunctionNode,
     scope: ScopeTracker,
-  ): Array<{ node: FunctionNode; scope: ScopeTracker }> {
+  ): Array<{ callables: ResolvedCallable[]; builtins: string[]; arguments: AstNode[]; scope: ScopeTracker }> {
     const expand = (
       binding: PartialBinding,
       callArgs: AstNode[],
       callScope: ScopeTracker,
       visited: ReadonlySet<PartialBinding>,
-    ): Array<{ node: FunctionNode; scope: ScopeTracker }> => {
+    ): Array<{ callables: ResolvedCallable[]; builtins: string[]; arguments: AstNode[]; scope: ScopeTracker }> => {
       if (visited.has(binding)) return [];
       const nextVisited = new Set([...visited, binding]);
       const args = runtime.higherOrder.applyPartialArguments(binding.partial, callArgs);
@@ -505,16 +505,15 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const scopedArgs = scoped.arguments.map((arg, index) =>
         ["string", "number", "value", "regex"].includes(args[index].type) ? args[index] : arg,
       );
+      const callables = resolveCallableValues(binding.partial.procedure, binding.scope);
       return [
-        ...resolveBuiltinCallableNames(binding.partial.procedure, binding.scope).map((name) => ({
-          node: {
-            ...node,
-            procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
-            arguments: scopedArgs,
-          } as FunctionNode,
+        {
+          callables: callables.filter((callable) => callable.kind !== "partial"),
+          builtins: resolveBuiltinCallableNames(binding.partial.procedure, binding.scope),
+          arguments: scopedArgs,
           scope: scoped.scope,
-        })),
-        ...resolveCallableValues(binding.partial.procedure, binding.scope).flatMap((callable) =>
+        },
+        ...callables.flatMap((callable) =>
           callable.kind === "partial" ? expand(callable.binding, scopedArgs, scoped.scope, nextVisited) : [],
         ),
       ];
@@ -522,6 +521,20 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     return resolveCallableValues(node.procedure, scope).flatMap((callable) =>
       callable.kind === "partial" ? expand(callable.binding, node.arguments, scope, new Set()) : [],
     );
+  }
+
+  function partialBuiltinResultCalls(
+    node: FunctionNode,
+    scope: ScopeTracker,
+  ): Array<{ node: FunctionNode; scope: ScopeTracker }> {
+    return partialResultTargets(node, scope).flatMap((target) => target.builtins.map((name) => ({
+      node: {
+        ...node,
+        procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
+        arguments: target.arguments,
+      } as FunctionNode,
+      scope: target.scope,
+    })));
   }
 
   function callableContainerProducerInputs(
@@ -700,14 +713,20 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: FunctionNode,
     scope: ScopeTracker,
   ): Array<{ node: AstNode; scope: ScopeTracker }> {
-    return runtime.higherOrder.resolveLambdaFunctionCalls(
-      node.procedure,
-      node.arguments,
-      scope,
-    ).map((call) => ({
-      node: call.binding.lambda.body,
-      scope: lambdaCallScope(call.binding, call.arguments, scope),
-    }));
+    return [
+      ...resolveCallableValues(node.procedure, scope).flatMap((callable) =>
+        callable.kind === "lambda" ? [{
+          node: callable.binding.lambda.body,
+          scope: lambdaCallScope(callable.binding, node.arguments, scope),
+        }] : [],
+      ),
+      ...partialResultTargets(node, scope).flatMap((target) => target.callables.flatMap((callable) =>
+        callable.kind === "lambda" ? [{
+          node: callable.binding.lambda.body,
+          scope: lambdaCallScope(callable.binding, target.arguments, target.scope),
+        }] : [],
+      )),
+    ];
   }
 
   function customFunctionResultCallableValues(
@@ -1178,10 +1197,15 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
   
     const functionNode = node as FunctionNode;
     const partialCalls = partialBuiltinResultCalls(functionNode, scope);
-    if (partialCalls.length > 0) {
+    if (partialCalls.length > 0 || resolveCallableValues(functionNode.procedure, scope)
+        .some((callable) => callable.kind === "partial")) {
       return [
         ...customFunctionResultCallableValues(functionNode, scope),
         ...partialCalls.flatMap((call) => resolveCallableValues(call.node, call.scope)),
+        ...resolveBuiltinCallableNames(functionNode.procedure, scope).flatMap((name) => resolveCallableValues({
+          ...functionNode,
+          procedure: { type: "variable", value: name, position: functionNode.position, resolvedBuiltin: true },
+        }, scope)),
       ];
     }
     const specialBuiltins = resolveBuiltinCallableNames(functionNode.procedure, scope)
@@ -1533,10 +1557,15 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     if (node.type === "function") {
       const functionNode = node as FunctionNode;
       const partialCalls = partialBuiltinResultCalls(functionNode, scope);
-      if (partialCalls.length > 0) {
+      if (partialCalls.length > 0 || resolveCallableValues(functionNode.procedure, scope)
+          .some((callable) => callable.kind === "partial")) {
         return [
           ...customFunctionResultBuiltinCallableNames(functionNode, scope),
           ...partialCalls.flatMap((call) => resolveBuiltinCallableNames(call.node, call.scope)),
+          ...resolveBuiltinCallableNames(functionNode.procedure, scope).flatMap((name) => resolveBuiltinCallableNames({
+            ...functionNode,
+            procedure: { type: "variable", value: name, position: functionNode.position, resolvedBuiltin: true },
+          }, scope)),
         ];
       }
       const specialBuiltins = resolveBuiltinCallableNames(functionNode.procedure, scope)
