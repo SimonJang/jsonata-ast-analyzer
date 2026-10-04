@@ -291,7 +291,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     const focusIndex = node.steps.findIndex((step, index) => {
       const focused = step as NameNode & { predicate?: AstNode[] };
       // First-step predicates without an index run before the focus is bound.
-      return Boolean(focused.focusBinding) && (index > 0 || step.type !== "variable" &&
+      const callableVariable = Boolean(focused.focusBinding) && step.type === "variable" &&
+        (runtime.callables.resolveCallableValues(step, scope).length > 0 ||
+         runtime.callables.resolveBuiltinCallableNames(step, scope).length > 0);
+      return Boolean(focused.focusBinding) && (index > 0 || (step.type !== "variable" || callableVariable) &&
         (!focused.predicate?.length || focused.indexBinding ||
           focused.predicate.some((stage) => stage.type === "position-binding")));
     });
@@ -306,13 +309,14 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         dynamicObjectAlias: runtime.aliases.groupResultDynamicObjectAliasForNode(prefix.steps[0], scope),
         suffixBasePaths: runtime.aliases.groupResultSuffixBasePaths(prefix.steps[0], scope),
       } : runtime.aliases.selectedPathAliasContext(prefix, scope);
-      if (selected?.objectAlias || selected?.dynamicObjectAlias) {
+      const callableFocus = runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
+        runtime.callables.resolveBuiltinCallableNames(prefix, scope).length > 0;
+      if (selected?.objectAlias || selected?.dynamicObjectAlias || callableFocus) {
         let focusScope = runtime.aliases.bindFocusObjectAliasScope(
-          scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
-          [], selected.suffixBasePaths,
+          scope, focusStep.focusBinding!.name, selected?.objectAlias ?? null, selected?.dynamicObjectAlias ?? null,
+          [], selected?.suffixBasePaths ?? [],
         );
-        if (runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
-            runtime.callables.resolveBuiltinCallableNames(prefix, scope).length > 0) {
+        if (callableFocus) {
           focusScope = runtime.functions.bindCallableValue(focusScope, focusStep.focusBinding!.name, prefix, scope);
         }
         if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
