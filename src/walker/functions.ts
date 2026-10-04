@@ -1084,6 +1084,11 @@ export function createFunctionOperations(
 
   function walkFunctionGroupBy(node: FunctionNode, scope: ScopeTracker): string[] {
     if (!node.group) return [];
+    const source = { ...node, group: undefined } as FunctionNode;
+    if (runtime.callables.resolveCallableValues(source, scope).length > 0 ||
+        runtime.callables.resolveBuiltinCallableNames(source, scope).length > 0) {
+      return runtime.paths.walkGroupBy(node, scope);
+    }
   
     const groupScope = runtime.aliases.bindStepFocusScope(node, scope);
     const groupStageVariables = new Set(

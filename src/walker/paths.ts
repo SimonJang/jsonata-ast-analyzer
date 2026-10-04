@@ -1817,11 +1817,11 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
   }
 
   /**
-   * Walk group-by expression on a PathNode, extracting key and value paths.
+   * Walk a grouping expression, extracting key and value paths.
    * Preserve the source's current context and tuple bindings for group entries.
    */
   function walkGroupBy(
-    node: PathNode,
+    node: AstNode & { group?: GroupByNode },
     scope: ScopeTracker,
     _stageVariables: ReadonlySet<string> = new Set(),
   ): string[] {
@@ -1830,7 +1830,9 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     const dynamicObjectAlias = resolveDynamicObjectAlias(groupScope, "");
     const suffixPaths = resolveSuffixBasePaths(groupScope, "") ?? [];
     return node.group!.entries.flatMap(([key, value]) => [key, value].flatMap((expression) =>
-      runtime.aliases.selectAliasExpressionPaths(
+      resolveValue(groupScope, "")
+        ? walkChainedContext(expression, groupScope)
+        : runtime.aliases.selectAliasExpressionPaths(
         objectAlias, dynamicObjectAlias, expression, groupScope, suffixPaths,
       ),
     ));
@@ -1978,6 +1980,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     walkSortTerms,
     walkContextGroupEntries,
     walkAliasGroupEntries,
+    walkGroupBy,
     walkFilterStages,
     walkSourceLessFilterStages,
     walkSourceLessGroupEntries,

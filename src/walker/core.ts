@@ -67,6 +67,14 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         )) {
       node = { ...node, focusBinding: undefined, indexBinding: undefined } as AstNode;
     }
+    const group = (node as AstNode & { group?: GroupByNode }).group;
+    if (group) {
+      const source = { ...node, group: undefined } as AstNode;
+      if (runtime.callables.resolveCallableValues(source, scope).length > 0 ||
+          runtime.callables.resolveBuiltinCallableNames(source, scope).length > 0) {
+        return [...walkNode(source, scope), ...runtime.paths.walkGroupBy(node, scope)];
+      }
+    }
     switch (node.type) {
       case "path":
         return runtime.paths.walkPath(node as PathNode, scope);

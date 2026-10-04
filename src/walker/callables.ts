@@ -1066,7 +1066,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const projectionValues = pathProjectionCallableValues(path, scope);
       if (projectionValues.length > 0) return projectionValues;
       const [first, ...rawSuffixSteps] = path.steps;
-      const suffixSteps = rawSuffixSteps.filter((step) => step.type !== "sort");
+      const suffixSteps = rawSuffixSteps.filter((step) => step.type !== "sort" &&
+        !(step.type === "variable" && (step as VariableNode).value === "" && !(step as VariableNode).group));
       if (!first) return [];
   
       const { node: sourceNode, scope: sourceScope } =
@@ -1406,7 +1407,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const projectionNames = pathProjectionBuiltinCallableNames(path, scope);
       if (projectionNames.length > 0) return projectionNames;
       const [first, ...rawSuffixSteps] = path.steps;
-      const suffixSteps = rawSuffixSteps.filter((step) => step.type !== "sort");
+      const suffixSteps = rawSuffixSteps.filter((step) => step.type !== "sort" &&
+        !(step.type === "variable" && (step as VariableNode).value === "" && !(step as VariableNode).group));
       if (!first) return [];
   
       const { node: sourceNode, scope: sourceScope } =

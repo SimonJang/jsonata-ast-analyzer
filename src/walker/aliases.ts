@@ -1453,6 +1453,19 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
 
   function groupResultScope(node: AstNode, scope: ScopeTracker): ScopeTracker {
     const source = { ...node, group: undefined } as AstNode;
+    if (source.type === "path") {
+      const steps = (source as PathNode).steps;
+      const last = steps.at(-1) as VariableNode | undefined;
+      if (steps.length > 1 && last?.type === "variable" && last.value === "" &&
+          !steps.some((step) => {
+            const tuple = step as NameNode & { predicate?: AstNode[] };
+            return tuple.focusBinding || tuple.indexBinding || tuple.tuple ||
+              tuple.stages?.length || tuple.predicate?.length;
+          })) {
+        const prefix = steps.slice(0, -1);
+        return groupResultScope(prefix.length === 1 ? prefix[0] : { ...source, steps: prefix } as PathNode, scope);
+      }
+    }
     const tupleSource = source as AstNode & { focusBinding?: { name: string }; indexBinding?: { name: string } };
     const tupleBindingNames = [tupleSource.focusBinding?.name, tupleSource.indexBinding?.name];
     if (source.type !== "path" && (tupleBindingNames.every((name) => name === undefined) ||
@@ -1557,10 +1570,15 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const selectedContext = source.type === "path"
       ? selectedPathAliasContext(source as PathNode, scope) : null;
     if (selectedContext && !(finalStep as AstNode & { focusBinding?: unknown })?.focusBinding) {
-      return withOuterTupleOrigins(bindFocusObjectAliasScope(
+      let contextScope = bindFocusObjectAliasScope(
         groupScope, "", selectedContext.objectAlias, selectedContext.dynamicObjectAlias,
         [], selectedContext.suffixBasePaths,
-      ));
+      );
+      if (runtime.callables.resolveCallableValues(source, scope).length > 0 ||
+          runtime.callables.resolveBuiltinCallableNames(source, scope).length > 0) {
+        contextScope = runtime.functions.bindCallableValue(contextScope, "", source, scope);
+      }
+      return withOuterTupleOrigins(contextScope);
     }
     const focusStep = finalStep?.type === "apply"
       ? runtime.functions.appliedFunctionFromApply(finalStep as ApplyNode)

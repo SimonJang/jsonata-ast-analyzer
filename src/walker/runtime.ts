@@ -49,6 +49,7 @@ export interface PathOperations {
   walkSortTerms(sortNode: SortNode, contextPrefix: string, scope: ScopeTracker, stageVariables?: ReadonlySet<string>, aliasStep?: AstNode): string[];
   walkContextGroupEntries(groupNode: GroupByNode, groupBasePath: string, scope: ScopeTracker, stageVariables?: ReadonlySet<string>): string[];
   walkAliasGroupEntries(groupNode: GroupByNode, objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, scope: ScopeTracker, suffixBasePaths?: readonly string[]): string[];
+  walkGroupBy(node: AstNode, scope: ScopeTracker): string[];
   walkFilterStages(stages: AstNode[], contextPrefix: string, scope: ScopeTracker, nonPathVariables?: ReadonlySet<string>, stageVariables?: ReadonlySet<string>): string[];
   walkSourceLessFilterStages(stages: AstNode[], scope: ScopeTracker): string[];
   walkSourceLessGroupEntries(groupNode: GroupByNode, scope: ScopeTracker): string[];
