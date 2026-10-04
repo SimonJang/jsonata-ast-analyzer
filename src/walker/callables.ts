@@ -454,6 +454,9 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     depth = 0,
   ): { readonly node: AstNode; readonly scope: ScopeTracker } {
     if (depth >= 16) return { node, scope };
+    if (node.type === "lambda" && (node as LambdaNode).thunk) {
+      return unwrapCallableContainerNode((node as LambdaNode).body, scope, depth + 1);
+    }
     const focusResult = terminalFocusResultNode(node);
     if (focusResult) return unwrapCallableContainerNode(focusResult, scope, depth + 1);
     if (node.type === "variable") {
@@ -1356,6 +1359,9 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {
+    if (node.type === "lambda" && (node as LambdaNode).thunk) {
+      return resolveBuiltinCallableNames((node as LambdaNode).body, scope);
+    }
     const focusResult = terminalFocusResultNode(node);
     if (focusResult) return resolveBuiltinCallableNames(focusResult, scope);
     if ((node.type === "name" || node.type === "path" &&

@@ -198,15 +198,15 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     }
     const objectAlias = resolveObjectAlias(scope, "");
     const dynamicAlias = resolveDynamicObjectAlias(scope, "");
+    if (resolveValue(scope, "")) {
+      // Rebuilding the context from only its data origins would hide callable
+      // entries, including containers without a constructed-object alias.
+      const expression = node.type === "path" && (node as PathNode).steps.length === 1 &&
+        (node as PathNode).steps[0].type !== "sort" && !(node as PathNode).group
+        ? (node as PathNode).steps[0] : node;
+      return runtime.core.walkNode(runtime.functions.explicitContextExpression(expression, ""), scope);
+    }
     if (objectAlias || dynamicAlias) {
-      if (resolveValue(scope, "")) {
-        // Rebuilding only the data aliases would hide callable object entries
-        // already bound to this current context.
-        const expression = node.type === "path" && (node as PathNode).steps.length === 1 &&
-          (node as PathNode).steps[0].type !== "sort" && !(node as PathNode).group
-          ? (node as PathNode).steps[0] : node;
-        return runtime.core.walkNode(runtime.functions.explicitContextExpression(expression, ""), scope);
-      }
       return runtime.aliases.selectAliasExpressionPaths(
         objectAlias, dynamicAlias, node, scope,
         resolveSuffixBasePaths(scope, "") ?? [],
