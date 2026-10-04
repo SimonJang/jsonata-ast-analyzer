@@ -110,12 +110,12 @@ describe("alias operation contracts", () => {
     expect(walkerRuntime().aliases.bindStepFocusScope(name("source"), scope)).toBe(scope);
   });
 
-  it.each(["", "a..b", "a[*]", "**", "%"])("preserves an unrepresentable alias suffix %j without inventing a mapping", (suffix) => {
-    expect(walkerRuntime().aliases.selectAliasExpressionPaths(new Map([["copy", ["source"]]]), null, name(suffix), createScope())).toEqual([suffix]);
+  it.each(["", "a..b", "a[*]", "**", "%"])("does not map a missing literal field %j to a source", (suffix) => {
+    expect(walkerRuntime().aliases.selectAliasExpressionPaths(new Map([["copy", ["source"]]]), null, name(suffix), createScope())).toEqual([]);
   });
 
   it("maps wildcard alias suffixes to every known object value", () => {
-    expect(walkerRuntime().aliases.selectAliasExpressionPaths(new Map([["copy", ["source"]]]), null, name("*"), createScope())).toEqual(["source"]);
+    expect(walkerRuntime().aliases.selectAliasExpressionPaths(new Map([["copy", ["source"]]]), null, { type: "wildcard", value: "*", position: 0 }, createScope())).toEqual(["source"]);
   });
 
   it("does not repeat a captured read already represented by a skipped local alias", () => {

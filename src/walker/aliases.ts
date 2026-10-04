@@ -93,12 +93,19 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     return null;
   }
 
+  // Alias map separators represent nested fields, so literal dots must not
+  // collide with them. Escape percent first to keep encoded-looking keys distinct.
+  function aliasKeySegment(key: string): string {
+    return key.replaceAll("%", "%25").replaceAll(".", "%2E");
+  }
+
   function objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAlias | null {
     const fields = new Map<string, readonly string[]>();
   
     for (const [keyNode, valueNode] of node.entries) {
-      const key = staticObjectKey(keyNode);
-      if (key === null) continue;
+      const field = staticObjectKey(keyNode);
+      if (field === null) continue;
+      const key = aliasKeySegment(field);
   
       const aliases = valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
       if (aliases.length > 0) fields.set(key, aliases);
@@ -164,8 +171,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const fields = new Map<string, string[]>();
   
     for (const [keyNode, valueNode] of (projectionStep as ObjectNode).entries) {
-      const key = staticObjectKey(keyNode);
-      if (key === null) continue;
+      const field = staticObjectKey(keyNode);
+      if (field === null) continue;
+      const key = aliasKeySegment(field);
   
       const aliases =
         objectAlias || dynamicObjectAlias
@@ -278,7 +286,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       for (const [index, step] of suffixSteps.entries()) {
         if (step.type !== "name") break;
   
-        keyParts.push((step as NameNode).value);
+        keyParts.push(aliasKeySegment((step as NameNode).value));
         const paths = alias.get(keyParts.join("."));
         if (paths) best = { paths, consumed: index + 1 };
       }
@@ -1153,8 +1161,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const groupScope = groupResultScope(node, scope);
     const fields = new Map<string, string[]>();
     for (const [keyNode, valueNode] of group.entries) {
-      const key = staticObjectKey(keyNode);
-      if (key === null) continue;
+      const field = staticObjectKey(keyNode);
+      if (field === null) continue;
+      const key = aliasKeySegment(field);
       const nestedAlias = groupResultObjectAliasForNode(valueNode, groupScope);
       const dynamicAlias = groupResultDynamicObjectAliasForNode(valueNode, groupScope);
       const aliases = nestedAlias || dynamicAlias
@@ -2036,6 +2045,28 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     preserveUnmappedLocalPaths = false,
     skipLocalPaths = false,
   ): string[] {
+    // Re-parsing a rendered path loses the distinction between quoted names
+    // and structural dots, wildcards, parent steps, or index notation.
+    const hasLiteralSelector = (value: unknown): boolean => {
+      if (!value || typeof value !== "object" || value instanceof RegExp) return false;
+      const record = value as Record<string, unknown>;
+      if (record.type === "name" && typeof record.value === "string" &&
+          (!record.value || /[.%[\]*]/.test(record.value))) return true;
+      return Object.values(record).some(hasLiteralSelector);
+    };
+    if (!preserveUnmappedLocalPaths && hasLiteralSelector(expression)) {
+      const contextName = "\u0000alias-expression";
+      const rewritten = runtime.functions.explicitContextExpression(expression, contextName);
+      const aliasScope = (parent: ScopeTracker): ScopeTracker =>
+        bindFocusObjectAliasScope(
+          bindFocusObjectAliasScope(parent, "", objectAlias, dynamicObject, [], suffixBasePaths),
+          contextName, objectAlias, dynamicObject, [], suffixBasePaths,
+        );
+      const mappedPaths = runtime.core.walkNode(rewritten, aliasScope(scope));
+      if (!skipLocalPaths) return mappedPaths;
+      const localMappedPaths = new Set(runtime.core.walkNode(rewritten, aliasScope(createScope())));
+      return mappedPaths.filter((path) => !localMappedPaths.has(path));
+    }
     const paths: string[] = [];
     const localPaths = new Set(runtime.core.walkNode(expression, childScope(createScope())));
     const localAliasPaths = skipLocalPaths
