@@ -1759,16 +1759,39 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       return result;
     };
     const projectsDataPath = (projection: AstNode): boolean => {
-      if (projection.type !== "block") return false;
-      const result = projectionResult(projection);
-      if (result?.type === "variable" && (result as VariableNode).value === "") return true;
-      return result?.type === "path" && (result as PathNode).steps.every(
-        (part) => ["name", "variable", "wildcard", "descendant"].includes(part.type),
-      );
+      if (projection.type !== "block" && projection.type !== "array") return false;
+      if (projectionResult(projection)?.type === "name") return false;
+      const localSelections = new Map<string, boolean>();
+      const selectsData = (value: AstNode): boolean => {
+        if (value.type === "variable") {
+          const name = (value as VariableNode).value;
+          return name === "" || localSelections.get(name) === true;
+        }
+        if (value.type === "name") return true;
+        if (value.type === "path") return (value as PathNode).steps.every(
+          (part) => ["name", "variable", "wildcard", "descendant"].includes(part.type),
+        );
+        if (value.type === "array") return (value as ArrayNode).expressions.every(selectsData);
+        if (value.type === "block") {
+          const expressions = (value as BlockNode).expressions;
+          for (const expression of expressions.slice(0, -1)) {
+            if (expression.type === "bind") {
+              const binding = expression as BindNode;
+              localSelections.set(binding.lhs.value, selectsData(binding.rhs));
+            }
+          }
+          return expressions.length > 0 && selectsData(expressions[expressions.length - 1]);
+        }
+        return false;
+      };
+      return selectsData(projection);
     };
     // Mixed constructors and focused variables retain their dedicated suffix
     // handling; a plain block projection can consume all selected source paths.
     const hasVariableProjectionSource = (step: AstNode, projection: AstNode): boolean => {
+      if (isTransparentPathBlock(step)) {
+        return hasVariableProjectionSource(((step as BlockNode).expressions[0] as PathNode).steps[0], projection);
+      }
       if (step.type !== "variable" || (step as VariableNode).focusBinding) return false;
       const name = (step as VariableNode).value;
       const objectAlias = resolveObjectAlias(scope, name);
