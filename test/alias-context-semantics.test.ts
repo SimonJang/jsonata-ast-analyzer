@@ -4,6 +4,22 @@ import { analyzeExpression } from "../src/index.js";
 
 describe("constructed alias contexts", () => {
   it.each([
+    '($r := [left, right]; $r.(details)).amount',
+    '($r := [left, right]; $r.($.details)).amount',
+    '($v := ($r := [left, right]; $r.(details)); $v.amount)',
+    '($r := [left, right]; $r.((details))).amount',
+  ])("retains both sources of an array-bound block projection in %s", async (expression) => {
+    const value = await jsonata(expression).evaluate({
+      left: { details: { amount: 10 } }, right: { details: { amount: 20 } },
+    });
+    expect(JSON.parse(JSON.stringify(value))).toEqual([10, 20]);
+    const accesses = analyzeExpression(expression).accesses;
+    for (const side of ["left", "right"]) {
+      expect(accesses).toContainEqual({ path: `${side}.details.amount`, confidence: "static", coverage: "subtree" });
+    }
+  });
+
+  it.each([
     '($a := items; $a.(details).amount)',
     '($a := items; $r := $a.(details); $r.amount)',
     '($a := items; $r := $a.($.details); $r.amount)',

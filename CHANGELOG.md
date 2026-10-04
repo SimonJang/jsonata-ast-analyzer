@@ -9,6 +9,7 @@
 - Keep `$` and dynamic lookups relative to selected items in constructed-object predicates.
 - Preserve property sources and selected-value coverage through projections of bound input variables and constructed aliases.
 - Retain static and computed object aliases in block results followed by property selections.
+- Follow block projections of array-bound input values through later selections and result bindings.
 - Preserve source paths and selected-value coverage through dynamic dictionary lookup chains, including callback results, filters, sorting, constructors, and focus bindings.
 - Resolve array projections and grouping against parenthesized function results, including nested parentheses and block-local bindings.
 - Prevent repeated lookup chains from rewalking the full remaining tail at each step.

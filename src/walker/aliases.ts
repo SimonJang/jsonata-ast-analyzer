@@ -1298,7 +1298,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
 
   function chainedPathContext(node: PathNode, scope: ScopeTracker) {
     // Mixed source aliases and focused variables have dedicated suffix handling.
-    const hasUnmixedVariableSource = (step: AstNode): boolean => {
+    const hasUnmixedVariableSource = (step: AstNode, projection: AstNode): boolean => {
       if (step.type !== "variable" || (step as VariableNode).focusBinding) return false;
       const name = (step as VariableNode).value;
       const objectAlias = resolveObjectAlias(scope, name);
@@ -1307,14 +1307,22 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           objectAlias, resolveSuffixBasePaths(scope, name) ?? [],
         ).length === 0;
       }
-      return !resolveDynamicObjectAlias(scope, name) && resolveVariable(scope, name)?.length === 1;
+      if (resolveDynamicObjectAlias(scope, name)) return false;
+      const paths = resolveVariable(scope, name) ?? [];
+      if (paths.length === 1) return true;
+      if (paths.length === 0 || projection.type !== "block") return false;
+      let result: AstNode | undefined = projection;
+      while (result?.type === "block") result = (result as BlockNode).expressions.at(-1);
+      return result?.type === "path" && (result as PathNode).steps.every(
+        (part) => ["name", "variable", "wildcard", "descendant"].includes(part.type),
+      );
     };
     const index = node.steps.findIndex((step, index) =>
       index > 0 && (isResultAliasStep(step) ||
         (isFunctionResultStep(node.steps[index - 1]) &&
           (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
       (node.steps.slice(0, index).some(isFunctionResultStep) ||
-        node.steps.slice(0, index).some(hasUnmixedVariableSource) ||
+        node.steps.slice(0, index).some((prefixStep) => hasUnmixedVariableSource(prefixStep, step)) ||
         (step.type === "function" && (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding) ||
         (step.type === "function" && runtime.callables.resolveBuiltinCallableNames(
           (step as FunctionNode).procedure, scope,
