@@ -5,6 +5,8 @@ import { ROOT_PATH } from "./constants.js";
 import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex } from "./path-utils.js";
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
 
+const LOCAL_CONTEXT = "\u0001context";
+
 export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   function bindingAliasPaths(node: AstNode, scope: ScopeTracker): string[] {
     const identityPaths = runtime.functions.identityReferencePaths(node, scope);
@@ -704,7 +706,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
                 objectAlias,
                 dynamicObjectAlias,
                 filterStage.expr,
-                scope,
+                bindObjectAlias(bindVariable(childScope(scope), "", []), "", new Map()),
                 suffixBasePaths,
                 preserveUnmappedLocalPaths,
                 true,
@@ -904,7 +906,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     parentContextPaths: readonly string[],
     scope: ScopeTracker,
   ): string[] {
-    const localPaths = runtime.core.walkNode(expr, childScope(createScope()));
+    const localPaths = runtime.core.walkNode(
+      expr, bindVariable(childScope(createScope()), "", [LOCAL_CONTEXT]),
+    );
     const alignedParentContexts =
       parentContextPaths.length === contextPaths.length ? parentContextPaths : null;
   
@@ -913,7 +917,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         ? [alignedParentContexts[index]].filter(Boolean)
         : parentContextPaths;
   
-      return localPaths.flatMap((localPath) => {
+      return localPaths.flatMap((path) => {
+        if (path === LOCAL_CONTEXT) return [contextPath];
+        if (path.startsWith(`${LOCAL_CONTEXT}[*]`)) {
+          return [`${contextPath}${path.slice(LOCAL_CONTEXT.length)}`];
+        }
+        const localPath = path.startsWith(`${LOCAL_CONTEXT}.`)
+          ? path.slice(LOCAL_CONTEXT.length + 1) : path;
         if (!isParentRelativePath(localPath)) {
           return prefixPaths(contextPath, [localPath]);
         }

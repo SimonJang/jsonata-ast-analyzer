@@ -9,6 +9,7 @@ import type { FunctionOperations, WalkerOptions, WalkerRuntime } from "./runtime
 import { createSelectionOperations } from "./selection.js";
 
 const DEFAULT_OPTIONS: WalkerOptions = { opaqueFunctions: new Set() };
+const EVAL_CONTEXT = "\0eval-context";
 
 export function createFunctionOperations(
   runtime: WalkerRuntime,
@@ -864,20 +865,10 @@ export function createFunctionOperations(
       runtime.callables.resolveCallableValues(expression, evalScope).length > 0 ||
       runtime.callables.resolveBuiltinCallableNames(expression, evalScope).length > 0
     ) {
-      const contextArg = args[1];
-      return contextArg
-        ? runtime.results.getResultBasePathsFromArg(contextArg, scope).flatMap((basePath) =>
-            runtime.paths.walkContextCallableSelection(expression, basePath, scope),
-          )
-        : walkCallableSelection(expression, scope);
+      return walkCallableSelection(expression, evalScope);
     }
-  
-    const contextArg = args[1];
-    if (!contextArg) return runtime.core.walkNode(expression, scope);
-  
-    return runtime.results.getResultBasePathsFromArg(contextArg, scope).flatMap((basePath) =>
-      runtime.paths.walkContextExpression(expression, basePath, scope),
-    );
+
+    return runtime.core.walkNode(expression, evalScope);
   }
 
   function getStaticEvalResultBasePaths(
@@ -906,10 +897,48 @@ export function createFunctionOperations(
     if (source?.type !== "string") return null;
   
     try {
-      return parse((source as { value: string }).value);
+      const expression = parse((source as { value: string }).value);
+      return args[1] ? explicitEvalContext(expression) : expression;
     } catch {
       return null;
     }
+  }
+
+  function explicitEvalContext(node: AstNode): AstNode {
+    const rewrite = (value: unknown, pathStep = false): unknown => {
+      if (Array.isArray(value)) return value.map((entry) => rewrite(entry, pathStep));
+      if (!value || typeof value !== "object" || value instanceof RegExp) return value;
+      const record = value as Record<string, unknown>;
+      // Transform bodies receive their input when the transform is invoked.
+      if (record.type === "transform") return value;
+      const current: VariableNode = { type: "variable", value: EVAL_CONTEXT, position: 0 };
+      if (record.type === "path") {
+        const steps = record.steps as AstNode[];
+        const first = rewrite(steps[0], true) as AstNode;
+        return {
+          ...record,
+          steps: [
+            ...(["name", "wildcard", "descendant"].includes(first?.type) ? [current] : []),
+            first,
+            ...steps.slice(1),
+          ],
+        };
+      }
+      const rewritten = Object.fromEntries(Object.entries(record).map(([key, entry]) => [
+        key,
+        ["source", "predicate", "stages", "group"].includes(key) ? entry : rewrite(entry),
+      ]));
+      // Bare input paths and explicit $ paths must use the same context
+      // binding, including aliases for fields in constructed objects.
+      if (rewritten.type === "variable" && rewritten.value === "") {
+        return { ...rewritten, value: EVAL_CONTEXT };
+      }
+      if (!pathStep && ["name", "wildcard", "descendant"].includes(String(rewritten.type))) {
+        return { type: "path", steps: [current, rewritten] };
+      }
+      return rewritten;
+    };
+    return rewrite(node) as AstNode;
   }
 
   function getStaticEvalScope(
@@ -917,13 +946,16 @@ export function createFunctionOperations(
     scope: ScopeTracker,
   ): ScopeTracker {
     const contextArg = args[1];
-    return contextArg
-      ? bindVariable(
-          childScope(scope),
-          "",
-          runtime.results.getResultBasePathsFromArg(contextArg, scope),
-        )
-      : scope;
+    if (!contextArg) return scope;
+    const paths = runtime.results.getResultBasePathsFromArg(contextArg, scope);
+    const currentScope = runtime.higherOrder.bindArgumentParameter(
+      childScope(scope), { type: "variable", value: "", position: 0 },
+      paths, contextArg, scope,
+    );
+    return runtime.higherOrder.bindArgumentParameter(
+      currentScope, { type: "variable", value: EVAL_CONTEXT, position: 0 },
+      paths, contextArg, scope,
+    );
   }
 
   function getStaticEvalResultObjectAlias(
@@ -933,16 +965,7 @@ export function createFunctionOperations(
     const expression = getStaticEvalExpression(args);
     if (!expression) return null;
   
-    const alias = runtime.aliases.groupResultObjectAliasForNode(expression, scope);
-    if (!alias) return null;
-    const contextArg = args[1];
-    if (!contextArg) return alias;
-  
-    return runtime.aliases.mergeObjectAliases(
-      runtime.results.getResultBasePathsFromArg(contextArg, scope).map((basePath) =>
-        runtime.aliases.prefixObjectAlias(alias, basePath),
-      ),
-    );
+    return runtime.aliases.groupResultObjectAliasForNode(expression, getStaticEvalScope(args, scope));
   }
 
   function getStaticEvalResultDynamicObjectAlias(
@@ -950,14 +973,9 @@ export function createFunctionOperations(
     scope: ScopeTracker,
   ): DynamicObjectAlias | null {
     const expression = getStaticEvalExpression(args);
-    const alias = expression
-      ? runtime.aliases.groupResultDynamicObjectAliasForNode(expression, scope)
+    return expression
+      ? runtime.aliases.groupResultDynamicObjectAliasForNode(expression, getStaticEvalScope(args, scope))
       : null;
-    if (!alias || !args[1]) return alias;
-    return runtime.higherOrder.prefixDynamicObjectAlias(
-      alias,
-      runtime.results.getResultBasePathsFromArg(args[1], scope),
-    );
   }
 
   function walkFunctionPredicates(node: FunctionNode, scope: ScopeTracker): string[] {
