@@ -606,9 +606,7 @@ export function createFunctionOperations(
     const producer = node.procedure;
     const paths = walkCallableSelection(producer, scope);
     const callables = runtime.callables.resolveCallableValues(producer, scope);
-    const builtinNames = callables.length === 0
-      ? runtime.callables.resolveBuiltinCallableNames(producer, scope)
-      : [];
+    const builtinNames = runtime.callables.resolveBuiltinCallableNames(producer, scope);
     if (callables.length === 0 && builtinNames.length === 0) {
       return [...paths, ...node.arguments.flatMap((arg) => runtime.core.walkNode(arg, scope))];
     }

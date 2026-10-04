@@ -25,6 +25,7 @@ export interface ResolvedHigherOrderLambdaCallbacks {
   readonly index: number;
   readonly bindings: LambdaBinding[];
   readonly partials: PartialBinding[];
+  readonly builtins: string[];
 }
 
 export interface CoreOperations {
@@ -166,6 +167,7 @@ export interface HigherOrderOperations {
       index: number;
       bindings: LambdaBinding[];
       partials: PartialBinding[];
+      builtins: string[];
   } | null;
   partialCanInvokeLambda(binding: PartialBinding): boolean;
   resolveLambdaFunctionCalls(procedure: FunctionNode["procedure"], callArgs: AstNode[], scope: ScopeTracker): ResolvedLambdaCall[];

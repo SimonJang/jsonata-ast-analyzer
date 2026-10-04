@@ -432,7 +432,14 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     if (
       funcName === "reduce" &&
       node.arguments[1] &&
-      resolveBuiltinCallableNames(node.arguments[1], scope).includes("append")
+      (resolveBuiltinCallableNames(node.arguments[1], scope).includes("append") ||
+        resolveCallableValues(node.arguments[1], scope).some(
+          (callable) => callable.kind === "partial" &&
+            resolveBuiltinCallableNames(
+              callable.binding.partial.procedure,
+              callable.binding.scope,
+            ).includes("append"),
+        ))
     ) {
       return [node.arguments[0], node.arguments[2]].filter(
         (input): input is AstNode => Boolean(input),
@@ -579,7 +586,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       }));
       const partialBodies = runtime.higherOrder.higherOrderPartialLambdaCalls(
         funcName,
-        { index: 1, bindings: [], partials },
+        { index: 1, bindings: [], partials, builtins: [] },
         dataArg,
         scope,
         node.arguments,
@@ -1205,10 +1212,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       return resolveBuiltinCallableNames(value.node, value.scope);
     }
     if (node.type === "partial") {
-      return resolveBuiltinCallableNames(
-        (node as PartialNode).procedure,
-        scope,
-      );
+      return [];
     }
     if (node.type === "array") {
       return (node as ArrayNode).expressions.flatMap((value) =>

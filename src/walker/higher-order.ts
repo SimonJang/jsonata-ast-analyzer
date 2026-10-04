@@ -251,6 +251,17 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
           );
         }
       }
+      for (const name of callback.builtins) {
+        for (const callbackInput of partialCallbackInputs) {
+          paths.push(...runtime.functions.walkFunction({
+            type: "function", value: "(", position: node.position,
+            procedure: { type: "variable", value: name, position: node.position },
+            arguments: higherOrderCallbackCallArguments(
+              funcName, callbackInput, dataArg ?? callbackInput, args, node.position,
+            ),
+          }, partialCallbackScope).filter((path) => !syntheticPartialValuePaths.includes(path)));
+        }
+      }
     }
   
     if (transformCallback) {
@@ -566,6 +577,31 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     }
     if (funcName === "each" && dataArg.type === "function") {
       const functionNode = dataArg as FunctionNode;
+      const partialInputs = runtime.callables.resolveCallableValues(
+        functionNode.procedure,
+        scope,
+      ).flatMap((callable) => {
+        if (callable.kind !== "partial") return [];
+        const builtinNames = runtime.callables.resolveBuiltinCallableNames(
+          callable.binding.partial.procedure,
+          callable.binding.scope,
+        );
+        if (!builtinNames.some((name) => name === "clone" || name === "sift")) return [];
+        const appliedArgs = applyPartialArguments(callable.binding.partial, functionNode.arguments);
+        const argumentScopes = applyPartialArgumentScopes(
+          callable.binding.partial,
+          functionNode.arguments,
+          callable.binding.scope,
+          scope,
+        );
+        return higherOrderCallbackDataNodes(
+          funcName,
+          appliedArgs[0],
+          argumentScopes[0] ?? scope,
+          resolvingVariables,
+        );
+      });
+      if (partialInputs.length > 0) return partialInputs;
       const lambdaBinding =
         functionNode.procedure.type === "lambda"
           ? { lambda: functionNode.procedure, scope }
@@ -808,6 +844,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     index: number;
     bindings: LambdaBinding[];
     partials: NonNullable<ReturnType<typeof resolvePartial>>[];
+    builtins: string[];
   } | null {
     for (const [index, arg] of args.entries()) {
       if (callbackIndex !== undefined && index !== callbackIndex) continue;
@@ -816,12 +853,11 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         callable.kind === "lambda" ? [callable.binding] : [],
       );
       const partials = callables.flatMap((callable) =>
-        callable.kind === "partial" && partialCanInvokeLambda(callable.binding)
-          ? [callable.binding]
-          : [],
+        callable.kind === "partial" ? [callable.binding] : [],
       );
-      if (bindings.length > 0 || partials.length > 0) {
-        return { index, bindings, partials };
+      const builtins = runtime.callables.resolveBuiltinCallableNames(arg, scope);
+      if (bindings.length > 0 || partials.length > 0 || builtins.length > 0) {
+        return { index, bindings, partials, builtins };
       }
     }
     return null;
