@@ -8,7 +8,7 @@ import { walkerRuntime } from "./support/walker-runtime.js";
 describe("callback result boundary reads", () => {
   it.each([
     { label: "static object", expression: '($f:=function($x){{"copy":$x}};$p:=$f(?);$q:=$p(?);$q(source).copy.price)', expected: ["source", "source.price"] },
-    { label: "dynamic object", expression: '($f:=function($x){{(key):$x}};$p:=$f(?);$q:=$p(?);$q(source).copy.price)', expected: ["key", "source", "source.price"] },
+    { label: "dynamic object", expression: '($f:=function($x){{(key):$x}};$p:=$f(?);$q:=$p(?);$q(source).copy.price)', expected: ["source", "source.price", "key"] },
   ])("preserves source reads through nested partials returning a $label", ({ expression, expected }) => {
     const paths = expected.map(path => ({ path, confidence: "static" }));
     expect(extractPaths(expression)).toEqual(paths);

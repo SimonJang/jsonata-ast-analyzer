@@ -1192,7 +1192,7 @@ export function createResultOperations(
   
     const firstArgPaths = callArgs[0] ? runtime.higherOrder.extractBasePaths(callArgs[0], callScope) : [];
     return runtime.higherOrder.resolveCallbackParentPaths(
-      runtime.aliases.bindingAliasPaths(lambda.body, lambdaScope),
+      selection.getSelectedResultPaths(lambda.body, lambdaScope),
       firstArgPaths,
     );
   }
@@ -1236,7 +1236,7 @@ export function createResultOperations(
           scope,
         );
         return runtime.higherOrder.resolveCallbackParentPaths(
-          runtime.aliases.bindingAliasPaths(binding.lambda.body, lambdaScope),
+          selection.getSelectedResultPaths(binding.lambda.body, lambdaScope),
           dataArgPaths,
         );
       }),
@@ -1340,7 +1340,7 @@ export function createResultOperations(
               : callback.lambda.body;
           return runtime.higherOrder.resolveCallbackParentPaths(
             [
-              ...runtime.aliases.bindingAliasPaths(callbackBody, lambdaScope),
+              ...selection.getSelectedResultPaths(callbackBody, lambdaScope),
               ...runtime.aliases.groupResultSuffixBasePaths(callbackBody, lambdaScope),
               ...(dataArg &&
               callbackBody.type === "function" &&
