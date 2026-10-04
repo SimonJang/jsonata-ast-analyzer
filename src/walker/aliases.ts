@@ -98,7 +98,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
     for (const [keyNode, valueNode] of node.entries) {
       const key = staticObjectKey(keyNode);
-      if (!key) continue;
+      if (key === null) continue;
   
       const aliases = valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
       if (aliases.length > 0) fields.set(key, aliases);
@@ -165,7 +165,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
     for (const [keyNode, valueNode] of (projectionStep as ObjectNode).entries) {
       const key = staticObjectKey(keyNode);
-      if (!key) continue;
+      if (key === null) continue;
   
       const aliases =
         objectAlias || dynamicObjectAlias
@@ -336,7 +336,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const suffix = buildPathString(rest);
   
     for (const [keyNode, valueNode] of node.entries) {
-      if (staticObjectKey(keyNode)) continue;
+      if (staticObjectKey(keyNode) !== null) continue;
   
       const nestedAlias = objectAliasForNode(valueNode, scope);
       const resolvedNestedAlias = nestedAlias
@@ -442,7 +442,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
     for (const variant of alias.variants) {
       for (const [keyNode, valueNode] of variant.node.entries) {
-        if (staticObjectKey(keyNode)) continue;
+        if (staticObjectKey(keyNode) !== null) continue;
   
         const nestedAlias = objectAliasForNode(valueNode, variant.scope);
         const resolvedNestedAlias = nestedAlias
@@ -493,7 +493,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
         const key = staticObjectKey(keyNode);
         const selectorMatches =
-          !key ||
+          key === null ||
           selector?.type !== "name" ||
           key === (selector as NameNode).value;
         if (!selectorMatches) return [];
@@ -521,7 +521,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
           const key = staticObjectKey(keyNode);
           const selectorMatches =
-            !key ||
+            key === null ||
             selector?.type !== "name" ||
             key === (selector as NameNode).value;
           if (!selectorMatches) return [];
@@ -1017,7 +1017,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
     for (const [keyNode, valueNode] of node.entries) {
       const key = staticObjectKey(keyNode);
-      if (!key) continue;
+      if (key === null) continue;
   
       const nestedAlias = dynamicObjectAliasForNode(valueNode, scope);
       if (!nestedAlias) continue;

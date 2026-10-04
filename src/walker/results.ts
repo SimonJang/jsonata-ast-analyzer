@@ -2131,7 +2131,7 @@ export function createResultOperations(
       const key = runtime.aliases.staticObjectKey(keyNode);
       const selector = selectorSteps[0];
       const selectorMatches =
-        !key || selector?.type !== "name" || key === (selector as NameNode).value;
+        key === null || selector?.type !== "name" || key === (selector as NameNode).value;
       if (!selectorMatches) return [];
   
       if (
