@@ -4,6 +4,22 @@ import { analyzeExpression } from "../src/index.js";
 
 describe("constructed alias contexts", () => {
   it.each([
+    '($r := enabled ? {"v": left} : right; $r.v.(details)).amount',
+    '($r := enabled ? {"v": left} : right; $r.v.($.details)).amount',
+    '($p := ($r := enabled ? {"v": left} : right; $r.v.(details)); $p.amount)',
+  ])("preserves constructed and direct sources in %s", async (expression) => {
+    const input = { left: { details: { amount: 10 } }, right: { v: { details: { amount: 20 } } } };
+    for (const enabled of [true, false]) {
+      expect(await jsonata(expression).evaluate({ ...input, enabled })).toBe(enabled ? 10 : 20);
+    }
+    const accesses = analyzeExpression(expression).accesses;
+    for (const path of ["left.details.amount", "right.v.details.amount"]) {
+      expect(accesses).toContainEqual({ path, confidence: "static", coverage: "subtree" });
+    }
+    expect(accesses.some(({ path }) => ["left.v.amount", "right.v.amount", "details.amount"].includes(path))).toBe(false);
+  });
+
+  it.each([
     '($r := [left, right]; $r.(details)).amount',
     '($r := [left, right]; $r.($.details)).amount',
     '($v := ($r := [left, right]; $r.(details)); $v.amount)',

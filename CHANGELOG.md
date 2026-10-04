@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Preserve both constructed and direct input branches through bound block projections and later selections.
 - Preserve selected-value coverage for static `$eval` object results and keep consumed arguments out of chained result paths.
 - Resolve static `$eval` programs against constructed context aliases, including returned lambdas and root references.
 - Keep `$` and dynamic lookups relative to selected items in constructed-object predicates.
