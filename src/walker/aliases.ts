@@ -1758,6 +1758,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       while (result?.type === "block") result = (result as BlockNode).expressions.at(-1);
       return result;
     };
+    const callsProjectionResult = (projection: AstNode): boolean => {
+      const result = projectionResult(projection);
+      return Boolean(result && (["function", "apply"].includes(result.type) ||
+        result.type === "path" && (result as PathNode).steps.some((step) => ["function", "apply"].includes(step.type))));
+    };
     const projectsDataPath = (projection: AstNode): boolean => {
       if (projection.type !== "block" && projection.type !== "array") return false;
       if (projectionResult(projection)?.type === "name") return false;
@@ -1823,7 +1828,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         (projectsDataPath(step) && node.steps.slice(0, index).some((prefixStep) =>
           isResultAliasStep(prefixStep) && !isTransparentPathBlock(prefixStep))) ||
         step.type === "function" ||
-        step.type === "block" && ["function", "apply"].includes(projectionResult(step)?.type ?? "")) &&
+        step.type === "block" && (["function", "apply"].includes(projectionResult(step)?.type ?? "") ||
+          callsProjectionResult(step) && node.steps.slice(0, index).some(isResultAliasStep))) &&
       // Stored callable procedures need their full producer path so that the
       // callable resolver can inspect the function's returned container.
       !(step.type === "function" && (step as FunctionNode).procedure.type === "path" &&

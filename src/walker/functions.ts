@@ -466,6 +466,12 @@ export function createFunctionOperations(
   }
 
   function walkCallableSelection(node: AstNode, scope: ScopeTracker): string[] {
+    if ((node.type === "name" || node.type === "path" &&
+         (node as PathNode).steps[0]?.type === "name") && resolveValue(scope, "") &&
+        (runtime.callables.resolveCallableValues(node, scope).length > 0 ||
+         runtime.callables.resolveBuiltinCallableNames(node, scope).length > 0)) {
+      return walkCallableSelection(runtime.functions.explicitContextExpression(node, ""), scope);
+    }
     if (node.type === "lambda" && (node as LambdaNode).thunk) {
       return walkCallableSelection((node as LambdaNode).body, scope);
     }

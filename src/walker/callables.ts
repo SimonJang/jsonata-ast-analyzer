@@ -89,8 +89,11 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const name = variable.value;
       if (variable.group || variable.predicate?.length) {
         result = false;
-      } else if (["", "$"].includes(name)) {
+      } else if (name === "$") {
         result = true;
+      } else if (name === "") {
+        const value = resolveValue(scope, name);
+        result = value ? isDefinitelyDataValue(value.node, value.scope) : true;
       } else if (
         !resolveLambda(scope, name) &&
         !resolvePartial(scope, name) &&
@@ -968,6 +971,10 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
+    if ((node.type === "name" || node.type === "path" &&
+         (node as PathNode).steps[0]?.type === "name") && resolveValue(scope, "")) {
+      return resolveCallableValues(runtime.functions.explicitContextExpression(node, ""), scope);
+    }
     if (node.type === "bind") return resolveCallableValues((node as BindNode).rhs, scope);
     if (node.type === "variable" && (node as VariableNode).resolvedBuiltin) return [];
     if (node.type === "path" && isDefinitelyDataValue(node, scope)) return [];
@@ -1332,6 +1339,10 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {
+    if ((node.type === "name" || node.type === "path" &&
+         (node as PathNode).steps[0]?.type === "name") && resolveValue(scope, "")) {
+      return resolveBuiltinCallableNames(runtime.functions.explicitContextExpression(node, ""), scope);
+    }
     if (node.type === "bind") return resolveBuiltinCallableNames((node as BindNode).rhs, scope);
     if (node.type !== "path" && callableGroup(node)) {
       return groupedNodeBuiltinCallableNames(node, scope);
