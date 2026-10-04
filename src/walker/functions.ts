@@ -287,7 +287,7 @@ export function createFunctionOperations(
         : [];
     }
     return [
-      ...runtime.core.walkNode(procedure.condition, scope),
+      ...runtime.core.walkNode(asBooleanExpression(procedure.condition), scope),
       ...(runtime.callables.isFunctionProcedureNode(procedure.then)
         ? walkFunctionProcedureSelection(procedure.then, scope)
         : []),
@@ -494,7 +494,7 @@ export function createFunctionOperations(
     if (node.type === "condition") {
       const condition = node as ConditionNode;
       return [
-        ...runtime.core.walkNode(condition.condition, scope),
+        ...runtime.core.walkNode(asBooleanExpression(condition.condition), scope),
         ...walkCallableSelection(condition.then, scope),
         ...(condition.else ? walkCallableSelection(condition.else, scope) : []),
       ];
@@ -702,7 +702,7 @@ export function createFunctionOperations(
   
     if (node.procedure.type === "condition") {
       return withFunctionStages([
-        ...runtime.core.walkNode(node.procedure.condition, scope),
+        ...runtime.core.walkNode(asBooleanExpression(node.procedure.condition), scope),
         ...conditionalProcedureCalls(node).flatMap((call) =>
           walkFunction(call, scope),
         ),

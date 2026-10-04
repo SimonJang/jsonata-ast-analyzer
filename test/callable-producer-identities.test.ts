@@ -63,6 +63,7 @@ describe("callable producer identities", () => {
     }
     expect(sorted(expression)).toEqual([
       { path: "enabled", confidence: "static", coverage: "exact" },
+      { path: "enabled.*", confidence: "static", coverage: "exact" },
       { path: "first.nested", confidence: "static", coverage: "subtree" },
       ...(expression.includes(",key)") ? [{ path: "key", confidence: "static", coverage: "exact" }] : []),
       { path: "second.nested", confidence: "static", coverage: "subtree" },
@@ -77,6 +78,7 @@ describe("callable producer identities", () => {
     expect(await jsonata(expression).evaluate({ ...input, enabled: true })).toBe(JSON.stringify(input.first));
     expect(sorted(expression)).toEqual([
       { path: "enabled", confidence: "static", coverage: "exact" },
+      { path: "enabled.*", confidence: "static", coverage: "exact" },
       { path: "first", confidence: "static", coverage: "exact" },
       { path: "first.**", confidence: "static", coverage: "exact" },
       ...(expression.includes(",key)") ? [{ path: "key", confidence: "static", coverage: "exact" }] : []),
@@ -94,6 +96,7 @@ describe("callable producer identities", () => {
     }
     expect(sorted(expression)).toEqual([
       { path: "enabled", confidence: "static", coverage: "exact" },
+      { path: "enabled.*", confidence: "static", coverage: "exact" },
       { path: "first.nested", confidence: "static", coverage: "subtree" },
       { path: "second.nested", confidence: "static", coverage: "subtree" },
     ]);
@@ -106,6 +109,7 @@ describe("callable producer identities", () => {
     expect(await jsonata(expression).evaluate({ ...input, enabled: true })).toBe(JSON.stringify(input.first));
     expect(sorted(expression)).toEqual([
       { path: "enabled", confidence: "static", coverage: "exact" },
+      { path: "enabled.*", confidence: "static", coverage: "exact" },
       { path: "first", confidence: "static", coverage: "exact" },
       { path: "first.**", confidence: "static", coverage: "exact" },
       { path: "second.nested", confidence: "static", coverage: "subtree" },

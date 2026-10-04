@@ -68,7 +68,7 @@ describe("alias operation contracts", () => {
   });
 
   it("retains a conditional selection read even when neither result has an alias", () => {
-    expect(walkerRuntime().aliases.selectResultAliasStepPaths(parse("flag?1:2"), [name("copy")], createScope())).toEqual(["flag"]);
+    expect(walkerRuntime().aliases.selectResultAliasStepPaths(parse("flag?1:2"), [name("copy")], createScope())).toEqual(["flag", "flag.*"]);
   });
 
   it("does not invent selected reads from an empty object or an unsupported projection", () => {

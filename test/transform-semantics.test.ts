@@ -440,6 +440,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
@@ -458,6 +459,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -682,6 +684,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
@@ -699,6 +702,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
@@ -719,6 +723,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
@@ -731,7 +736,7 @@ describe("transform semantics", () => {
       extractPaths(
         '($p := (config.enabled ? |first|{"seen": name}| : function($x){$x})(?); 1)',
       ),
-    ).toEqual([{ path: "config.enabled", confidence: "static" }]);
+    ).toEqual([{ path: "config.enabled", confidence: "static" }, { path: "config.enabled.*", confidence: "static" }]);
   });
 
   it("does not execute a transform merely returned by a function", () => {
@@ -780,6 +785,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },

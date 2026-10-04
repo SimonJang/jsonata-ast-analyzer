@@ -103,6 +103,26 @@ describe("object truthiness dependencies", () => {
       .toEqual([exact("record")]);
   });
 
+  it.each([
+    ['(record?function(){1}:function(){0})()', 1],
+    ['(record?$count:$sum)([1,2])', 2],
+    ['(record?($count(?)):$sum)([1,2])', 2],
+    ['($ops:={"call":record?function(){1}:function(){0}};($ops.call)())', 1],
+  ] as const)("traces object conditions used to choose a callable in %s", async (expression, value) => {
+    expect(await jsonata(expression).evaluate(input)).toBe(value);
+    expect(accesses(expression)).toEqual([exact("record"), exact("record.*")]);
+  });
+
+  it("traces a conditional higher-order callback's selection", async () => {
+    const expression = '$map(items,record?function($x){$x.check}:function(){0})';
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.items[0].check);
+    expect(accesses(expression)).toEqual([
+      exact("items"),
+      { path: "items.check", confidence: "static", coverage: "subtree" },
+      exact("record"), exact("record.*"),
+    ]);
+  });
+
   it("covers truthiness reads separately from a selected nested value", async () => {
     const expression = '($v:={"copy":record};$v.copy?$v.copy.details:0)';
     expect(await jsonata(expression).evaluate(input)).toEqual(input.record.details);

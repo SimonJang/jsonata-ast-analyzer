@@ -65,9 +65,9 @@ describe("optional AST metadata boundaries", () => {
     const partial = parse("$sum(?)") as PartialNode;
     const procedure = parse("flag ? 1 : 2") as FunctionNode["procedure"];
     const functions = walkerRuntime().functions;
-    expect(functions.walkPartial({ ...partial, procedure }, createScope())).toEqual(["flag"]);
+    expect(functions.walkPartial({ ...partial, procedure }, createScope())).toEqual(["flag", "flag.*"]);
     expect(functions.conditionalProcedureCalls({ type: "function", value: "(", position: 0, procedure, arguments: [] })).toEqual([]);
-    expect(functions.walkCallableSelection(parse("flag ? $sum"), createScope())).toEqual(["flag"]);
+    expect(functions.walkCallableSelection(parse("flag ? $sum"), createScope())).toEqual(["flag", "flag.*"]);
   });
 
   it("does not treat an unresolved procedure block as a callable selection", () => {

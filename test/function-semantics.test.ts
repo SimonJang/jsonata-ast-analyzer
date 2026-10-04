@@ -611,6 +611,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
@@ -682,6 +683,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "config.enabled", confidence: "static" },
+        { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -1602,7 +1604,10 @@ describe("function semantics", () => {
       ).toEqual(
         sortPaths([
           ...(includesCondition
-            ? [{ path: "config.flag", confidence: "static" as const }]
+            ? [
+                { path: "config.flag", confidence: "static" as const },
+                { path: "config.flag.*", confidence: "static" as const },
+              ]
             : []),
           { path: "detail", confidence: "static" },
           ...(body.includes("$clone")
@@ -2440,6 +2445,7 @@ describe("function semantics", () => {
           { path: "flag", confidence: "static" },
           { path: "detail", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
+          { path: "flag.*", confidence: "static" },
         ]),
       );
     }
@@ -2722,6 +2728,7 @@ describe("function semantics", () => {
         { path: "record.*", confidence: "static" },
         { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
+        { path: "record.flag.*", confidence: "static" },
       ]),
     );
   });
@@ -2741,6 +2748,7 @@ describe("function semantics", () => {
         { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
+        { path: "record.flag.*", confidence: "static" },
       ]),
     );
   });
@@ -2760,6 +2768,7 @@ describe("function semantics", () => {
         { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
+        { path: "record.flag.*", confidence: "static" },
       ]),
     );
   });

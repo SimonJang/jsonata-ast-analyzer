@@ -1687,7 +1687,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       Boolean((step as AstNode & { focusBinding?: unknown }).focusBinding);
     const conditionPaths =
       step.type === "condition"
-        ? runtime.core.walkNode((step as ConditionNode).condition, scope)
+        ? runtime.core.walkNode(
+            runtime.functions.asBooleanExpression((step as ConditionNode).condition),
+            scope,
+          )
         : [];
     const stepReadPaths =
       includeStepReadPaths &&
