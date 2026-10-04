@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Include object-property enumeration reads for explicit `$keys`, `$spread`, `$boolean`, `$not`, and `$merge` inputs while preserving constructed-object boundaries.
+- Resolve static `$eval` result paths with their actual context bindings, including forwarded constructed objects.
 - Trace descendant dependencies for deep equality, `$distinct`, and object values serialized by concatenation, including alias and transform contexts.
 - Include descendant reads when `$string` or `$clone` consumes selected input values, including aliased and computed lookup results.
 - Preserve both constructed and direct input branches through bound block projections and later selections.

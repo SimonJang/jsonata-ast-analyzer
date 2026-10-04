@@ -2754,6 +2754,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "flag", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
         { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -2770,6 +2771,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -2783,6 +2785,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -3731,8 +3734,10 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("$merge([defaults, overrides]).name"))).toEqual(
       sortPaths([
         { path: "defaults", confidence: "static" },
+        { path: "defaults.*", confidence: "static" },
         { path: "defaults.name", confidence: "static" },
         { path: "overrides", confidence: "static" },
+        { path: "overrides.*", confidence: "static" },
         { path: "overrides.name", confidence: "static" },
       ]),
     );
@@ -3744,8 +3749,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "defaults", confidence: "static" },
+        { path: "defaults.*", confidence: "static" },
         { path: "defaults.name", confidence: "static" },
         { path: "overrides", confidence: "static" },
+        { path: "overrides.*", confidence: "static" },
         { path: "overrides.name", confidence: "static" },
       ]),
     );
@@ -3764,6 +3771,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths('$merge([{"x": primary}, fallback]).x.name'))).toEqual(
       sortPaths([
         { path: "fallback", confidence: "static" },
+        { path: "fallback.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "primary", confidence: "static" },
         { path: "primary.name", confidence: "static" },
@@ -3808,6 +3816,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("$spread(record).*.name"))).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
       ]),
     );
@@ -3817,6 +3826,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("($s := $spread(record); $s.*.name)"))).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.*", confidence: "static" },
         { path: "record.*.name", confidence: "static" },
       ]),
     );
@@ -5554,6 +5564,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("$merge([{key: primary}, fallback]).x.name"))).toEqual(
       sortPaths([
         { path: "fallback", confidence: "static" },
+        { path: "fallback.*", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },

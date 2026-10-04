@@ -75,6 +75,8 @@ Operations that traverse a value's descendants also report a `**` read. For exam
 
 Deep equality (`=` and `!=`), `$distinct`, and string concatenation (`&`) can also inspect object descendants. Their selected input values receive the same descendant summary.
 
+Object-property enumeration reports a `*` read. For example, `$count($spread(record))` reads `record` and `record.*`, so changes to the object's own properties remain dependencies even when the result is only a count.
+
 The optional `opaqueFunctions` list treats recognized built-ins as opaque host functions for one analysis. Names may include or omit the leading `$`:
 
 ```javascript

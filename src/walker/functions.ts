@@ -173,6 +173,35 @@ export function createFunctionOperations(
     return paths.map((path) => appendPath(path, "**"));
   }
 
+  function enumeratedObjectBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+    if ((node as AstNode & { group?: unknown }).group) return [];
+    if (node.type === "variable") {
+      return runtime.results.getResultSuffixBasePaths(node, scope);
+    }
+    if (node.type === "object") return [];
+    if (node.type === "condition") {
+      const condition = node as ConditionNode;
+      return [condition.then, condition.else].flatMap((branch) => branch
+        ? enumeratedObjectBasePaths(branch, scope) : []);
+    }
+    if (node.type === "array" || node.type === "block") {
+      let nestedScope = scope;
+      let paths: string[] = [];
+      for (const expression of (node as ArrayNode | BlockNode).expressions) {
+        const binding = expression.type === "bind" ? expression as BindNode : null;
+        const valuePaths = enumeratedObjectBasePaths(binding?.rhs ?? expression, nestedScope);
+        if (node.type === "array") paths.push(...valuePaths);
+        else paths = valuePaths;
+        if (binding) nestedScope = runtime.callables.bindCallableBlockValue(nestedScope, binding);
+      }
+      return paths;
+    }
+    if (["name", "wildcard", "descendant", "parent"].includes(node.type)) {
+      return runtime.core.walkNode(node, scope);
+    }
+    return runtime.aliases.groupResultSuffixBasePaths(node, scope);
+  }
+
   function appliedFunctionFromApply(node: ApplyNode): FunctionNode | null {
     if (node.rhs.type === "partial") {
       const partial = node.rhs as PartialNode;
@@ -762,7 +791,7 @@ export function createFunctionOperations(
       explicitContextPaths &&
       IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)
     ) {
-      paths.push(...explicitContextPaths.map((path) => appendPath(path, "*")));
+      paths.push(...enumeratedObjectBasePaths(args[0], scope).map((path) => appendPath(path, "*")));
     }
     if (
       args.length > 0 &&
@@ -781,7 +810,7 @@ export function createFunctionOperations(
       for (const input of mergeInputs) {
         const identityPaths = identityReferencePaths(input, scope);
         if (identityPaths) {
-          paths.push(...identityPaths.map((path) => appendPath(path, "*")));
+          paths.push(...enumeratedObjectBasePaths(input, scope).map((path) => appendPath(path, "*")));
         }
       }
     }
@@ -862,6 +891,9 @@ export function createFunctionOperations(
     if (args[0] && (funcName === "distinct" || consumesNamedDeepValue)) {
       paths.push(...deepValueReadPaths(args[0], scope));
     }
+    if (args[0] && ((!explicitContextPaths && IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)) || funcName === "merge")) {
+      paths.push(...enumeratedObjectBasePaths(args[0], scope).map((path) => appendPath(path, "*")));
+    }
   
     if (funcName === "eval") {
       paths.push(...walkStaticEval(args, scope));
@@ -906,10 +938,9 @@ export function createFunctionOperations(
     scope: ScopeTracker,
   ): string[] {
     const expression = getStaticEvalExpression(args);
-    if (!expression || runtime.results.getSuffixableResultBasePaths(expression, scope).length === 0) {
-      return [];
-    }
-    return getStaticEvalResultBasePaths(args, scope);
+    return expression
+      ? runtime.results.getResultSuffixBasePaths(expression, getStaticEvalScope(args, scope))
+      : [];
   }
 
   function getStaticEvalExpression(args: AstNode[]): AstNode | null {

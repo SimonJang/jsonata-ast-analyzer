@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FunctionNode, LambdaNode, NameNode, ObjectNode, PathNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePartial, resolveTransform, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePartial, resolveTransform, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, PATH_PRESERVING_RESULT_FUNCTIONS } from "./constants.js";
 import { appendPath, resolveParentPathSegments, filterToBasePaths } from "./path-utils.js";
@@ -1497,6 +1497,16 @@ export function createResultOperations(
   }
 
   function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+    if (node.type === "variable") {
+      const name = (node as VariableNode).value;
+      const suffixPaths = resolveSuffixBasePaths(scope, name) ?? [];
+      const objectAlias = resolveObjectAlias(scope, name);
+      if (objectAlias || resolveDynamicObjectAlias(scope, name)) {
+        return runtime.aliases.unmatchedAliasSuffixBasePaths(objectAlias, suffixPaths);
+      }
+      return runtime.functions.identityReferencePaths(node, scope) ??
+        [...(suffixPaths.length ? suffixPaths : resolveVariable(scope, name) ?? [])];
+    }
     if (node.type === "apply") {
       const func = runtime.functions.appliedFunctionFromApply(node as ApplyNode);
       return func ? getFunctionResultSuffixBasePaths(func, scope) : [];

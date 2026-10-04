@@ -29,11 +29,13 @@ describe("dynamic lookup chains", () => {
         : [data.dict.a.details, data.dict.b.details]);
     expect(analyzeExpression(expression)).toEqual({ accesses: [
       { path: "dict", confidence: "static", coverage: "exact" },
+      { path: "dict.*", confidence: "static", coverage: "exact" },
       { path: "dict[*]", confidence: "dynamic", coverage: "exact" },
       { path: "dict[*].details", confidence: "dynamic", coverage: "subtree" },
     ] });
     expect(extractPaths(expression)).toEqual([
       { path: "dict", confidence: "static" },
+      { path: "dict.*", confidence: "static" },
       { path: "dict[*]", confidence: "dynamic" },
       { path: "dict[*].details", confidence: "dynamic" },
     ]);
