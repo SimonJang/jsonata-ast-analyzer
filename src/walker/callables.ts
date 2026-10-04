@@ -502,7 +502,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       resolveCallableValues((node as FunctionNode).procedure, scope).length === 0
     ) {
       const functionNode = node as FunctionNode;
-      const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
+      const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments, scope);
       if (expression) {
         return unwrapCallableContainerNode(
           expression,
@@ -1156,7 +1156,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       if (sourceNode.type === "function") {
         const functionNode = sourceNode as FunctionNode;
         const evalExpression = resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("eval")
-          ? runtime.functions.getStaticEvalExpression(functionNode.arguments) : null;
+          ? runtime.functions.getStaticEvalExpression(functionNode.arguments, sourceScope) : null;
         return [
           ...partialBuiltinResultCalls(functionNode, sourceScope).flatMap((call) => resolveCallableValues(
             suffixSteps.length > 0 ? { type: "path", steps: [call.node, ...suffixSteps] } as PathNode : call.node,
@@ -1256,7 +1256,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     if (
       specialBuiltins.includes("eval")
     ) {
-      const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
+      const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments, scope);
       if (!expression) return [];
       return resolveCallableValues(
         expression,
@@ -1506,7 +1506,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       if (sourceNode.type === "function") {
         const functionNode = sourceNode as FunctionNode;
         const evalExpression = resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("eval")
-          ? runtime.functions.getStaticEvalExpression(functionNode.arguments) : null;
+          ? runtime.functions.getStaticEvalExpression(functionNode.arguments, sourceScope) : null;
         return [
           ...partialBuiltinResultCalls(functionNode, sourceScope).flatMap((call) => resolveBuiltinCallableNames(
             suffixSteps.length > 0 ? { type: "path", steps: [call.node, ...suffixSteps] } as PathNode : call.node,
@@ -1626,7 +1626,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       if (
         specialBuiltins.includes("eval")
       ) {
-        const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
+        const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments, scope);
         return expression
           ? resolveBuiltinCallableNames(
               expression,

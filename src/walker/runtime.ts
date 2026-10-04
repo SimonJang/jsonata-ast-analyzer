@@ -152,7 +152,7 @@ export interface FunctionOperations {
   walkFunction(node: FunctionNode, scope: ScopeTracker): string[];
   getStaticEvalResultBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalResultSuffixBasePaths(args: AstNode[], scope: ScopeTracker): string[];
-  getStaticEvalExpression(args: AstNode[]): AstNode | null;
+  getStaticEvalExpression(args: AstNode[], scope?: ScopeTracker): AstNode | null;
   getStaticEvalScope(args: AstNode[], scope: ScopeTracker): ScopeTracker;
   getStaticEvalResultObjectAlias(args: AstNode[], scope: ScopeTracker): ObjectAlias | null;
   getStaticEvalResultDynamicObjectAlias(args: AstNode[], scope: ScopeTracker): DynamicObjectAlias | null;

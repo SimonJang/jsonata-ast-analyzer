@@ -2529,6 +2529,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const record = value as Record<string, unknown>;
       if (record.type === "descendant" &&
           (objectAlias?.size || dynamicObject || suffixBasePaths.length)) return true;
+      if (record.type === "function" && Array.isArray(record.arguments) && record.arguments.length === 1 &&
+          record.procedure && runtime.callables.resolveBuiltinCallableNames(
+            (value as FunctionNode).procedure, scope,
+          ).includes("eval")) return true;
       if (record.type === "name" && typeof record.value === "string" &&
           (!record.value || /[.%[\]*]/.test(record.value))) return true;
       return Object.values(record).some(requiresAliasContext);

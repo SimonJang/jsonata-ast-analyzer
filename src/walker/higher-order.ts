@@ -378,7 +378,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       return (
         functionNode.procedure.type === "variable" &&
         functionNode.procedure.value === "eval" &&
-        runtime.functions.getStaticEvalExpression(functionNode.arguments) !== null
+        runtime.functions.getStaticEvalExpression(functionNode.arguments, scope) !== null
       );
     }
     if (node.type === "variable") {
@@ -460,7 +460,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         functionNode.procedure.type === "variable" &&
         functionNode.procedure.value === "eval"
       ) {
-        const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
+        const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments, scope);
         if (expression) {
           return eachInputNeedsWildcardValues(
             expression,
@@ -644,7 +644,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         functionNode.procedure.type === "variable" &&
         functionNode.procedure.value === "eval"
       ) {
-        const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
+        const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments, scope);
         if (expression) {
           return higherOrderCallbackDataNodes(
             funcName,

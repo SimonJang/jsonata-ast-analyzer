@@ -926,7 +926,7 @@ export function createFunctionOperations(
   }
 
   function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
-    const expression = getStaticEvalExpression(args);
+    const expression = getStaticEvalExpression(args, scope);
     if (!expression) {
       return args[0]?.type === "string" ? [] : markAbsolute(["**"]);
     }
@@ -946,7 +946,7 @@ export function createFunctionOperations(
     args: AstNode[],
     scope: ScopeTracker,
   ): string[] {
-    const expression = getStaticEvalExpression(args);
+    const expression = getStaticEvalExpression(args, scope);
     if (!expression) return [];
   
     return selection.getSelectedResultPaths(expression, getStaticEvalScope(args, scope));
@@ -956,19 +956,23 @@ export function createFunctionOperations(
     args: AstNode[],
     scope: ScopeTracker,
   ): string[] {
-    const expression = getStaticEvalExpression(args);
+    const expression = getStaticEvalExpression(args, scope);
     return expression
       ? runtime.results.getResultSuffixBasePaths(expression, getStaticEvalScope(args, scope))
       : [];
   }
 
-  function getStaticEvalExpression(args: AstNode[]): AstNode | null {
+  function hasCapturedEvalContext(scope?: ScopeTracker): boolean {
+    return Boolean(scope && (resolveVariable(scope, "") !== null || resolveValue(scope, "") !== null));
+  }
+
+  function getStaticEvalExpression(args: AstNode[], scope?: ScopeTracker): AstNode | null {
     const source = args[0];
     if (source?.type !== "string") return null;
   
     try {
       const expression = parse((source as { value: string }).value);
-      return args[1] ? explicitContextExpression(expression) : expression;
+      return args[1] || hasCapturedEvalContext(scope) ? explicitContextExpression(expression) : expression;
     } catch {
       return null;
     }
@@ -1015,8 +1019,8 @@ export function createFunctionOperations(
     args: AstNode[],
     scope: ScopeTracker,
   ): ScopeTracker {
-    const contextArg = args[1];
-    if (!contextArg) return scope;
+    if (!args[1] && !hasCapturedEvalContext(scope)) return scope;
+    const contextArg = args[1] ?? { type: "variable", value: "", position: 0 } as VariableNode;
     const paths = runtime.higherOrder.functionArgumentResultPaths(contextArg, scope);
     const currentScope = runtime.higherOrder.bindArgumentParameter(
       childScope(scope), { type: "variable", value: "", position: 0 },
@@ -1032,7 +1036,7 @@ export function createFunctionOperations(
     args: AstNode[],
     scope: ScopeTracker,
   ): ObjectAlias | null {
-    const expression = getStaticEvalExpression(args);
+    const expression = getStaticEvalExpression(args, scope);
     if (!expression) return null;
   
     return runtime.aliases.groupResultObjectAliasForNode(expression, getStaticEvalScope(args, scope));
@@ -1042,7 +1046,7 @@ export function createFunctionOperations(
     args: AstNode[],
     scope: ScopeTracker,
   ): DynamicObjectAlias | null {
-    const expression = getStaticEvalExpression(args);
+    const expression = getStaticEvalExpression(args, scope);
     return expression
       ? runtime.aliases.groupResultDynamicObjectAliasForNode(expression, getStaticEvalScope(args, scope))
       : null;
