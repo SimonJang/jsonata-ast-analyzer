@@ -127,6 +127,8 @@ export interface ArrayNode extends AnalyzerNode {
   expressions: AstNode[];
   group?: GroupByNode;
   predicate?: AstNode[];
+  /** Predicates evaluated before tuple stages when this array starts a path. */
+  initialPathPredicate?: AstNode[];
   focusBinding?: ContextBindingNode;
   indexBinding?: PositionBindingNode;
 }

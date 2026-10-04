@@ -115,7 +115,9 @@ export function normalizeAst(node: RawAstNode): AstNode {
     case "path":
       return {
         type: "path",
-        steps: rawList(node.steps).map(normalizeAst),
+        steps: rawList(node.steps).map((step, index) => normalizeAst(
+          index > 0 && step.consarray ? { ...step, consarray: undefined } : step,
+        )),
         keepSingletonArray: node.keepSingletonArray as boolean | undefined,
         keepArray: node.keepArray as boolean | undefined,
         group: normalizeGroup(node.group),
@@ -199,6 +201,7 @@ export function normalizeAst(node: RawAstNode): AstNode {
           type: "array",
           position: positionOf(node),
           expressions: rawList(node.expressions).map(normalizeAst),
+          ...(node.consarray ? { initialPathPredicate: rawList(node.predicate).map(normalizeAst) } : {}),
           group: normalizeGroup(node.group),
           predicate: [
             ...rawList(node.predicate),

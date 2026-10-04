@@ -215,6 +215,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
    * filter stages on name steps, sort steps, and group-by expressions.
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
+    const first = node.steps[0] as ArrayNode;
+    if (first?.type === "array" && first.initialPathPredicate && runtime.aliases.chainedPathContext(node, scope)) {
+      return walkPathSteps(node, scope);
+    }
     const focusIndex = node.steps.findIndex((step, index) => {
       const focused = step as NameNode & { predicate?: AstNode[] };
       // First-step predicates without an index run before the focus is bound.

@@ -352,6 +352,18 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   function selectedPathAliasContext(node: PathNode, scope: ScopeTracker): SelectedAliasContext | null {
+    const leadingArray = node.steps[0] as ArrayNode;
+    if (leadingArray?.type === "array" && leadingArray.initialPathPredicate && node.steps.length > 1) {
+      const chained = chainedPathContext(node, scope);
+      if (chained) {
+        const result = chained.tail.steps.length === 1 && !chained.tail.group ? chained.tail.steps[0] : chained.tail;
+        return {
+          objectAlias: groupResultObjectAliasForNode(result, chained.scope),
+          dynamicObjectAlias: groupResultDynamicObjectAliasForNode(result, chained.scope),
+          suffixBasePaths: groupResultSuffixBasePaths(result, chained.scope),
+        };
+      }
+    }
     const focusIndex = node.steps.findIndex((step, index) => {
       const focused = step as NameNode & { predicate?: AstNode[] };
       // First-step predicates without an index run before the focus is bound.
@@ -1428,6 +1440,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       : { type: "path", steps: prefix } as PathNode;
     let groupScope = childScope(scope);
     for (const [index, step] of steps.entries()) {
+      if (source.type === "path" && index === 0 && step.type === "array" &&
+        (step as ArrayNode).initialPathPredicate) continue;
       const bindingStep = step as AstNode & {
         focusBinding?: { name: string };
         indexBinding?: { name: string };
@@ -1669,6 +1683,23 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   function chainedPathContext(node: PathNode, scope: ScopeTracker) {
+    const first = node.steps[0] as ArrayNode;
+    if (first?.type === "array" && first.initialPathPredicate && node.steps.length > 1 &&
+      (first.focusBinding || first.indexBinding || first.predicate?.some((stage) => stage.type === "position-binding"))) {
+      // JSONata evaluates a leading explicit array before entering its tuple
+      // stream, so its tuple bindings and stages are never applied.
+      const prefix: ArrayNode = {
+        ...first, predicate: first.initialPathPredicate, initialPathPredicate: undefined,
+        focusBinding: undefined, indexBinding: undefined,
+      };
+      const context: AstNode = first.focusBinding
+        ? { type: "variable", value: "", position: 0 } : prefix;
+      const contextScope = runtime.higherOrder.bindArgumentParameter(
+        childScope(scope), { type: "variable", value: "", position: 0 },
+        bindingAliasPaths(context, scope), context, scope,
+      );
+      return { prefix, tail: { ...node, steps: node.steps.slice(1) }, scope: contextScope };
+    }
     const projectionResult = (projection: AstNode): AstNode | undefined => {
       let result: AstNode | undefined = projection;
       while (result?.type === "block") result = (result as BlockNode).expressions.at(-1);

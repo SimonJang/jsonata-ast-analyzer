@@ -16,6 +16,46 @@ const producers = [
 ];
 
 describe("constructed positions without focus bindings", () => {
+  it.each(producers)("preserves an outer index variable after a leading explicit array of %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};[${producer}]#$i.$i)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record);
+    expect(accesses(expression)).toEqual([
+      exact("other"), { ...exact("record"), coverage: "subtree" },
+    ]);
+  });
+
+  it.each(producers)("skips tuple stages on a leading explicit array of %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};[${producer}][other.different.details]#$i[$i].$i)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record);
+    expect(accesses(expression)).toEqual([
+      exact("other"), { ...exact("record"), coverage: "subtree" },
+    ]);
+  });
+
+  it.each(producers)("preserves an outer focus variable after a leading explicit array of %s", async (producer) => {
+    const expression = `($child:=other;$v:=${shape};[${producer}]@$child#$i.$child)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.other);
+    expect(accesses(expression)).toEqual([
+      { ...exact("other"), coverage: "subtree" }, exact("record"),
+    ]);
+  });
+
+  it.each(producers)("keeps parent context when a leading explicit array of %s has focus metadata", async (producer) => {
+    const expression = `($v:=${shape};[${producer}]@$child[$child.other.different.details]#$i.other.details)`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.other.details);
+    expect(accesses(expression)).toEqual([
+      exact("other"), { ...exact("other.details"), coverage: "subtree" }, exact("record"),
+    ]);
+  });
+
+  it.each(producers)("preserves an outer variable in a group after a leading explicit array of %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};[${producer}]#$i.$i{"group":$i})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ group: input.record });
+    expect(accesses(expression)).toEqual([
+      exact("other"), { ...exact("record"), coverage: "subtree" },
+    ]);
+  });
+
   for (const [predicate, predicateBase] of [
     ["other.different.details", "other"], ["$i.details", "record"],
   ]) {
