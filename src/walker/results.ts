@@ -1075,16 +1075,14 @@ export function createResultOperations(
   
     if (!PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) return [];
     if (funcName === "append" || funcName === "zip") {
-      return args.flatMap((arg) => getResultBasePathsFromArg(arg, argScope));
+      return args.flatMap((arg) => selection.getSelectedResultPaths(arg, argScope));
     }
     if (funcName === "merge") {
       return args.length > 0 ? getMergeResultBasePaths(args[0], argScope) : [];
     }
     return args.length > 0
       ? [
-          ...(args[0].type === "variable"
-            ? selection.getSelectedResultPaths(args[0], argScope)
-            : getResultBasePathsFromArg(args[0], argScope)),
+          ...selection.getSelectedResultPaths(args[0], argScope),
           ...getResultSuffixBasePaths(args[0], argScope),
         ]
       : [];
