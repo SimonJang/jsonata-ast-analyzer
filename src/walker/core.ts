@@ -344,16 +344,9 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       const dynamicObjectAlias = runtime.aliases.dynamicObjectAliasForNode(node, scope);
       if (objectAlias || dynamicObjectAlias) {
         paths.push(
-          ...node.predicate.flatMap((stage) =>
-            stage.type === "filter"
-              ? runtime.aliases.selectAliasExpressionPaths(
-                  objectAlias,
-                  dynamicObjectAlias,
-                  runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
-                  predicateScope,
-                  runtime.results.getBlockResultSuffixBasePaths(node, scope),
-                )
-              : [],
+          ...runtime.aliases.walkAliasFilterStages(
+            node.predicate, objectAlias, dynamicObjectAlias, predicateScope,
+            runtime.results.getBlockResultSuffixBasePaths(node, scope),
           ),
         );
       } else {
@@ -569,18 +562,9 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         predicateScope = bindVariable(predicateScope, node.indexBinding.name, []);
       }
   
-      for (const stage of node.predicate) {
-        if (stage.type !== "filter") continue;
-        // Object constructors always have a dynamic alias variant.
-        paths.push(
-          ...runtime.aliases.selectAliasExpressionPaths(
-            objectAlias,
-            dynamicObjectAlias,
-            runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr),
-            predicateScope,
-          ),
-        );
-      }
+      paths.push(...runtime.aliases.walkAliasFilterStages(
+        node.predicate, objectAlias, dynamicObjectAlias, predicateScope,
+      ));
     }
     if (node.group) {
       const objectAlias = runtime.aliases.objectAliasFromObject(node, scope);

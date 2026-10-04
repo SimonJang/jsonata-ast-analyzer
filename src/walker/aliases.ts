@@ -867,6 +867,28 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     ];
   }
 
+  function walkAliasFilterStages(
+    stages: AstNode[],
+    objectAlias: ObjectAlias | null,
+    dynamicObjectAlias: DynamicObjectAlias | null,
+    scope: ScopeTracker,
+    suffixBasePaths: readonly string[] = [],
+  ): string[] {
+    const paths: string[] = [];
+    let stageScope = scope;
+    for (const stage of stages) {
+      if (stage.type === "position-binding") {
+        stageScope = bindVariable(stageScope, (stage as PositionBindingNode).name, []);
+      } else if (stage.type === "filter") {
+        paths.push(...selectAliasExpressionPaths(
+          objectAlias, dynamicObjectAlias,
+          runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr), stageScope, suffixBasePaths,
+        ));
+      }
+    }
+    return paths;
+  }
+
   function walkAliasSuffixFilterStages(
     suffixSteps: AstNode[],
     objectAlias: ObjectAlias | null,
@@ -2456,6 +2478,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     selectLookupDynamicObjectResultObjectAlias,
     selectVariableObjectAliasPaths,
     selectAliasSuffixContextPaths,
+    walkAliasFilterStages,
     walkAliasSuffixFilterStages,
     walkAliasSuffixSortTerms,
     walkAliasSuffixProjectionSteps,

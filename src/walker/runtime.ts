@@ -70,6 +70,7 @@ export interface AliasOperations {
   selectLookupDynamicObjectResultObjectAlias(alias: DynamicObjectAlias, selectorSteps: AstNode[]): ObjectAlias | null;
   selectVariableObjectAliasPaths(objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, suffixSteps: AstNode[], scope: ScopeTracker, suffixBasePaths?: readonly string[], preserveUnmappedLocalPaths?: boolean): string[] | null;
   selectAliasSuffixContextPaths(suffixSteps: AstNode[], objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, scope: ScopeTracker, suffixBasePaths?: readonly string[]): string[];
+  walkAliasFilterStages(stages: AstNode[], objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, scope: ScopeTracker, suffixBasePaths?: readonly string[]): string[];
   walkAliasSuffixFilterStages(suffixSteps: AstNode[], objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, scope: ScopeTracker, suffixBasePaths?: readonly string[], preserveUnmappedLocalPaths?: boolean): string[];
   walkAliasSuffixSortTerms(suffixSteps: AstNode[], objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, scope: ScopeTracker, suffixBasePaths?: readonly string[], preserveUnmappedLocalPaths?: boolean): string[];
   walkAliasSuffixProjectionSteps(suffixSteps: AstNode[], objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, scope: ScopeTracker, suffixBasePaths?: readonly string[], preserveUnmappedLocalPaths?: boolean): string[];

@@ -16,6 +16,22 @@ const producers = [
 ];
 
 describe("constructed positions without focus bindings", () => {
+  for (const [predicate, predicateBase] of [
+    ["other.different.details", "other"], ["$i.details", "record"],
+  ]) {
+    it.each([
+      '($v.wrap)', '$lookup($v,"wrap")', '($l:=$lookup;$l($v,"wrap"))',
+      '$map([$v],function($x){$x.wrap})', '{"left":{"copy":record},"other":{"different":other}}',
+    ])(`clears outer object metadata after first producer predicate ${predicate} in %s`, async (producer) => {
+      const expression = `($i:=record;$v:=${shape};${producer}[${predicate}]#$i[$i].$i)`;
+      expect(await jsonata(expression).evaluate(input)).toBe(0);
+      expect(accesses(expression)).toEqual([
+        exact("other"), ...(predicateBase === "other" ? [exact("other.details"), exact("other.details.*")] : []),
+        exact("record"), ...(predicateBase === "record" ? [exact("record.details"), exact("record.details.*")] : []),
+      ]);
+    });
+  }
+
   for (const [suffix, predicateBase] of [
     ['.*[copy.details]#$i.$i', "record"],
     ['.other[different.details]#$i.$i', "other"],

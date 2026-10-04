@@ -1053,16 +1053,8 @@ export function createFunctionOperations(
   
     if (objectAlias || dynamicObjectAlias) {
       const suffixBasePaths = runtime.results.getFunctionResultSuffixBasePaths(node, scope);
-      return node.predicate.flatMap((stage) =>
-        stage.type === "filter"
-          ? runtime.aliases.selectAliasExpressionPaths(
-              objectAlias,
-              dynamicObjectAlias,
-              asBooleanExpression((stage as unknown as FilterStage).expr),
-              predicateScope,
-              suffixBasePaths,
-            )
-          : [],
+      return runtime.aliases.walkAliasFilterStages(
+        node.predicate, objectAlias, dynamicObjectAlias, predicateScope, suffixBasePaths,
       );
     }
     const resultBasePaths = runtime.results.getFunctionResultBasePaths(node, scope);
