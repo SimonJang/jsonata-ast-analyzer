@@ -95,4 +95,24 @@ describe("produced constructed child contexts", () => {
     ]);
   });
 
+
+  it.each(producers)("retains focused predicate reads before block projections from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details].($child.copy))`;
+    expect(await jsonata(expression).evaluate(input)).toEqual(input.record);
+    expect(accesses(expression)).toEqual([
+      exact("ignored"), exact("key"), exact("other"),
+      { path: "record", confidence: "static", coverage: "subtree" },
+      exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("retains focused predicate reads before builtin calls from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details].$count($child.copy))`;
+    expect(await jsonata(expression).evaluate(input)).toBe(1);
+    expect(accesses(expression)).toEqual([
+      exact("ignored"), exact("key"), exact("other"), exact("record"),
+      exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
 });

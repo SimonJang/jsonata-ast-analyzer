@@ -355,8 +355,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const focusIndex = node.steps.findIndex((step, index) => {
       const focus = (step as NameNode).focusBinding;
       const next = node.steps[index + 1];
-      return index > 0 && focus && next?.type === "variable" &&
-        (next as VariableNode).value === focus.name;
+      return index > 0 && focus && next && collectVariableNames(next).has(focus.name);
     });
     if (focusIndex > 0) {
       const focusStep = node.steps[focusIndex] as NameNode;
@@ -369,7 +368,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
           [], selected.suffixBasePaths,
         );
-        return selectedPathAliasContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, focusScope);
+        const tail = node.steps.slice(focusIndex + 1);
+        if (tail.length === 1) return {
+          objectAlias: groupResultObjectAliasForNode(tail[0], focusScope),
+          dynamicObjectAlias: groupResultDynamicObjectAliasForNode(tail[0], focusScope),
+          suffixBasePaths: groupResultSuffixBasePaths(tail[0], focusScope),
+        };
+        return selectedPathAliasContext({ ...node, steps: tail }, focusScope);
       }
     }
     const [first, ...selectors] = node.steps.filter((step) => step.type !== "sort");
