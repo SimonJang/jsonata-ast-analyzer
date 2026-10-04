@@ -34,7 +34,7 @@ const fixtures: ConformanceFixture[] = [
   {
     name: "descendant wildcard with **",
     expression: "**.price",
-    expectedPaths: [{ path: "**.price", confidence: "static" }],
+    expectedPaths: [{ path: "**", confidence: "static" }, { path: "**.price", confidence: "static" }],
   },
   {
     name: "order-by stage with ^()",
@@ -412,6 +412,7 @@ const fixtures: ConformanceFixture[] = [
     name: "filter predicate on a descendant path step",
     expression: '**[type = "home"].name',
     expectedPaths: [
+      { path: "**", confidence: "static" },
       { path: "**.name", confidence: "static" },
       { path: "**.type", confidence: "static" },
     ],

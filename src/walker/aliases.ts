@@ -2185,16 +2185,18 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     skipLocalPaths = false,
   ): string[] {
     // Re-parsing rendered paths loses literal selector boundaries. Explicit $
-    // references also need their alias context before block-local walks run.
-    const hasLiteralSelector = (value: unknown): boolean => {
+    // references and descendants need alias context before block-local walks.
+    const requiresAliasContext = (value: unknown): boolean => {
       if (!value || typeof value !== "object" || value instanceof RegExp) return false;
       const record = value as Record<string, unknown>;
+      if (record.type === "descendant" &&
+          (objectAlias?.size || dynamicObject || suffixBasePaths.length)) return true;
       if (record.type === "name" && typeof record.value === "string" &&
           (!record.value || /[.%[\]*]/.test(record.value))) return true;
-      return Object.values(record).some(hasLiteralSelector);
+      return Object.values(record).some(requiresAliasContext);
     };
     if (!preserveUnmappedLocalPaths &&
-        (hasLiteralSelector(expression) ||
+        (requiresAliasContext(expression) ||
          (objectAlias?.size || dynamicObject || suffixBasePaths.length) &&
          collectVariableNames(expression).has(""))) {
       const contextName = "\u0000alias-expression";

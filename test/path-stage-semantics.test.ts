@@ -2697,6 +2697,7 @@ describe("path-stage semantics", () => {
 
   it("summarizes descendant reads without expanding them", () => {
     expect(extractPaths("account.**.price")).toEqual([
+      { path: "account.**", confidence: "static" },
       { path: "account.**.price", confidence: "static" },
     ]);
   });

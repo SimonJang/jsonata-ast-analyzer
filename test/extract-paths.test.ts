@@ -44,11 +44,12 @@ describe("extractPaths", () => {
   // ---------- PATH-04: Descendant operator ----------
   describe("PATH-04: Descendant operator", () => {
     it('extracts descendant operator: "**.price"', () => {
-      expect(extractPaths("**.price")).toEqual([{ path: "**.price", confidence: "static" }]);
+      expect(extractPaths("**.price")).toEqual([{ path: "**", confidence: "static" }, { path: "**.price", confidence: "static" }]);
     });
 
     it('extracts descendant in middle of path: "account.**.price"', () => {
       expect(extractPaths("account.**.price")).toEqual([
+        { path: "account.**", confidence: "static" },
         { path: "account.**.price", confidence: "static" },
       ]);
     });
@@ -797,6 +798,7 @@ describe("extractPaths", () => {
 
     it('descendant wildcard has static confidence: "**.price"', () => {
       expect(extractPaths("**.price")).toEqual([
+        { path: "**", confidence: "static" },
         { path: "**.price", confidence: "static" },
       ]);
     });

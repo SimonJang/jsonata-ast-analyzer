@@ -214,6 +214,28 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
    * filter stages on name steps, sort steps, and group-by expressions.
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
+    const descendantIndex = node.steps.findIndex((step) => step.type === "descendant");
+    if (descendantIndex < 0) return walkPathSteps(node, scope);
+    if (node.steps[0]?.type === "name" &&
+        (resolveObjectAlias(scope, "")?.size || resolveDynamicObjectAlias(scope, ""))) {
+      return walkPath(runtime.functions.explicitContextExpression(node, "") as PathNode, scope);
+    }
+
+    const prefixSteps = node.steps.slice(0, descendantIndex).filter((step, index) =>
+      index === 0 || step.type !== "variable" || (step as VariableNode).value !== "" ||
+      (step as VariableNode).predicate?.length || (step as VariableNode).focusBinding ||
+      (step as VariableNode).indexBinding || (step as VariableNode).group,
+    );
+    const prefix: AstNode = prefixSteps.length === 0
+      ? { type: "variable", value: "", position: 0 }
+      : prefixSteps.length === 1 ? prefixSteps[0] : { type: "path", steps: prefixSteps };
+    // Descendant traversal visits every input child before later selections.
+    const traversalReads = runtime.functions.deepValueReadPaths(prefix, scope);
+    const paths = walkPathSteps(node, scope);
+    return [...traversalReads.filter((path) => !paths.includes(path)), ...paths];
+  }
+
+  function walkPathSteps(node: PathNode, scope: ScopeTracker): string[] {
     if (node.steps.length === 0) return [];
 
     const method = runtime.callables.resolveStoredMethodPath(node, scope);

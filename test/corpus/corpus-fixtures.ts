@@ -33,6 +33,7 @@ for (let i = 0; i < 12; i++) {
     path(`${root}.*.${field}`),
   ]);
   add("basic paths", `descendant path ${i}`, `${root}.**.${field}`, [
+    path(`${root}.**`),
     path(`${root}.**.${field}`),
   ]);
   add("basic paths", `parent path ${i}`, `${root}.%.${field}`, [

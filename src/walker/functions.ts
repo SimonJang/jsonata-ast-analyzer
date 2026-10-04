@@ -168,9 +168,12 @@ export function createFunctionOperations(
         return ["name", "variable", "parent", "wildcard", "descendant"].includes(step.type) &&
           !stages.stages?.length && !stages.predicate?.length;
       }));
-    const aliasValue = node.type === "variable" &&
+    const aliasValue = (node.type === "variable" &&
       (resolveObjectAlias(scope, (node as VariableNode).value) ||
-       resolveDynamicObjectAlias(scope, (node as VariableNode).value));
+       resolveDynamicObjectAlias(scope, (node as VariableNode).value))) ||
+      (node.type === "path" &&
+        (runtime.aliases.objectAliasForNode(node, scope) ||
+         runtime.aliases.dynamicObjectAliasForNode(node, scope)));
     const paths = aliasValue ? selection.getSelectedResultPaths(node, scope) : identityReferencePaths(node, scope) ?? (plainSelection
       ? runtime.core.walkNode(node, scope)
       : selection.getSelectedResultPaths(node, scope));
