@@ -9,6 +9,7 @@ import type {
   LambdaNode,
   ObjectNode,
   PathNode,
+  VariableNode,
 } from "../types.js";
 import {
   bindVariable,
@@ -192,7 +193,19 @@ export function createSelectionOperations(
         }
         return runtime.aliases.bindingAliasPaths(path, scope);
       }
-      case "variable":
+      case "variable": {
+        const name = (node as VariableNode).value;
+        const objectAlias = resolveObjectAlias(scope, name);
+        const dynamicAlias = resolveDynamicObjectAlias(scope, name);
+        if (objectAlias || dynamicAlias) {
+          return [
+            ...(objectAlias ? [...objectAlias.values()].flatMap((paths) => [...paths]) : []),
+            ...(dynamicAlias ? runtime.aliases.selectLookupDynamicObjectAliasPaths(dynamicAlias, []) : []),
+            ...(resolveSuffixBasePaths(scope, name) ?? []),
+          ];
+        }
+        return runtime.results.getResultBasePathsFromArg(node, scope);
+      }
       case "wildcard":
       case "descendant":
       case "parent":

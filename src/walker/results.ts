@@ -1082,7 +1082,9 @@ export function createResultOperations(
     }
     return args.length > 0
       ? [
-          ...getResultBasePathsFromArg(args[0], argScope),
+          ...(args[0].type === "variable"
+            ? selection.getSelectedResultPaths(args[0], argScope)
+            : getResultBasePathsFromArg(args[0], argScope)),
           ...getResultSuffixBasePaths(args[0], argScope),
         ]
       : [];

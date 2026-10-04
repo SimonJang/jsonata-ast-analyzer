@@ -217,8 +217,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       const structuralPrefix = prefixSteps.every((step) => step.type === "name" &&
         !(step as NameNode).stages?.length && !(step as NameNode).focusBinding &&
         !(step as NameNode).indexBinding);
+      const consumesContext = chained.tail.steps[0]?.type === "function" &&
+        runtime.functions.resultUsesContextDefault(chained.tail.steps[0], chained.scope);
       return [
-        ...(structuralPrefix ? [] : walkChainedContext(chained.prefix, scope)),
+        ...(structuralPrefix && !consumesContext ? [] : walkChainedContext(chained.prefix, scope)),
         ...walkChainedContext(chained.tail, chained.scope),
       ];
     }

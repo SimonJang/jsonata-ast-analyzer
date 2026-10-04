@@ -132,7 +132,8 @@ export function createFunctionOperations(
     position: number,
     scope?: ScopeTracker,
   ): AstNode[] {
-    if (!["lookup", "each", "sift"].includes(funcName) || args.length !== 1) {
+    const defaultValue = args.length === 0 && ["spread", "clone"].includes(funcName);
+    if (!defaultValue && (!["lookup", "each", "sift"].includes(funcName) || args.length !== 1)) {
       return args;
     }
   
@@ -167,7 +168,10 @@ export function createFunctionOperations(
         return ["name", "variable", "parent", "wildcard", "descendant"].includes(step.type) &&
           !stages.stages?.length && !stages.predicate?.length;
       }));
-    const paths = identityReferencePaths(node, scope) ?? (plainSelection
+    const aliasValue = node.type === "variable" &&
+      (resolveObjectAlias(scope, (node as VariableNode).value) ||
+       resolveDynamicObjectAlias(scope, (node as VariableNode).value));
+    const paths = aliasValue ? selection.getSelectedResultPaths(node, scope) : identityReferencePaths(node, scope) ?? (plainSelection
       ? runtime.core.walkNode(node, scope)
       : selection.getSelectedResultPaths(node, scope));
     return paths.map((path) => appendPath(path, "**"));
@@ -796,7 +800,7 @@ export function createFunctionOperations(
       explicitContextPaths &&
       IMPLICIT_ROOT_DEEP_FUNCTIONS.has(funcName)
     ) {
-      paths.push(...explicitContextPaths.map((path) => appendPath(path, "**")));
+      paths.push(...deepValueReadPaths(args[0], scope));
     }
     if (funcName === "merge") {
       const mergeInputs =

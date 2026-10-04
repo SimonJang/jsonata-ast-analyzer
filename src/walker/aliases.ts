@@ -2,7 +2,7 @@ import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode,
 import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, createScope, childScope, bindVariable, bindSuffixBasePaths, bindObjectAlias, bindDynamicObjectAlias, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { ROOT_PATH } from "./constants.js";
-import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex, buildProjectionContextPath, hasPendingProjectionFocusReset } from "./path-utils.js";
+import { prefixPaths, prefixProjectionPaths, appendPath, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, collectVariableNames, isNumericIndex, buildProjectionContextPath, hasPendingProjectionFocusReset, isTransparentPathBlock } from "./path-utils.js";
 import type { AliasOperations, WalkerRuntime } from "./runtime.js";
 import { createSelectionOperations } from "./selection.js";
 
@@ -1422,6 +1422,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
       (node.steps.slice(0, index).some(isFunctionResultStep) ||
         node.steps.slice(0, index).some((prefixStep) => hasVariableProjectionSource(prefixStep, step)) ||
+        (projectsDataPath(step) && node.steps.slice(0, index).some((prefixStep) =>
+          isResultAliasStep(prefixStep) && !isTransparentPathBlock(prefixStep))) ||
+        (step.type === "function" && runtime.functions.resultUsesContextDefault(step, scope)) ||
         (step.type === "function" && (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding) ||
         (step.type === "function" && runtime.callables.resolveBuiltinCallableNames(
           (step as FunctionNode).procedure, scope,
