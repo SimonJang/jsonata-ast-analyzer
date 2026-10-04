@@ -226,6 +226,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     let result: ObjectAlias | null = null;
   
     for (const expr of node.expressions) {
+      const expressionScope = currentScope;
       if (expr.type === "bind") {
         const bindNode = expr as BindNode;
         const closureScope = currentScope;
@@ -253,6 +254,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       } else {
         result = groupResultObjectAliasForNode(expr, currentScope);
       }
+      currentScope = runtime.core.bindArrayAssignmentEffects(expr, currentScope, expressionScope);
     }
   
     return result;
@@ -1035,6 +1037,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     let currentScope = scope;
   
     for (const [index, expr] of block.expressions.entries()) {
+      const expressionScope = currentScope;
       const isLast = index === block.expressions.length - 1;
       if (isLast) {
         return expr.type === "object"
@@ -1076,6 +1079,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           closureScope,
         );
       }
+      currentScope = runtime.core.bindArrayAssignmentEffects(expr, currentScope, expressionScope);
     }
   
     return null;
@@ -2095,6 +2099,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     let result: string[] = [];
   
     for (const expr of node.expressions) {
+      const expressionScope = currentScope;
       if (expr.type === "bind") {
         const bindNode = expr as BindNode;
         const closureScope = currentScope;
@@ -2124,6 +2129,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       } else {
         result = bindingAliasPaths(expr, currentScope);
       }
+      currentScope = runtime.core.bindArrayAssignmentEffects(expr, currentScope, expressionScope);
     }
   
     return result;

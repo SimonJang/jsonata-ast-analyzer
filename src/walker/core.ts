@@ -4,6 +4,50 @@ import { appendPath } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
 export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
+  const arrayAssignments = new WeakMap<AstNode, readonly BindNode[]>();
+
+  function collectArrayAssignments(node: AstNode): readonly BindNode[] {
+    if (node.type === "bind") return collectArrayAssignments((node as BindNode).rhs);
+    if (node.type !== "array") return [];
+    const cached = arrayAssignments.get(node);
+    if (cached) return cached;
+    const assignments = (node as ArrayNode).expressions.flatMap((expression) => [
+      ...collectArrayAssignments(expression),
+      ...(expression.type === "bind" ? [expression as BindNode] : []),
+    ]);
+    arrayAssignments.set(node, assignments);
+    return assignments;
+  }
+
+  function bindArrayAssignmentEffects(
+    node: AstNode,
+    scope: ScopeTracker,
+    evaluationScope = scope,
+  ): ScopeTracker {
+    const assignments = collectArrayAssignments(node);
+    if (assignments.length === 0) return scope;
+    const choices = new Map<string, AstNode>();
+    for (const assignment of assignments) {
+      const previous = choices.get(assignment.lhs.value);
+      // Concurrent writes can finish in either order. Retain both values using
+      // the existing branch alias and callable merging semantics.
+      choices.set(assignment.lhs.value, previous ? {
+        type: "condition", position: assignment.position,
+        condition: { type: "value", value: true, position: assignment.position },
+        then: previous, else: assignment.rhs,
+      } : assignment.rhs);
+    }
+    let nextScope = scope;
+    for (const [name, value] of choices) {
+      nextScope = runtime.higherOrder.bindArgumentParameter(
+        nextScope, { type: "variable", value: name, position: 0 },
+        runtime.aliases.bindingAliasPaths(value, evaluationScope),
+        value, evaluationScope,
+      );
+    }
+    return nextScope;
+  }
+
   /**
    * Walk an AST node and extract all data paths as raw strings.
    * Dispatches on node.type using a switch statement.
@@ -206,6 +250,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     let currentScope = scope;
   
     for (const expr of node.expressions) {
+      const expressionScope = currentScope;
       if (expr.type === "bind") {
         const bindNode = expr as BindNode;
         const closureScope = currentScope;
@@ -254,6 +299,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       } else {
         paths.push(...walkNode(expr, currentScope));
       }
+      currentScope = bindArrayAssignmentEffects(expr, currentScope, expressionScope);
     }
   
     if (node.group) {
@@ -557,6 +603,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     walkNode,
     bindBroadStepScope,
     walkArray,
+    bindArrayAssignmentEffects,
     walkObject,
   };
 }

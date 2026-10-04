@@ -68,6 +68,7 @@ export function createSelectionOperations(
     let currentScope = scope;
     let selectedPaths: string[] = [];
     for (const expression of node.expressions) {
+      const expressionScope = currentScope;
       if (expression.type === "bind") {
         const bindNode = expression as BindNode;
         selectedPaths = getSelectedResultPaths(
@@ -83,6 +84,7 @@ export function createSelectionOperations(
       } else {
         selectedPaths = getSelectedResultPaths(expression, currentScope);
       }
+      currentScope = runtime.core.bindArrayAssignmentEffects(expression, currentScope, expressionScope);
     }
     return selectedPaths;
   }

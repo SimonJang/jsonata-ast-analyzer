@@ -37,6 +37,7 @@ export interface CoreOperations {
   };
   walkArray(node: ArrayNode, scope: ScopeTracker): string[];
   walkObject(node: ObjectNode, scope: ScopeTracker): string[];
+  bindArrayAssignmentEffects(node: AstNode, scope: ScopeTracker, evaluationScope?: ScopeTracker): ScopeTracker;
 }
 
 export interface PathOperations {

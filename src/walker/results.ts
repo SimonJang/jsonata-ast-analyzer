@@ -1835,6 +1835,7 @@ export function createResultOperations(
     let result: string[] = [];
   
     for (const expr of node.expressions) {
+      const expressionScope = currentScope;
       if (expr.type === "bind") {
         const bindNode = expr as BindNode;
         const closureScope = currentScope;
@@ -1878,6 +1879,7 @@ export function createResultOperations(
       } else {
         result = getResultSuffixBasePaths(expr, currentScope);
       }
+      currentScope = runtime.core.bindArrayAssignmentEffects(expr, currentScope, expressionScope);
     }
   
     return result;
@@ -2074,7 +2076,10 @@ export function createResultOperations(
           break;
         }
   
-        if (expr.type !== "bind") continue;
+        if (expr.type !== "bind") {
+          currentScope = runtime.core.bindArrayAssignmentEffects(expr, currentScope);
+          continue;
+        }
   
         const bindNode = expr as BindNode;
         const closureScope = currentScope;
@@ -2108,6 +2113,7 @@ export function createResultOperations(
           bindNode.rhs,
           closureScope,
         );
+        currentScope = runtime.core.bindArrayAssignmentEffects(expr, currentScope, closureScope);
       }
   
       return result;

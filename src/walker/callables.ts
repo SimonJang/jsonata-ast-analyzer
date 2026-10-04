@@ -390,6 +390,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const block = node as BlockNode;
       let blockScope = childScope(scope);
       for (const [index, expression] of block.expressions.entries()) {
+        const expressionScope = blockScope;
         if (index === block.expressions.length - 1) {
           return unwrapCallableContainerNode(
             expression,
@@ -403,6 +404,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
             expression as BindNode,
           );
         }
+        blockScope = runtime.core.bindArrayAssignmentEffects(expression, blockScope, expressionScope);
       }
     }
     if (
@@ -925,12 +927,14 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const block = node as BlockNode;
       let blockScope = childScope(scope);
       for (const [index, expression] of block.expressions.entries()) {
+        const expressionScope = blockScope;
         if (index === block.expressions.length - 1) {
           return resolveCallableValues(expression, blockScope);
         }
         if (expression.type === "bind") {
           blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
         }
+        blockScope = runtime.core.bindArrayAssignmentEffects(expression, blockScope, expressionScope);
       }
       return [];
     }
@@ -1380,12 +1384,14 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const block = node as BlockNode;
       let blockScope = scope;
       for (const [index, expression] of block.expressions.entries()) {
+        const expressionScope = blockScope;
         if (index === block.expressions.length - 1) {
           return resolveBuiltinCallableNames(expression, blockScope);
         }
         if (expression.type === "bind") {
           blockScope = bindCallableBlockValue(blockScope, expression as BindNode);
         }
+        blockScope = runtime.core.bindArrayAssignmentEffects(expression, blockScope, expressionScope);
       }
     }
     if (node.type === "function") {
