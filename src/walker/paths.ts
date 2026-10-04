@@ -217,7 +217,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     const focusIndex = node.steps.findIndex((step, index) => {
       const focus = (step as NameNode).focusBinding;
       const next = node.steps[index + 1];
-      return index > 0 && focus && next && collectVariableNames(next).has(focus.name);
+      return index > 0 && Boolean(focus) && Boolean(next);
     });
     if (focusIndex > 0) {
       const focusStep = node.steps[focusIndex] as NameNode & { predicate?: FilterStage[] };
