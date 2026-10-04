@@ -1,7 +1,7 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FunctionNode, LambdaNode, NameNode, ObjectNode, PathNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePartial, resolveTransform, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
-import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
+import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
+import { HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, PATH_PRESERVING_RESULT_FUNCTIONS } from "./constants.js";
 import { appendPath, resolveParentPathSegments, filterToBasePaths } from "./path-utils.js";
 import type { ResultOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
@@ -38,7 +38,7 @@ export function createResultOperations(
         ),
       );
     }
-    if (node.procedure.type === "variable") {
+    if (node.procedure.type === "variable" && !node.procedure.resolvedBuiltin) {
       const partialBinding = resolvePartial(scope, node.procedure.value);
       if (partialBinding) {
         return getPartialFunctionResultObjectAlias(
@@ -71,7 +71,7 @@ export function createResultOperations(
           }),
           ...runtime.callables.resolveBuiltinCallableNames(node.procedure, scope).map((name) =>
             getFunctionResultObjectAlias(
-              { ...node, procedure: { type: "variable", value: name, position: node.position } },
+              { ...node, procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true } },
               scope,
             ),
           ),
@@ -113,22 +113,25 @@ export function createResultOperations(
         }),
         ...runtime.callables.resolveBuiltinCallableNames(node.procedure, scope).map((name) =>
           getFunctionResultObjectAlias(
-            { ...node, procedure: { type: "variable", value: name, position: node.position } },
+            { ...node, procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true } },
             scope,
           ),
         ),
       ]);
     }
   
-    if (!BUILTIN_FUNCTIONS.has(node.procedure.value)) {
-      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(node.procedure, scope);
+    if (node.procedure.type === "variable" && !node.procedure.resolvedBuiltin) {
+      const procedure = node.procedure;
+      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(procedure, scope).filter(
+        (name) => name !== procedure.value || resolveValue(scope, procedure.value) !== null,
+      );
       if (storedBuiltins.length > 0) {
         return runtime.aliases.mergeObjectAliases(
           storedBuiltins.map((name) =>
             getFunctionResultObjectAlias(
               {
                 ...node,
-                procedure: { type: "variable", value: name, position: node.position },
+                procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
               },
               scope,
             ),
@@ -144,12 +147,14 @@ export function createResultOperations(
       funcName, node.arguments, node.position, argScope,
     );
   
-    const lambdaBinding = resolveLambda(argScope, funcName);
+    const lambdaBinding = node.procedure.type === "variable" && node.procedure.resolvedBuiltin
+      ? null : resolveLambda(argScope, funcName);
     if (lambdaBinding) {
       return getCustomFunctionResultObjectAlias(lambdaBinding, args, argScope);
     }
   
-    if (resolveTransform(argScope, funcName)) {
+    if (!(node.procedure.type === "variable" && node.procedure.resolvedBuiltin) &&
+      resolveTransform(argScope, funcName)) {
       return args[0] ? runtime.aliases.groupResultObjectAliasForNode(args[0], argScope) : null;
     }
 
@@ -204,7 +209,7 @@ export function createResultOperations(
         ),
       );
     }
-    if (node.procedure.type === "variable") {
+    if (node.procedure.type === "variable" && !node.procedure.resolvedBuiltin) {
       const partialBinding = resolvePartial(scope, node.procedure.value);
       if (partialBinding) {
         return getPartialFunctionResultDynamicObjectAlias(
@@ -237,7 +242,7 @@ export function createResultOperations(
           }),
           ...runtime.callables.resolveBuiltinCallableNames(node.procedure, scope).map((name) =>
             getFunctionResultDynamicObjectAlias(
-              { ...node, procedure: { type: "variable", value: name, position: node.position } },
+              { ...node, procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true } },
               scope,
             ),
           ),
@@ -279,22 +284,25 @@ export function createResultOperations(
         }),
         ...runtime.callables.resolveBuiltinCallableNames(node.procedure, scope).map((name) =>
           getFunctionResultDynamicObjectAlias(
-            { ...node, procedure: { type: "variable", value: name, position: node.position } },
+            { ...node, procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true } },
             scope,
           ),
         ),
       ]);
     }
   
-    if (!BUILTIN_FUNCTIONS.has(node.procedure.value)) {
-      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(node.procedure, scope);
+    if (node.procedure.type === "variable" && !node.procedure.resolvedBuiltin) {
+      const procedure = node.procedure;
+      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(procedure, scope).filter(
+        (name) => name !== procedure.value || resolveValue(scope, procedure.value) !== null,
+      );
       if (storedBuiltins.length > 0) {
         return runtime.aliases.mergeDynamicObjectAliases(
           storedBuiltins.map((name) =>
             getFunctionResultDynamicObjectAlias(
               {
                 ...node,
-                procedure: { type: "variable", value: name, position: node.position },
+                procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
               },
               scope,
             ),
@@ -310,12 +318,14 @@ export function createResultOperations(
       funcName, node.arguments, node.position, argScope,
     );
   
-    const lambdaBinding = resolveLambda(argScope, funcName);
+    const lambdaBinding = node.procedure.type === "variable" && node.procedure.resolvedBuiltin
+      ? null : resolveLambda(argScope, funcName);
     if (lambdaBinding) {
       return getCustomFunctionResultDynamicObjectAlias(lambdaBinding, args, argScope);
     }
   
-    if (resolveTransform(argScope, funcName)) {
+    if (!(node.procedure.type === "variable" && node.procedure.resolvedBuiltin) &&
+      resolveTransform(argScope, funcName)) {
       return args[0]
         ? runtime.aliases.groupResultDynamicObjectAliasForNode(args[0], argScope)
         : null;
@@ -390,6 +400,7 @@ export function createResultOperations(
             procedure: {
               type: "variable",
               value: name,
+              resolvedBuiltin: true,
               position: binding.partial.position,
             },
             arguments: appliedArgs,
@@ -442,6 +453,7 @@ export function createResultOperations(
             procedure: {
               type: "variable",
               value: name,
+              resolvedBuiltin: true,
               position: binding.partial.position,
             },
             arguments: appliedArgs,
@@ -607,7 +619,7 @@ export function createResultOperations(
                 type: "function",
                 value: "(",
                 position: 0,
-                procedure: { type: "variable", value: name, position: 0 },
+                procedure: { type: "variable", value: name, position: 0, resolvedBuiltin: true },
                 arguments: [callbackDataArg],
               },
               scope,
@@ -687,7 +699,7 @@ export function createResultOperations(
                 type: "function",
                 value: "(",
                 position: 0,
-                procedure: { type: "variable", value: name, position: 0 },
+                procedure: { type: "variable", value: name, position: 0, resolvedBuiltin: true },
                 arguments: [callbackDataArg],
               },
               scope,
@@ -786,7 +798,7 @@ export function createResultOperations(
             type: "function",
             value: "(",
             position: 0,
-            procedure: { type: "variable", value: name, position: 0 },
+            procedure: { type: "variable", value: name, position: 0, resolvedBuiltin: true },
             arguments: [accumulatorArg, dataArg],
           },
           scope,
@@ -888,7 +900,7 @@ export function createResultOperations(
             type: "function",
             value: "(",
             position: 0,
-            procedure: { type: "variable", value: name, position: 0 },
+            procedure: { type: "variable", value: name, position: 0, resolvedBuiltin: true },
             arguments: [accumulatorArg, dataArg],
           },
           scope,
@@ -918,7 +930,7 @@ export function createResultOperations(
         getFunctionResultBasePaths(call, scope),
       );
     }
-    if (node.procedure.type === "variable") {
+    if (node.procedure.type === "variable" && !node.procedure.resolvedBuiltin) {
       const partialBinding = resolvePartial(scope, node.procedure.value);
       if (partialBinding) {
         return getPartialFunctionResultBasePaths(
@@ -950,7 +962,7 @@ export function createResultOperations(
         });
         paths.push(...runtime.callables.resolveBuiltinCallableNames(node.procedure, scope).flatMap((name) =>
           getFunctionResultBasePaths({
-            ...node, procedure: { type: "variable", value: name, position: node.position },
+            ...node, procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
           }, scope),
         ));
         return paths;
@@ -990,6 +1002,7 @@ export function createResultOperations(
               procedure: {
                 type: "variable",
                 value: name,
+                resolvedBuiltin: true,
                 position: node.position,
               },
             },
@@ -999,14 +1012,17 @@ export function createResultOperations(
       ];
     }
   
-    if (!BUILTIN_FUNCTIONS.has(node.procedure.value)) {
-      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(node.procedure, scope);
+    if (node.procedure.type === "variable" && !node.procedure.resolvedBuiltin) {
+      const procedure = node.procedure;
+      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(procedure, scope).filter(
+        (name) => name !== procedure.value || resolveValue(scope, procedure.value) !== null,
+      );
       if (storedBuiltins.length > 0) {
         return storedBuiltins.flatMap((name) =>
           getFunctionResultBasePaths(
             {
               ...node,
-              procedure: { type: "variable", value: name, position: node.position },
+              procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
             },
             scope,
           ),
@@ -1029,12 +1045,14 @@ export function createResultOperations(
       return [...(resolveVariable(argScope, "") ?? [ROOT_PATH])];
     }
   
-    const lambdaBinding = resolveLambda(argScope, funcName);
+    const lambdaBinding = node.procedure.type === "variable" && node.procedure.resolvedBuiltin
+      ? null : resolveLambda(argScope, funcName);
     if (lambdaBinding) {
       return getCustomFunctionResultBasePaths(lambdaBinding, args, argScope);
     }
   
-    if (resolveTransform(argScope, funcName)) {
+    if (!(node.procedure.type === "variable" && node.procedure.resolvedBuiltin) &&
+      resolveTransform(argScope, funcName)) {
       return args[0] ? getResultBasePathsFromArg(args[0], argScope) : [];
     }
 
@@ -1124,6 +1142,7 @@ export function createResultOperations(
             procedure: {
               type: "variable",
               value: name,
+              resolvedBuiltin: true,
               position: binding.partial.position,
             },
             arguments: scopedCall.arguments,
@@ -1241,6 +1260,7 @@ export function createResultOperations(
                 procedure: {
                   type: "variable",
                   value: name,
+                  resolvedBuiltin: true,
                   position: 0,
                 },
                 arguments: [dataArg],
@@ -1349,7 +1369,7 @@ export function createResultOperations(
               type: "function",
               value: "(",
               position: 0,
-              procedure: { type: "variable", value: name, position: 0 },
+              procedure: { type: "variable", value: name, position: 0, resolvedBuiltin: true },
               arguments: [accumulatorArg, dataArg],
             },
             scope,
@@ -1399,7 +1419,7 @@ export function createResultOperations(
         getFunctionResultSuffixBasePaths(call, scope),
       );
     }
-    if (func.procedure.type === "variable" && !resolvePartial(scope, func.procedure.value)) {
+    if (func.procedure.type === "variable" && !func.procedure.resolvedBuiltin && !resolvePartial(scope, func.procedure.value)) {
       const callables = runtime.callables.resolveCallableValues(func.procedure, scope);
       if (callables.length > 0) {
         return [
@@ -1418,7 +1438,7 @@ export function createResultOperations(
           }),
           ...runtime.callables.resolveBuiltinCallableNames(func.procedure, scope).flatMap((name) =>
             getFunctionResultSuffixBasePaths({
-              ...func, procedure: { type: "variable", value: name, position: func.position },
+              ...func, procedure: { type: "variable", value: name, position: func.position, resolvedBuiltin: true },
             }, scope),
           ),
         ];
@@ -1456,20 +1476,23 @@ export function createResultOperations(
         }),
         ...runtime.callables.resolveBuiltinCallableNames(func.procedure, scope).flatMap((name) =>
           getFunctionResultSuffixBasePaths({
-            ...func, procedure: { type: "variable", value: name, position: func.position },
+            ...func, procedure: { type: "variable", value: name, position: func.position, resolvedBuiltin: true },
           }, scope),
         ),
       ];
     }
   
-    if (!BUILTIN_FUNCTIONS.has(func.procedure.value)) {
-      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(func.procedure, scope);
+    if (func.procedure.type === "variable" && !func.procedure.resolvedBuiltin) {
+      const procedure = func.procedure;
+      const storedBuiltins = runtime.callables.resolveBuiltinCallableNames(procedure, scope).filter(
+        (name) => name !== procedure.value || resolveValue(scope, procedure.value) !== null,
+      );
       if (storedBuiltins.length > 0) {
         return storedBuiltins.flatMap((name) =>
           getFunctionResultSuffixBasePaths(
             {
               ...func,
-              procedure: { type: "variable", value: name, position: func.position },
+              procedure: { type: "variable", value: name, position: func.position, resolvedBuiltin: true },
             },
             scope,
           ),
@@ -1477,7 +1500,8 @@ export function createResultOperations(
       }
     }
   
-    const partialBinding = resolvePartial(scope, func.procedure.value);
+    const partialBinding = func.procedure.type === "variable" && func.procedure.resolvedBuiltin
+      ? null : resolvePartial(scope, func.procedure.value);
     let funcName = func.procedure.value;
     let args = func.arguments;
     let argScope = scope;
@@ -1513,12 +1537,14 @@ export function createResultOperations(
     }
     args = runtime.functions.withImplicitRootFunctionArgument(funcName, args, func.position, argScope);
   
-    const lambdaBinding = resolveLambda(argScope, funcName);
+    const lambdaBinding = func.procedure.type === "variable" && func.procedure.resolvedBuiltin
+      ? null : resolveLambda(argScope, funcName);
     if (lambdaBinding) {
       return getCustomFunctionResultSuffixBasePaths(lambdaBinding, args, argScope);
     }
   
-    if (resolveTransform(argScope, funcName)) {
+    if (!(func.procedure.type === "variable" && func.procedure.resolvedBuiltin) &&
+      resolveTransform(argScope, funcName)) {
       return args[0] ? runtime.aliases.groupResultSuffixBasePaths(args[0], argScope) : [];
     }
 
@@ -1787,7 +1813,7 @@ export function createResultOperations(
                     type: "function",
                     value: "(",
                     position: 0,
-                    procedure: { type: "variable", value: name, position: 0 },
+                    procedure: { type: "variable", value: name, position: 0, resolvedBuiltin: true },
                     arguments: [callbackDataArg],
                   },
                   scope,

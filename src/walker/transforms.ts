@@ -242,7 +242,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
       }
       return resolvedCalls;
     }
-    if (functionNode.procedure.type !== "variable") return [];
+    if (functionNode.procedure.type !== "variable" || functionNode.procedure.resolvedBuiltin) return [];
   
     const directBinding = resolveTransform(scope, functionNode.procedure.value);
     if (directBinding) {

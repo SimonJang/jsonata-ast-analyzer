@@ -111,7 +111,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       const binding =
         functionNode.procedure.type === "lambda"
           ? { lambda: functionNode.procedure, scope }
-          : functionNode.procedure.type === "variable"
+          : functionNode.procedure.type === "variable" && !functionNode.procedure.resolvedBuiltin
             ? resolveLambda(scope, functionNode.procedure.value)
             : null;
       if (
@@ -380,6 +380,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       initialLookupStep?.type === "function" &&
       (initialLookupStep as FunctionNode).procedure.type === "variable" &&
       ((initialLookupStep as FunctionNode).procedure as VariableNode).value === "lookup" &&
+      runtime.callables.resolveBuiltinCallableNames((initialLookupStep as FunctionNode).procedure, scope).includes("lookup") &&
       (initialLookupStep as FunctionNode).arguments.length === 1
     ) {
       const lookup = initialLookupStep as FunctionNode;
@@ -409,6 +410,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         step.type === "function" &&
         (step as FunctionNode).procedure.type === "variable" &&
         ((step as FunctionNode).procedure as VariableNode).value === "lookup" &&
+        runtime.callables.resolveBuiltinCallableNames((step as FunctionNode).procedure, scope).includes("lookup") &&
         (step as FunctionNode).arguments.length === 1,
     );
     if (contextDefaultLookupIndex >= 0) {
@@ -1442,7 +1444,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         const contextDefaultLambdaBinding =
           functionStep.procedure.type === "lambda"
             ? { lambda: functionStep.procedure, scope: stageScope }
-            : functionStep.procedure.type === "variable"
+            : functionStep.procedure.type === "variable" && !functionStep.procedure.resolvedBuiltin
               ? resolveLambda(stageScope, functionStep.procedure.value)
               : null;
         const contextDefaultLambda =
@@ -1454,10 +1456,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         const contextDefaultBuiltin =
           functionContextPrefix &&
           functionStep.procedure.type === "variable" &&
-          runtime.functions.builtinUsesContextDefault(
-            functionStep.procedure.value,
-            functionStep.arguments,
-          );
+          runtime.functions.resultUsesContextDefault(functionStep, stageScope);
         if (contextDefaultLambda || contextDefaultBuiltin) {
           const contextScope = bindVariable(
             childScope(stageScope),

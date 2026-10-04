@@ -255,7 +255,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         for (const callbackInput of partialCallbackInputs) {
           paths.push(...runtime.functions.walkFunction({
             type: "function", value: "(", position: node.position,
-            procedure: { type: "variable", value: name, position: node.position },
+            procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
             arguments: higherOrderCallbackCallArguments(
               funcName, callbackInput, dataArg ?? callbackInput, args, node.position,
             ),
@@ -605,7 +605,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       const lambdaBinding =
         functionNode.procedure.type === "lambda"
           ? { lambda: functionNode.procedure, scope }
-          : functionNode.procedure.type === "variable"
+          : functionNode.procedure.type === "variable" && !functionNode.procedure.resolvedBuiltin
             ? resolveLambda(scope, functionNode.procedure.value)
             : null;
       if (lambdaBinding) {
@@ -1709,6 +1709,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
               type: "variable",
               value: name,
               position: appliedFunction.position,
+              resolvedBuiltin: true,
             },
             arguments: scopedBuiltinCall.arguments,
           },

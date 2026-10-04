@@ -175,6 +175,8 @@ export interface VariableNode extends AnalyzerNode {
   type: "variable";
   value: string; // variable name WITHOUT $ prefix
   position: number;
+  /** Internal callable reference already resolved to a built-in in its closure. */
+  resolvedBuiltin?: true;
   predicate?: AstNode[]; // filter stages (same structure as NameNode.stages but different property name)
   focusBinding?: ContextBindingNode; // context variable from @$v
   indexBinding?: PositionBindingNode; // positional variable from #$i

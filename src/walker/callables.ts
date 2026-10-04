@@ -854,6 +854,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
+    if (node.type === "variable" && (node as VariableNode).resolvedBuiltin) return [];
     if (node.type === "path" && isDefinitelyDataValue(node, scope)) return [];
     if (node.type !== "path" && callableGroup(node)) {
       return groupedNodeCallableValues(node, scope);
@@ -1167,7 +1168,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     const lambdaBinding =
       functionNode.procedure.type === "lambda"
         ? { lambda: functionNode.procedure, scope }
-        : functionNode.procedure.type === "variable"
+        : functionNode.procedure.type === "variable" && !functionNode.procedure.resolvedBuiltin
           ? resolveLambda(scope, functionNode.procedure.value)
           : null;
     if (!lambdaBinding) return [];
@@ -1186,6 +1187,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "variable") {
       const variable = node as VariableNode;
+      if (variable.resolvedBuiltin) return [variable.value];
       const value = resolveValue(scope, variable.value);
       if (!value) {
         return BUILTIN_FUNCTIONS.has(variable.value) ? [variable.value] : [];
@@ -1496,7 +1498,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const lambdaBinding =
         functionNode.procedure.type === "lambda"
           ? { lambda: functionNode.procedure, scope }
-          : functionNode.procedure.type === "variable"
+          : functionNode.procedure.type === "variable" && !functionNode.procedure.resolvedBuiltin
             ? resolveLambda(scope, functionNode.procedure.value)
             : null;
       if (lambdaBinding) {
