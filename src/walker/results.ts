@@ -1940,6 +1940,14 @@ export function createResultOperations(
     if (!objectArg) return [];
   
     const selectorSteps = lookupSelectorSteps(args[1]);
+    const selected = args[1]?.type === "string" ? runtime.aliases.selectedPathAliasContext(
+      { type: "path", steps: [objectArg, ...selectorSteps] }, scope,
+    ) : null;
+    if (selected) return [
+      ...(selected.objectAlias ? [...selected.objectAlias.values()].flatMap((paths) => [...paths]) : []),
+      ...(selected.dynamicObjectAlias ? runtime.aliases.selectLookupDynamicObjectAliasPaths(selected.dynamicObjectAlias, []) : []),
+      ...selected.suffixBasePaths,
+    ];
     const staticSelector =
       args[1]?.type === "string" ? buildPathString(selectorSteps) : null;
     const pathValueAliasBases = lookupPathValueAliasBasePaths(args, scope);
@@ -2005,6 +2013,10 @@ export function createResultOperations(
     if (!objectArg) return [];
   
     const selectorSteps = lookupSelectorSteps(args[1]);
+    const selected = args[1]?.type === "string" ? runtime.aliases.selectedPathAliasContext(
+      { type: "path", steps: [objectArg, ...selectorSteps] }, scope,
+    ) : null;
+    if (selected) return selected.suffixBasePaths;
     const staticSelector =
       args[1]?.type === "string" ? buildPathString(selectorSteps) : null;
     const pathValueAliasBases = lookupPathValueAliasBasePaths(args, scope);
@@ -2158,6 +2170,10 @@ export function createResultOperations(
   ): DynamicObjectAlias | null {
     const objectArg = args[0];
     if (!objectArg) return null;
+    const selected = args[1]?.type === "string" ? runtime.aliases.selectedPathAliasContext(
+      { type: "path", steps: [objectArg, ...lookupSelectorSteps(args[1])] }, scope,
+    ) : null;
+    if (selected) return selected.dynamicObjectAlias;
   
     const dynamicObjectAlias = runtime.aliases.dynamicObjectAliasForNode(objectArg, scope);
     return dynamicObjectAlias
@@ -2174,6 +2190,10 @@ export function createResultOperations(
   ): ObjectAlias | null {
     const objectArg = args[0];
     if (!objectArg) return null;
+    const selected = args[1]?.type === "string" ? runtime.aliases.selectedPathAliasContext(
+      { type: "path", steps: [objectArg, ...lookupSelectorSteps(args[1])] }, scope,
+    ) : null;
+    if (selected) return selected.objectAlias;
   
     const dynamicObjectAlias = runtime.aliases.dynamicObjectAliasForNode(objectArg, scope);
     return dynamicObjectAlias
@@ -2249,6 +2269,12 @@ export function createResultOperations(
       const pathNode = node as PathNode;
       const method = runtime.callables.resolveStoredMethodPath(pathNode, scope);
       if (method) return getResultBasePathsFromArg(method.node, method.scope);
+      const selected = !pathNode.group ? runtime.aliases.selectedPathAliasContext(pathNode, scope) : null;
+      if (selected) return [
+        ...(selected.objectAlias ? [...selected.objectAlias.values()].flatMap((paths) => [...paths]) : []),
+        ...(selected.dynamicObjectAlias ? runtime.aliases.selectLookupDynamicObjectAliasPaths(selected.dynamicObjectAlias, []) : []),
+        ...selected.suffixBasePaths,
+      ];
       const chained = runtime.aliases.chainedPathContext(pathNode, scope);
       if (chained) {
         const tail = chained.tail.steps.length === 1 && !chained.tail.group

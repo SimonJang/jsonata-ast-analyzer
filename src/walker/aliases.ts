@@ -350,13 +350,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
 
   function selectedPathAliasContext(node: PathNode, scope: ScopeTracker): SelectedAliasContext | null {
     const [first, ...selectors] = node.steps;
-    if (first?.type !== "variable" || !selectors.length ||
+    if (!first || first.type === "name" || !selectors.length ||
         !selectors.every((step) => step.type === "name" || step.type === "wildcard")) return null;
-    const name = (first as VariableNode).value;
-    const alias = resolveObjectAlias(scope, name);
-    const dynamic = resolveDynamicObjectAlias(scope, name);
+    const name = first.type === "variable" ? (first as VariableNode).value : null;
+    const alias = name !== null ? resolveObjectAlias(scope, name) : groupResultObjectAliasForNode(first, scope);
+    const dynamic = name !== null ? resolveDynamicObjectAlias(scope, name) : groupResultDynamicObjectAliasForNode(first, scope);
     return alias || dynamic
-      ? selectedAliasContext(alias, dynamic, selectors, resolveSuffixBasePaths(scope, name) ?? []) : null;
+      ? selectedAliasContext(alias, dynamic, selectors, name !== null
+          ? resolveSuffixBasePaths(scope, name) ?? [] : groupResultSuffixBasePaths(first, scope)) : null;
   }
 
   function selectedAliasContext(
@@ -1696,6 +1697,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         ? runtime.core.walkNode(step, scope)
         : conditionPaths;
     const resultBasePaths = bindingAliasPaths(step, scope);
+    const selected = selectedPathAliasContext({ type: "path", steps: [step, ...suffixSteps] }, scope);
+    if (selected) return [
+      ...stepReadPaths,
+      ...resultBasePaths,
+      ...(selected.objectAlias ? [...selected.objectAlias.values()].flatMap((paths) => [...paths]) : []),
+      ...(selected.dynamicObjectAlias ? selectLookupDynamicObjectAliasPaths(selected.dynamicObjectAlias, []) : []),
+      ...selected.suffixBasePaths,
+    ];
     const objectAlias = objectAliasForNode(step, scope);
     const dynamicObject = dynamicObjectAliasForNode(step, scope);
     const aliasPaths = selectVariableObjectAliasPaths(
