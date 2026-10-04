@@ -1584,6 +1584,10 @@ export function createResultOperations(
 
   /** Physical result roots that can receive a suffix; constructed fields use aliases. */
   function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+    if (node.type === "lambda") {
+      const lambda = node as LambdaNode;
+      return lambda.thunk ? getResultSuffixBasePaths(lambda.body, scope) : [];
+    }
     if (node.type === "bind") {
       return runtime.aliases.groupResultSuffixBasePaths((node as BindNode).rhs, scope);
     }

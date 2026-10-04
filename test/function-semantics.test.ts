@@ -1240,6 +1240,7 @@ describe("function semantics", () => {
         sortPaths([
           { path: "detail", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
+          ...(functionName === "sift" ? [{ path: "detail.children.name.*", confidence: "static" as const }] : []),
         ]),
       );
     }
@@ -3155,6 +3156,7 @@ describe("function semantics", () => {
         { path: "detail", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback", confidence: "static" },
+        { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
   });
