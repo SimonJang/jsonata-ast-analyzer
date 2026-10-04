@@ -1853,6 +1853,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (isTransparentPathBlock(step)) {
         return hasVariableProjectionSource(((step as BlockNode).expressions[0] as PathNode).steps[0], projection);
       }
+      if (step.type === "sort" && resolveValue(scope, "")) {
+        const current: VariableNode = { type: "variable", value: "", position: 0 };
+        return runtime.callables.resolveCallableValues(current, scope).length > 0 ||
+          runtime.callables.resolveBuiltinCallableNames(current, scope).length > 0;
+      }
       if (step.type !== "variable") return false;
       const name = (step as VariableNode).value;
       if (resolveValue(scope, name) &&
@@ -1884,8 +1889,16 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           stages.some((stage) => stage.type === "position-binding" && (stage as PositionBindingNode).name === name);
       });
     };
+    const sortsCallableVariable = (step: AstNode, prefixSteps: AstNode[]): boolean => {
+      if (step.type !== "sort" || prefixSteps[0]?.type !== "variable" ||
+          !resolveValue(scope, (prefixSteps[0] as VariableNode).value)) return false;
+      const prefix: PathNode = { type: "path", steps: prefixSteps };
+      return runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
+        runtime.callables.resolveBuiltinCallableNames(prefix, scope).length > 0;
+    };
     const index = node.steps.findIndex((step, index) =>
-      index > 0 && (projectsVariable(step, node.steps.slice(0, index)) || (isResultAliasStep(step) ||
+      index > 0 && (projectsVariable(step, node.steps.slice(0, index)) ||
+      sortsCallableVariable(step, node.steps.slice(0, index)) || (isResultAliasStep(step) ||
         (isFunctionResultStep(node.steps[index - 1]) &&
           (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
       (node.steps.slice(0, index).some(isFunctionResultStep) ||
