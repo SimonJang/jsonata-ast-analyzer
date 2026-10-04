@@ -16,6 +16,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
    * For ApplyNode: recursively extracts from the lhs (chained apply base identity)
    * For VariableNode: resolves and filters to base paths only
    * For NameNode: returns the name value directly
+   * For FunctionNode: resolves result sources separately from argument reads
    * Default: falls back to walkNode (no filter stages to strip)
    */
   function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
@@ -113,6 +114,9 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       return (node as ObjectNode).entries.flatMap(([, value]) =>
         extractBasePaths(value, scope),
       );
+    }
+    if (node.type === "function") {
+      return runtime.results.getResultBasePathsFromArg(node, scope);
     }
     // For other node types, walkNode is fine (no filter stages to strip)
     return runtime.core.walkNode(node, scope);

@@ -842,6 +842,10 @@ export function createFunctionOperations(
         paths.push(...runtime.core.walkNode(arg, scope));
       }
     }
+
+    if (args[0] && !explicitContextPaths && IMPLICIT_ROOT_DEEP_FUNCTIONS.has(funcName)) {
+      paths.push(...selection.getSelectedResultPaths(args[0], scope).map((path) => appendPath(path, "**")));
+    }
   
     if (funcName === "eval") {
       paths.push(...walkStaticEval(args, scope));

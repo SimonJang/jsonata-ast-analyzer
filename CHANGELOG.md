@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Include descendant reads when `$string` or `$clone` consumes selected input values, including aliased and computed lookup results.
 - Preserve both constructed and direct input branches through bound block projections and later selections.
 - Preserve selected-value coverage for static `$eval` object results and keep consumed arguments out of chained result paths.
 - Resolve static `$eval` programs against constructed context aliases, including returned lambdas and root references.

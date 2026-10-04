@@ -81,6 +81,7 @@ describe("transform semantics", () => {
         { path: "record", confidence: "static" },
         { path: "record.node", confidence: "static" },
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
       ]),
     );
@@ -116,6 +117,9 @@ describe("transform semantics", () => {
             confidence: "static" as const,
           })),
           { path: "detail", confidence: "static" },
+          ...(update.includes("$clone")
+            ? [{ path: "detail.**", confidence: "static" as const }]
+            : []),
           { path: "detail.children.name", confidence: "static" },
         ]),
       );

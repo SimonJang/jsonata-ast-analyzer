@@ -71,6 +71,8 @@ analyzeExpression(
 
 For example, `$count(items)` consumes the collection value and reports `items` as `exact`, while returning `items` directly reports it as `subtree`. When the same path is both consumed and selected, `subtree` wins without changing its first-seen position.
 
+Operations that traverse a value's descendants also report a `**` read. For example, `$string(record)` reads `record` and `record.**`, because object serialization inspects nested values even though its result is a string.
+
 The optional `opaqueFunctions` list treats recognized built-ins as opaque host functions for one analysis. Names may include or omit the leading `$`:
 
 ```javascript

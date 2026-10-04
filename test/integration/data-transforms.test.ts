@@ -225,6 +225,7 @@ describe("Data Transforms", () => {
         expression: `name & " (" & $string(age) & ")"`,
         expectedPaths: [
           { path: "age", confidence: "static" },
+          { path: "age.**", confidence: "static" },
           { path: "name", confidence: "static" },
         ],
       },

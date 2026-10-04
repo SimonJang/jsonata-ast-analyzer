@@ -381,6 +381,9 @@ describe("function semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "detail", confidence: "static" },
+          ...(expression.includes("$clone")
+            ? [{ path: "detail.**", confidence: "static" as const }]
+            : []),
           { path: "detail.children.name", confidence: "static" },
         ]),
       );
@@ -469,6 +472,9 @@ describe("function semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "detail", confidence: "static" },
+          ...(expression.includes("$clone")
+            ? [{ path: "detail.**", confidence: "static" as const }]
+            : []),
           { path: "detail.children.name", confidence: "static" },
         ]),
       );
@@ -787,7 +793,7 @@ describe("function semantics", () => {
         "($fn := function($x){$x.old.name}; " +
           "$apply := function(){$fn(detail).new.name}; " +
           "$fn := $clone; $apply())",
-        ["detail", "detail.new.name"],
+        ["detail", "detail.**", "detail.new.name"],
       ],
       [
         "($fn := function($x){$x.old.name}; " +
@@ -885,6 +891,9 @@ describe("function semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "detail", confidence: "static" },
+          ...(expression.includes("$clone")
+            ? [{ path: "detail.**", confidence: "static" as const }]
+            : []),
           { path: "detail.children.name", confidence: "static" },
         ]),
       );
@@ -1580,6 +1589,9 @@ describe("function semantics", () => {
             ? [{ path: "config.flag", confidence: "static" as const }]
             : []),
           { path: "detail", confidence: "static" },
+          ...(body.includes("$clone") && !includesCondition
+            ? [{ path: "detail.**", confidence: "static" as const }]
+            : []),
           { path: "detail.children.name", confidence: "static" },
         ]),
       );
@@ -1987,6 +1999,9 @@ describe("function semantics", () => {
         sortPaths([
           { path: source, confidence: "static" },
           { path: "detail", confidence: "static" },
+          ...(producer.includes("$clone")
+            ? [{ path: "detail.**", confidence: "static" as const }]
+            : []),
           { path: "detail.children.name", confidence: "static" },
         ]),
       );
@@ -2067,6 +2082,9 @@ describe("function semantics", () => {
         sortPaths([
           { path: source, confidence: "static" },
           { path: "detail", confidence: "static" },
+          ...(producer.includes("$clone")
+            ? [{ path: "detail.**", confidence: "static" as const }]
+            : []),
           { path: "detail.children.name", confidence: "static" },
         ]),
       );
@@ -2124,6 +2142,7 @@ describe("function semantics", () => {
         { path: "items", confidence: "static" },
         { path: "items.active", confidence: "static" },
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
       ]),
     );
@@ -2723,6 +2742,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "flag", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -2766,6 +2786,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -2781,6 +2802,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -2796,6 +2818,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -2811,6 +2834,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -2820,6 +2844,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("$clone(?)(record).first.name"))).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
     );
@@ -3784,6 +3809,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths('$clone({"x": primary}).x.name'))).toEqual(
       sortPaths([
         { path: "primary", confidence: "static" },
+        { path: "primary.**", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -3955,8 +3981,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -4023,8 +4051,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -4040,8 +4070,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -4057,8 +4089,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -4130,8 +4164,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -4147,8 +4183,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -4164,8 +4202,10 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
+        { path: "fallback.x.**", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
       ]),
     );
@@ -4310,6 +4350,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("$clone(record).name"))).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.name", confidence: "static" },
       ]),
     );
@@ -4328,6 +4369,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("($c := $clone(record); $c.detail.name)"))).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.detail.name", confidence: "static" },
       ]),
     );
@@ -4337,6 +4379,7 @@ describe("function semantics", () => {
     expect(sortPaths(extractPaths("$clone(record).{category: total}"))).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.category", confidence: "static" },
         { path: "record.total", confidence: "static" },
       ]),
@@ -5358,6 +5401,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
+        { path: "primary.**", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -5710,6 +5754,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
+        { path: "primary.**", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );

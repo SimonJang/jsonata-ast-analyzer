@@ -521,6 +521,7 @@ describe("path-stage semantics", () => {
       sortPaths([
         { path: "key", confidence: "static" },
         { path: "primary", confidence: "static" },
+        { path: "primary.**", confidence: "static" },
         { path: "primary.enabled", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
@@ -2133,7 +2134,10 @@ describe("path-stage semantics", () => {
 
   it("rebases current-context arguments in function path steps", () => {
     expect(sortPaths(extractPaths("Account.$string($.name)"))).toEqual(
-      sortPaths([{ path: "Account.name", confidence: "static" }]),
+      sortPaths([
+        { path: "Account.name", confidence: "static" },
+        { path: "Account.name.**", confidence: "static" },
+      ]),
     );
     expect(sortPaths(extractPaths("Account.$string($)"))).toEqual(
       sortPaths([
@@ -2145,7 +2149,10 @@ describe("path-stage semantics", () => {
 
   it("keeps root-context arguments absolute in function path steps", () => {
     expect(sortPaths(extractPaths("Account.$string($$.root)"))).toEqual(
-      sortPaths([{ path: "root", confidence: "static" }]),
+      sortPaths([
+        { path: "root", confidence: "static" },
+        { path: "root.**", confidence: "static" },
+      ]),
     );
   });
 
