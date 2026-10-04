@@ -76,6 +76,33 @@ describe("object truthiness dependencies", () => {
     expect(accesses(expression)).toEqual(expression.includes("function") ? [] : [exact("record")]);
   });
 
+  it.each([
+    'record?1:0',
+    'record and true',
+    'false or record',
+    '$count(items[check])',
+    '$count($filter(items,function($x){$x.check}))',
+    '$count(({"copy":items.check})[copy])',
+  ])("keeps internal coercion independent of opaque boolean calls in %s", async (expression) => {
+    expect(await jsonata(expression).evaluate(input, { boolean: () => false })).toBeTruthy();
+    const expected = expression.includes("items")
+      ? [exact("items.check"), exact("items.check.*")]
+      : [exact("record"), exact("record.*")];
+    if (expression.includes("items[check]") || expression.includes("$filter")) {
+      expected.unshift(exact("items"));
+    }
+    const result = analyzeExpression(expression, { opaqueFunctions: ["boolean"] }).accesses
+      .sort((a, b) => a.path.localeCompare(b.path));
+    expect(result).toEqual(expected);
+  });
+
+  it("still treats explicit boolean calls as opaque when configured", async () => {
+    const expression = '$boolean(record)';
+    expect(await jsonata(expression).evaluate(input, { boolean: () => false })).toBe(false);
+    expect(analyzeExpression(expression, { opaqueFunctions: ["boolean"] }).accesses)
+      .toEqual([exact("record")]);
+  });
+
   it("covers truthiness reads separately from a selected nested value", async () => {
     const expression = '($v:={"copy":record};$v.copy?$v.copy.details:0)';
     expect(await jsonata(expression).evaluate(input)).toEqual(input.record.details);

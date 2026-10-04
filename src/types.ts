@@ -205,6 +205,8 @@ export interface FunctionNode extends AnalyzerNode {
   type: "function";
   value: "(";
   position: number;
+  /** Analyzer-generated coercion, independent of host function overrides. */
+  internalTruthiness?: true;
   procedure: FunctionProcedureNode;
   arguments: AstNode[]; // call arguments
   group?: GroupByNode;

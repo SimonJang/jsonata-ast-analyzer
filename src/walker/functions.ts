@@ -244,6 +244,7 @@ export function createFunctionOperations(
       type: "function",
       value: "(",
       position,
+      internalTruthiness: true,
       procedure: {
         type: "variable", value: "boolean", position, resolvedBuiltin: true,
       },
@@ -789,7 +790,7 @@ export function createFunctionOperations(
       return withFunctionStages(walkStoredCallablePaths());
     }
 
-    if (options.opaqueFunctions.has(funcName)) {
+    if (!node.internalTruthiness && options.opaqueFunctions.has(funcName)) {
       return withFunctionStages(
         args.flatMap((argument) => runtime.core.walkNode(argument, scope)),
       );
