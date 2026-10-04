@@ -468,8 +468,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (
       node.type === "function" &&
-      (node as FunctionNode).procedure.type === "variable" &&
-      ((node as FunctionNode).procedure as VariableNode).value === "eval"
+      resolveBuiltinCallableNames((node as FunctionNode).procedure, scope).includes("eval")
     ) {
       const functionNode = node as FunctionNode;
       const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
@@ -488,32 +487,29 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: FunctionNode,
     scope: ScopeTracker,
   ): AstNode[] {
-    if (node.procedure.type !== "variable") return [];
-    const funcName = node.procedure.value;
-    if (
-      funcName === "reduce" &&
-      node.arguments[1] &&
-      (resolveBuiltinCallableNames(node.arguments[1], scope).includes("append") ||
-        resolveCallableValues(node.arguments[1], scope).some(
-          (callable) => callable.kind === "partial" &&
-            resolveBuiltinCallableNames(
-              callable.binding.partial.procedure,
-              callable.binding.scope,
-            ).includes("append"),
-        ))
-    ) {
-      return [node.arguments[0], node.arguments[2]].filter(
-        (input): input is AstNode => Boolean(input),
-      );
-    }
-    if (funcName === "append" || funcName === "zip") return node.arguments;
-    if (
-      funcName !== "lookup" &&
-      PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)
-    ) {
-      return node.arguments[0] ? [node.arguments[0]] : [];
-    }
-    return [];
+    return resolveBuiltinCallableNames(node.procedure, scope).flatMap((funcName) => {
+      if (
+        funcName === "reduce" &&
+        node.arguments[1] &&
+        (resolveBuiltinCallableNames(node.arguments[1], scope).includes("append") ||
+          resolveCallableValues(node.arguments[1], scope).some(
+            (callable) => callable.kind === "partial" &&
+              resolveBuiltinCallableNames(
+                callable.binding.partial.procedure,
+                callable.binding.scope,
+              ).includes("append"),
+          ))
+      ) {
+        return [node.arguments[0], node.arguments[2]].filter(
+          (input): input is AstNode => Boolean(input),
+        );
+      }
+      if (funcName === "append" || funcName === "zip") return node.arguments;
+      if (funcName !== "lookup" && PATH_PRESERVING_RESULT_FUNCTIONS.has(funcName)) {
+        return node.arguments[0] ? [node.arguments[0]] : [];
+      }
+      return [];
+    });
   }
 
   function callableArrayEntries(node: ArrayNode): AstNode[] {
@@ -1066,8 +1062,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       if (sourceNode.type === "function") {
         const functionNode = sourceNode as FunctionNode;
         return [
-          ...(functionNode.procedure.type === "variable" &&
-          functionNode.procedure.value === "lookup"
+          ...(resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("lookup")
             ? resolveCallableValues(functionNode, sourceScope)
             : []),
           ...customFunctionResultCallableValues(
@@ -1132,8 +1127,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
   
     const functionNode = node as FunctionNode;
     if (
-      functionNode.procedure.type === "variable" &&
-      functionNode.procedure.value === "eval"
+      resolveBuiltinCallableNames(functionNode.procedure, scope).includes("eval")
     ) {
       const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
       if (!expression) return [];
@@ -1143,8 +1137,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       );
     }
     if (
-      functionNode.procedure.type === "variable" &&
-      functionNode.procedure.value === "lookup"
+      resolveBuiltinCallableNames(functionNode.procedure, scope).includes("lookup")
     ) {
       const objectArg = functionNode.arguments[0];
       if (!objectArg) return [];
@@ -1376,8 +1369,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       if (sourceNode.type === "function") {
         const functionNode = sourceNode as FunctionNode;
         return [
-          ...(functionNode.procedure.type === "variable" &&
-          functionNode.procedure.value === "lookup"
+          ...(resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("lookup")
             ? resolveBuiltinCallableNames(functionNode, sourceScope)
             : []),
           ...customFunctionResultBuiltinCallableNames(
@@ -1462,8 +1454,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     if (node.type === "function") {
       const functionNode = node as FunctionNode;
       if (
-        functionNode.procedure.type === "variable" &&
-        functionNode.procedure.value === "eval"
+        resolveBuiltinCallableNames(functionNode.procedure, scope).includes("eval")
       ) {
         const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
         return expression
@@ -1474,8 +1465,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
           : [];
       }
       if (
-        functionNode.procedure.type === "variable" &&
-        functionNode.procedure.value === "lookup"
+        resolveBuiltinCallableNames(functionNode.procedure, scope).includes("lookup")
       ) {
         const objectArg = functionNode.arguments[0];
         if (!objectArg) return [];
