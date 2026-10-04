@@ -14,6 +14,11 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
   .sort((a, b) => a.path.localeCompare(b.path));
 const producers = [
   '$lookup($v,"wrap")',
+  '($l:=$lookup;$l($v,"wrap"))',
+  '($l:=$lookup;$l($v,$string("wrap")))',
+  '($r:=$reverse;$r([$v]).wrap)',
+  '($maker:=function(){$v.wrap};$maker())',
+  '($l:=$lookup(?,"wrap");$l($v))',
   '$eval("wrap",$v)',
   '$spread($v).wrap',
   '$merge([$v]).wrap',
@@ -30,7 +35,9 @@ describe("produced constructed child contexts", () => {
     const expression = `($v:=${shape};$count((${producer}).**))`;
     expect(await jsonata(expression).evaluate(input)).toBe(13);
     expect(accesses(expression)).toEqual([
-      exact("ignored"), exact("key"), exact("other"), exact("other.**"),
+      exact("ignored"),
+      ...(producer.includes('$string("wrap")') ? [exact("ignored.**")] : []),
+      exact("key"), exact("other"), exact("other.**"),
       exact("record"), exact("record.**"),
     ]);
   });

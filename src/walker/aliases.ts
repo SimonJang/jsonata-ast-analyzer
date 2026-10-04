@@ -269,6 +269,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           bindNode.rhs,
           closureScope,
         );
+        currentScope = runtime.functions.bindCallableValue(
+          currentScope, bindNode.lhs.value, bindNode.rhs, closureScope,
+        );
         result = groupResultObjectAliasForNode(bindNode.rhs, closureScope);
       } else {
         result = groupResultObjectAliasForNode(expr, currentScope);
