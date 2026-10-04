@@ -191,7 +191,9 @@ describe("Data Transforms", () => {
         expression: `firstName & " " & lastName`,
         expectedPaths: [
           { path: "firstName", confidence: "static" },
+          { path: "firstName.**", confidence: "static" },
           { path: "lastName", confidence: "static" },
+          { path: "lastName.**", confidence: "static" },
         ],
       },
       {
@@ -199,8 +201,11 @@ describe("Data Transforms", () => {
         expression: `address.city & ", " & address.state & " " & address.zip`,
         expectedPaths: [
           { path: "address.city", confidence: "static" },
+          { path: "address.city.**", confidence: "static" },
           { path: "address.state", confidence: "static" },
+          { path: "address.state.**", confidence: "static" },
           { path: "address.zip", confidence: "static" },
+          { path: "address.zip.**", confidence: "static" },
         ],
       },
       {
@@ -217,7 +222,9 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "contacts", confidence: "static" },
           { path: "contacts.first", confidence: "static" },
+          { path: "contacts.first.**", confidence: "static" },
           { path: "contacts.last", confidence: "static" },
+          { path: "contacts.last.**", confidence: "static" },
         ],
       },
       {
@@ -227,6 +234,7 @@ describe("Data Transforms", () => {
           { path: "age", confidence: "static" },
           { path: "age.**", confidence: "static" },
           { path: "name", confidence: "static" },
+          { path: "name.**", confidence: "static" },
         ],
       },
     ];
@@ -247,8 +255,10 @@ describe("Data Transforms", () => {
           { path: "account", confidence: "static" },
           { path: "account.department.name", confidence: "static" },
           { path: "account.firstName", confidence: "static" },
+          { path: "account.firstName.**", confidence: "static" },
           { path: "account.id", confidence: "static" },
           { path: "account.lastName", confidence: "static" },
+          { path: "account.lastName.**", confidence: "static" },
         ],
       },
       {
@@ -298,7 +308,9 @@ describe("Data Transforms", () => {
         expectedPaths: [
           { path: "customer.address", confidence: "static" },
           { path: "customer.address.city", confidence: "static" },
+          { path: "customer.address.city.**", confidence: "static" },
           { path: "customer.address.state", confidence: "static" },
+          { path: "customer.address.state.**", confidence: "static" },
         ],
       },
     ];
@@ -382,8 +394,10 @@ describe("Data Transforms", () => {
           { path: "items", confidence: "static" },
           { path: "items.active", confidence: "static" },
           { path: "items.name", confidence: "static" },
+          { path: "items.name.**", confidence: "static" },
           { path: "users", confidence: "static" },
           { path: "users.email", confidence: "static" },
+          { path: "users.email.**", confidence: "static" },
           { path: "users.verified", confidence: "static" },
         ],
       },

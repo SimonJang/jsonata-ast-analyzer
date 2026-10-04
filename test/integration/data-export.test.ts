@@ -11,7 +11,9 @@ describe("Data Export", () => {
         expectedPaths: [
           { path: "source.contact.email", confidence: "static" },
           { path: "source.firstName", confidence: "static" },
+          { path: "source.firstName.**", confidence: "static" },
           { path: "source.lastName", confidence: "static" },
+          { path: "source.lastName.**", confidence: "static" },
         ],
       },
       {
@@ -116,7 +118,9 @@ describe("Data Export", () => {
         expectedPaths: [
           { path: "account", confidence: "static" },
           { path: "account.firstName", confidence: "static" },
+          { path: "account.firstName.**", confidence: "static" },
           { path: "account.lastName", confidence: "static" },
+          { path: "account.lastName.**", confidence: "static" },
         ],
       },
       {
@@ -132,7 +136,9 @@ describe("Data Export", () => {
         expectedPaths: [
           { path: "order.customer", confidence: "static" },
           { path: "order.customer.firstName", confidence: "static" },
+          { path: "order.customer.firstName.**", confidence: "static" },
           { path: "order.customer.lastName", confidence: "static" },
+          { path: "order.customer.lastName.**", confidence: "static" },
         ],
       },
       {
@@ -151,7 +157,9 @@ describe("Data Export", () => {
         expectedPaths: [
           { path: "employee", confidence: "static" },
           { path: "employee.firstName", confidence: "static" },
+          { path: "employee.firstName.**", confidence: "static" },
           { path: "employee.lastName", confidence: "static" },
+          { path: "employee.lastName.**", confidence: "static" },
         ],
       },
     ];
@@ -240,7 +248,9 @@ describe("Data Export", () => {
         expectedPaths: [
           { path: "customer.contact.email", confidence: "static" },
           { path: "customer.firstName", confidence: "static" },
+          { path: "customer.firstName.**", confidence: "static" },
           { path: "customer.lastName", confidence: "static" },
+          { path: "customer.lastName.**", confidence: "static" },
           { path: "orders", confidence: "static" },
           { path: "orders.amount", confidence: "static" },
         ],

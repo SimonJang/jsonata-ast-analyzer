@@ -21,7 +21,9 @@ describe("API Reshaping", () => {
           { path: "response.data.user", confidence: "static" },
           { path: "response.data.user.contact.email", confidence: "static" },
           { path: "response.data.user.profile.firstName", confidence: "static" },
+          { path: "response.data.user.profile.firstName.**", confidence: "static" },
           { path: "response.data.user.profile.lastName", confidence: "static" },
+          { path: "response.data.user.profile.lastName.**", confidence: "static" },
         ],
       },
       {
@@ -215,7 +217,9 @@ describe("API Reshaping", () => {
         expression: `orders.items.(%.orderRef & ": " & name)`,
         expectedPaths: [
           { path: "orders.items.%.orderRef", confidence: "partial" },
+          { path: "orders.items.%.orderRef.**", confidence: "partial" },
           { path: "orders.items.name", confidence: "static" },
+          { path: "orders.items.name.**", confidence: "static" },
         ],
       });
     });
@@ -309,7 +313,9 @@ describe("API Reshaping", () => {
         expression: `items.(category & "-" & code)`,
         expectedPaths: [
           { path: "items.category", confidence: "static" },
+          { path: "items.category.**", confidence: "static" },
           { path: "items.code", confidence: "static" },
+          { path: "items.code.**", confidence: "static" },
         ],
       },
       {
@@ -410,8 +416,10 @@ describe("API Reshaping", () => {
         expression: `items@$i[$i.category = type].name`,
         expectedPaths: [
           { path: "items.category", confidence: "static" },
+          { path: "items.category.**", confidence: "static" },
           { path: "name", confidence: "static" },
           { path: "type", confidence: "static" },
+          { path: "type.**", confidence: "static" },
         ],
       },
       // Edge 5: External variable cross-ref with focus -- external var not re-emitted from filter
@@ -461,7 +469,9 @@ describe("API Reshaping", () => {
         expression: `library.loans@$l.books@$b[$l.isbn = $b.isbn].title`,
         expectedPaths: [
           { path: "library.books.isbn", confidence: "static" },
+          { path: "library.books.isbn.**", confidence: "static" },
           { path: "library.loans.isbn", confidence: "static" },
+          { path: "library.loans.isbn.**", confidence: "static" },
           { path: "library.title", confidence: "static" },
         ],
       },

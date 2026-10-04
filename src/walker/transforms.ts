@@ -25,11 +25,11 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
         .replace(/^\./, "");
     };
     const representedPaths = new Set(
-      localPaths.map((path) => {
+      localPaths.flatMap((path) => {
         const suffix = currentSuffix(path);
         return suffix === null
-          ? path
-          : appendPath(ROOT_PATH, suffix || null);
+          ? [path]
+          : [suffix, appendPath(ROOT_PATH, suffix || null)];
       }),
     );
     const localContextPaths = localPaths.flatMap((path) => {

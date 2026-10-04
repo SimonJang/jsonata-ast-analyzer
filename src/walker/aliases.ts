@@ -917,7 +917,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         ? [alignedParentContexts[index]].filter(Boolean)
         : parentContextPaths;
   
-      return localPaths.flatMap((path) => {
+      return localPaths.flatMap((rawPath) => {
+        const path = rawPath.startsWith(`${ROOT_PATH}.${LOCAL_CONTEXT}`)
+          ? rawPath.slice(ROOT_PATH.length + 1) : rawPath;
         if (path === LOCAL_CONTEXT) return [contextPath];
         if (path.startsWith(`${LOCAL_CONTEXT}[*]`)) {
           return [`${contextPath}${path.slice(LOCAL_CONTEXT.length)}`];

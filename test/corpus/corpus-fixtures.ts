@@ -188,7 +188,13 @@ for (let i = 0; i < 15; i++) {
     "transforms",
     `update transform ${i}`,
     `| account${i} | {"displayName": first${i} & last${i}} |`,
-    [path(`account${i}`), path(`account${i}.first${i}`), path(`account${i}.last${i}`)],
+    [
+      path(`account${i}`),
+      path(`account${i}.first${i}`),
+      path(`account${i}.first${i}.**`),
+      path(`account${i}.last${i}`),
+      path(`account${i}.last${i}.**`),
+    ],
   );
   add(
     "transforms",
@@ -221,9 +227,11 @@ for (let i = 0; i < 13; i++) {
     [
       path(`library${i}.books${i}`),
       path(`library${i}.books${i}.isbn${i}`),
+      path(`library${i}.books${i}.isbn${i}.**`),
       path(`library${i}.books${i}.title${i}`),
       path(`library${i}.loans${i}.customer${i}`),
       path(`library${i}.loans${i}.isbn${i}`),
+      path(`library${i}.loans${i}.isbn${i}.**`),
     ],
   );
   add(
@@ -243,8 +251,10 @@ for (let i = 0; i < 13; i++) {
     [
       path(`orders${i}.items${i}`),
       path(`orders${i}.items${i}.%.date${i}`, "partial"),
+      path(`orders${i}.items${i}.%.date${i}.**`, "partial"),
       path(`orders${i}.items${i}.description${i}`),
       path(`orders${i}.items${i}.name${i}`),
+      path(`orders${i}.items${i}.name${i}.**`),
     ],
   );
   add(

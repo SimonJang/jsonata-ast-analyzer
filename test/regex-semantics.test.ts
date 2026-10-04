@@ -54,6 +54,7 @@ describe("regex semantics", () => {
       sortPaths([
         { path: "text", confidence: "static" },
         { path: "config.suffix", confidence: "static" },
+        { path: "config.suffix.**", confidence: "static" },
       ]),
     );
   });

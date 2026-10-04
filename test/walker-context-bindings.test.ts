@@ -34,7 +34,7 @@ describe("walker-owned AST context bindings", () => {
     { expression: 'outer.([$uppercase()])', expected: ["outer"] },
     { expression: 'outer.($uppercase() & "suffix")', expected: ["outer"] },
     { expression: 'outer.([(function($x)<s-:s>{$x})()])', expected: ["outer"] },
-    { expression: 'outer.((function($x)<s-:s>{$x})() & "suffix")', expected: ["outer"] },
+    { expression: 'outer.((function($x)<s-:s>{$x})() & "suffix")', expected: ["outer", "outer.**"] },
   ])("finds context-default calls nested in a projection: $expression", ({ expression, expected }) => {
     expect([...new Set(walkerRuntime().core.walkNode(parse(expression), createScope()))]).toEqual(expected);
   });

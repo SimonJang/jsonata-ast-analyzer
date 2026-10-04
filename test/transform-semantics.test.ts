@@ -62,8 +62,10 @@ describe("transform semantics", () => {
         { path: "record", confidence: "static" },
         { path: "record.node", confidence: "static" },
         { path: "record.node.name", confidence: "static" },
+        { path: "record.node.name.**", confidence: "static" },
         { path: "detail", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
+        { path: "detail.children.name.**", confidence: "static" },
       ]),
     );
   });
@@ -564,9 +566,12 @@ describe("transform semantics", () => {
         [
           "fallback",
           "fallback.name",
+          "fallback.name.**",
           "config.suffix",
+          "config.suffix.**",
           "detail",
           "detail.children.name",
+          "detail.children.name.**",
         ],
       ],
     ] as const) {
@@ -602,9 +607,11 @@ describe("transform semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "config.suffix", confidence: "static" },
+          { path: "config.suffix.**", confidence: "static" },
           { path: "detail", confidence: "static" },
           { path: "record", confidence: "static" },
           { path: "record.children.name", confidence: "static" },
+          { path: "record.children.name.**", confidence: "static" },
         ]),
       );
     }
@@ -938,7 +945,9 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "account", confidence: "static" },
         { path: "account.firstName", confidence: "static" },
+        { path: "account.firstName.**", confidence: "static" },
         { path: "account.lastName", confidence: "static" },
+        { path: "account.lastName.**", confidence: "static" },
         { path: "account.oldFields.password", confidence: "static" },
       ]),
     );

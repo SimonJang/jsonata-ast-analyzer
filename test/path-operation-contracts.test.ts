@@ -126,7 +126,7 @@ describe("path operation context contracts", () => {
   });
   it.each(["[$default()]", '$default() & "suffix"'])("binds current context for a nested call to a named defaulted lambda: %s", (expression) => {
     const scope = bindLambda(createScope(), "default", parse("function($x)<s-:s>{$x}") as LambdaNode);
-    expect([...new Set(walkerRuntime().paths.walkContextExpression(parse(expression), "source", scope))]).toEqual(["source"]);
+    expect([...new Set(walkerRuntime().paths.walkContextExpression(parse(expression), "source", scope))]).toEqual(expression.includes("&") ? ["source", "source.**"] : ["source"]);
   });
 
   it("retains grouping reads when a previous path step introduces the selected variable", () => {

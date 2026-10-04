@@ -1290,7 +1290,7 @@ describe("function semantics", () => {
       {
         expression:
           "($base := function($p,$v,$i,$a){$a.children.name & $p}; $f := $base(config.suffix, ?, ?, ?); $map(items,$f))",
-        expected: ["config.suffix", "items", "items.children.name"],
+        expected: ["config.suffix", "config.suffix.**", "items", "items.children.name", "items.children.name.**"],
       },
       {
         expression:
@@ -1720,8 +1720,10 @@ describe("function semantics", () => {
             path,
             confidence: "static" as const,
           })),
+          { path: "items.name.**", confidence: "static" },
           { path: "detail", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
+          { path: "detail.children.name.**", confidence: "static" },
         ]),
       );
     }
@@ -1752,8 +1754,10 @@ describe("function semantics", () => {
             confidence: "static" as const,
           })),
           { path: "config.operation", confidence: "static" },
+          { path: "items.name.**", confidence: "static" },
           { path: "detail", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
+          { path: "detail.children.name.**", confidence: "static" },
         ]),
       );
     }
@@ -1776,11 +1780,13 @@ describe("function semantics", () => {
         sortPaths([
           { path: "items", confidence: "static" },
           { path: "items.name", confidence: "static" },
+          { path: "items.name.**", confidence: "static" },
           ...(invocation.startsWith("$lookup")
             ? [{ path: "config.operation", confidence: "static" as const }]
             : []),
           { path: "detail", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
+          { path: "detail.children.name.**", confidence: "static" },
         ]),
       );
     }
@@ -1926,8 +1932,10 @@ describe("function semantics", () => {
               ...(invocation.startsWith("$lookup")
                 ? [{ path: "config.operation", confidence: "static" as const }]
                 : []),
+              { path: `${source}.name.**`, confidence: "static" },
               { path: "detail", confidence: "static" },
               { path: "detail.children.name", confidence: "static" },
+              { path: "detail.children.name.**", confidence: "static" },
             ]),
           );
         }
@@ -1950,8 +1958,10 @@ describe("function semantics", () => {
         { path: "items", confidence: "static" },
         { path: "items.name", confidence: "static" },
         { path: "items.children.name", confidence: "static" },
+        { path: "items.children.name.**", confidence: "static" },
         { path: "detail", confidence: "static" },
         { path: "detail.name", confidence: "static" },
+        { path: "detail.name.**", confidence: "static" },
       ]),
     );
 
@@ -2021,8 +2031,10 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.name", confidence: "static" },
+        { path: "items.name.**", confidence: "static" },
         { path: "detail", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
+        { path: "detail.children.name.**", confidence: "static" },
       ]),
     );
   });
@@ -2153,7 +2165,7 @@ describe("function semantics", () => {
       [
         "$reverse([function($x){fallback.name & $x.children.name}])",
         "($callbacks[0])(detail)",
-        ["fallback.name", "detail", "detail.children.name"],
+        ["fallback.name", "fallback.name.**", "detail", "detail.children.name", "detail.children.name.**"],
       ],
       [
         "$sort([function($x){$x.children.name}," +
@@ -3170,6 +3182,12 @@ describe("function semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "detail", confidence: "static" },
+          ...(expression.includes("$distinct")
+            ? [
+                { path: "detail.**", confidence: "static" as const },
+                { path: "fallback.x.**", confidence: "static" as const },
+              ]
+            : []),
           { path: "detail.children.name", confidence: "static" },
           { path: "fallback.x", confidence: "static" },
           { path: "fallback.x.children.name", confidence: "static" },
@@ -3358,9 +3376,11 @@ describe("function semantics", () => {
         sortPaths([
           { path: "items", confidence: "static" },
           { path: "items.name", confidence: "static" },
+          { path: "items.name.**", confidence: "static" },
           ...keyPaths,
           { path: "detail", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
+          { path: "detail.children.name.**", confidence: "static" },
         ]),
       );
     }
@@ -3529,8 +3549,10 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.id", confidence: "static" },
+        { path: "items.id.**", confidence: "static" },
         { path: "items.name", confidence: "static" },
         { path: "target", confidence: "static" },
+        { path: "target.**", confidence: "static" },
       ]),
     );
   });
@@ -3544,8 +3566,10 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.id", confidence: "static" },
+        { path: "items.id.**", confidence: "static" },
         { path: "items.name", confidence: "static" },
         { path: "target", confidence: "static" },
+        { path: "target.**", confidence: "static" },
       ]),
     );
   });
@@ -3665,8 +3689,10 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items", confidence: "static" },
         { path: "items.id", confidence: "static" },
+        { path: "items.id.**", confidence: "static" },
         { path: "items.name", confidence: "static" },
         { path: "target", confidence: "static" },
+        { path: "target.**", confidence: "static" },
       ]),
     );
   });
@@ -4439,7 +4465,9 @@ describe("function semantics", () => {
       sortPaths([
         { path: "items.children", confidence: "static" },
         { path: "items.children.name", confidence: "static" },
+        { path: "items.children.name.**", confidence: "static" },
         { path: "items.rank", confidence: "static" },
+        { path: "items.rank.**", confidence: "static" },
       ]),
     );
   });
@@ -6060,11 +6088,15 @@ describe("function semantics", () => {
         { path: "detail", confidence: "static" },
         { path: "detail.children", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
+        { path: "detail.children.name.**", confidence: "static" },
         { path: "detail.rank", confidence: "static" },
+        { path: "detail.rank.**", confidence: "static" },
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.children.name.**", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
+        { path: "fallback.x.rank.**", confidence: "static" },
         { path: "flag", confidence: "static" },
       ]),
     );
@@ -6082,11 +6114,15 @@ describe("function semantics", () => {
         { path: "detail", confidence: "static" },
         { path: "detail.children", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
+        { path: "detail.children.name.**", confidence: "static" },
         { path: "detail.rank", confidence: "static" },
+        { path: "detail.rank.**", confidence: "static" },
         { path: "fallback", confidence: "static" },
         { path: "fallback.x.children", confidence: "static" },
         { path: "fallback.x.children.name", confidence: "static" },
+        { path: "fallback.x.children.name.**", confidence: "static" },
         { path: "fallback.x.rank", confidence: "static" },
+        { path: "fallback.x.rank.**", confidence: "static" },
         { path: "flag", confidence: "static" },
       ]),
     );

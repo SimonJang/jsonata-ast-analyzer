@@ -267,9 +267,11 @@ describe("Business Rules", () => {
           { path: "tableA", confidence: "static" },
           { path: "tableA[*]", confidence: "dynamic" },
           { path: "tableA[*].fieldA", confidence: "dynamic" },
+          { path: "tableA[*].fieldA.**", confidence: "dynamic" },
           { path: "tableB", confidence: "static" },
           { path: "tableB[*]", confidence: "dynamic" },
           { path: "tableB[*].fieldB", confidence: "dynamic" },
+          { path: "tableB[*].fieldB.**", confidence: "dynamic" },
         ],
       },
       {

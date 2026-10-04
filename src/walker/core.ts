@@ -162,12 +162,20 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   function walkBinary(node: BinaryNode, scope: ScopeTracker): string[] {
     const paths = [...walkNode(node.lhs, scope), ...walkNode(node.rhs, scope)];
     if (node.value === "=" || node.value === "!=") {
+      const scalarComparison = [node.lhs, node.rhs].some((operand) =>
+        ["string", "number", "value"].includes(operand.type),
+      );
       for (const operand of [node.lhs, node.rhs]) {
         const identityPaths = runtime.functions.identityReferencePaths(operand, scope);
         if (identityPaths) {
           paths.push(...identityPaths.map((path) => appendPath(path, "**")));
+        } else if (!scalarComparison) {
+          paths.push(...runtime.functions.deepValueReadPaths(operand, scope));
         }
       }
+    } else if (node.value === "&") {
+      paths.push(...runtime.functions.deepValueReadPaths(node.lhs, scope));
+      paths.push(...runtime.functions.deepValueReadPaths(node.rhs, scope));
     }
     return paths;
   }

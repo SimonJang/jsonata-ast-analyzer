@@ -212,7 +212,9 @@ describe("Edge Cases", () => {
         expression: `$lookup(ref, a & b).result`,
         expectedPaths: [
           { path: "a", confidence: "static" },
+          { path: "a.**", confidence: "static" },
           { path: "b", confidence: "static" },
+          { path: "b.**", confidence: "static" },
           { path: "ref", confidence: "static" },
           { path: "ref[*]", confidence: "dynamic" },
           { path: "ref[*].result", confidence: "dynamic" },

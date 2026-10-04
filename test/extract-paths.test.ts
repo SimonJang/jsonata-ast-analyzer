@@ -98,7 +98,10 @@ describe("extractPaths", () => {
     });
 
     it('extracts only path operand when other is string literal: name & " suffix"', () => {
-      expect(extractPaths('name & " suffix"')).toEqual([{ path: "name", confidence: "static" }]);
+      expect(extractPaths('name & " suffix"')).toEqual([
+        { path: "name", confidence: "static" },
+        { path: "name.**", confidence: "static" },
+      ]);
     });
 
     it('extracts paths from nested binary: "a + b * c"', () => {

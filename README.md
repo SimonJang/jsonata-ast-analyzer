@@ -73,6 +73,8 @@ For example, `$count(items)` consumes the collection value and reports `items` a
 
 Operations that traverse a value's descendants also report a `**` read. For example, `$string(record)` reads `record` and `record.**`, because object serialization inspects nested values even though its result is a string.
 
+Deep equality (`=` and `!=`), `$distinct`, and string concatenation (`&`) can also inspect object descendants. Their selected input values receive the same descendant summary.
+
 The optional `opaqueFunctions` list treats recognized built-ins as opaque host functions for one analysis. Names may include or omit the leading `$`:
 
 ```javascript

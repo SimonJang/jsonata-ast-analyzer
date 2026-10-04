@@ -158,6 +158,21 @@ export function createFunctionOperations(
     return [ROOT_PATH];
   }
 
+  function deepValueReadPaths(node: AstNode, scope: ScopeTracker): string[] {
+    // Resolve plain leaf selections with the path walker so mixed aliases and
+    // parent steps use the same context as their ordinary reads.
+    const plainSelection = node.type === "name" || (node.type === "path" &&
+      !(node as PathNode).group && (node as PathNode).steps.every((step) => {
+        const stages = step as AstNode & { stages?: AstNode[]; predicate?: AstNode[] };
+        return ["name", "variable", "parent", "wildcard", "descendant"].includes(step.type) &&
+          !stages.stages?.length && !stages.predicate?.length;
+      }));
+    const paths = identityReferencePaths(node, scope) ?? (plainSelection
+      ? runtime.core.walkNode(node, scope)
+      : selection.getSelectedResultPaths(node, scope));
+    return paths.map((path) => appendPath(path, "**"));
+  }
+
   function appliedFunctionFromApply(node: ApplyNode): FunctionNode | null {
     if (node.rhs.type === "partial") {
       const partial = node.rhs as PartialNode;
@@ -843,8 +858,9 @@ export function createFunctionOperations(
       }
     }
 
-    if (args[0] && !explicitContextPaths && IMPLICIT_ROOT_DEEP_FUNCTIONS.has(funcName)) {
-      paths.push(...selection.getSelectedResultPaths(args[0], scope).map((path) => appendPath(path, "**")));
+    const consumesNamedDeepValue = !explicitContextPaths && IMPLICIT_ROOT_DEEP_FUNCTIONS.has(funcName);
+    if (args[0] && (funcName === "distinct" || consumesNamedDeepValue)) {
+      paths.push(...deepValueReadPaths(args[0], scope));
     }
   
     if (funcName === "eval") {
@@ -1167,6 +1183,7 @@ export function createFunctionOperations(
     resultUsesContextDefault,
     withImplicitRootFunctionArgument,
     identityReferencePaths,
+    deepValueReadPaths,
     appliedFunctionFromApply,
     isPlaceholder,
     walkPartial,

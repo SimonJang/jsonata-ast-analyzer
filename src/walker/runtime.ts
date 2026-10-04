@@ -133,6 +133,7 @@ export interface FunctionOperations {
   resultUsesContextDefault(node: AstNode, scope: ScopeTracker): boolean;
   withImplicitRootFunctionArgument(funcName: string, args: AstNode[], position: number, scope?: ScopeTracker): AstNode[];
   identityReferencePaths(node: AstNode, scope: ScopeTracker): string[] | null;
+  deepValueReadPaths(node: AstNode, scope: ScopeTracker): string[];
   appliedFunctionFromApply(node: ApplyNode): FunctionNode | null;
   isPlaceholder(node: AstNode): boolean;
   walkPartial(node: PartialNode, scope: ScopeTracker): string[];

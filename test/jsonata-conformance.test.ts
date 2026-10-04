@@ -77,7 +77,9 @@ const fixtures: ConformanceFixture[] = [
     expectedPaths: [
       { path: "account", confidence: "static" },
       { path: "account.firstName", confidence: "static" },
+      { path: "account.firstName.**", confidence: "static" },
       { path: "account.lastName", confidence: "static" },
+      { path: "account.lastName.**", confidence: "static" },
     ],
   },
   {
