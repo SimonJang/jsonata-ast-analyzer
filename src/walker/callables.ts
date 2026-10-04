@@ -468,7 +468,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (
       node.type === "function" &&
-      resolveBuiltinCallableNames((node as FunctionNode).procedure, scope).includes("eval")
+      resolveBuiltinCallableNames((node as FunctionNode).procedure, scope).includes("eval") &&
+      resolveCallableValues((node as FunctionNode).procedure, scope).length === 0
     ) {
       const functionNode = node as FunctionNode;
       const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
@@ -1061,7 +1062,13 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       }
       if (sourceNode.type === "function") {
         const functionNode = sourceNode as FunctionNode;
+        const evalExpression = resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("eval")
+          ? runtime.functions.getStaticEvalExpression(functionNode.arguments) : null;
         return [
+          ...(evalExpression ? resolveCallableValues(
+            suffixSteps.length > 0 ? { type: "path", steps: [evalExpression, ...suffixSteps] } as PathNode : evalExpression,
+            runtime.functions.getStaticEvalScope(functionNode.arguments, sourceScope),
+          ) : []),
           ...(resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("lookup")
             ? resolveCallableValues(functionNode, sourceScope)
             : []),
@@ -1126,8 +1133,19 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     if (node.type !== "function") return [];
   
     const functionNode = node as FunctionNode;
+    const specialBuiltins = resolveBuiltinCallableNames(functionNode.procedure, scope)
+      .filter((name) => name === "lookup" || name === "eval");
+    if (specialBuiltins.length > 0 && resolveCallableValues(functionNode.procedure, scope).length > 0) {
+      return [
+        ...customFunctionResultCallableValues(functionNode, scope),
+        ...specialBuiltins.flatMap((name) => resolveCallableValues({
+          ...functionNode,
+          procedure: { type: "variable", value: name, position: functionNode.position, resolvedBuiltin: true },
+        }, scope)),
+      ];
+    }
     if (
-      resolveBuiltinCallableNames(functionNode.procedure, scope).includes("eval")
+      specialBuiltins.includes("eval")
     ) {
       const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
       if (!expression) return [];
@@ -1368,7 +1386,13 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       }
       if (sourceNode.type === "function") {
         const functionNode = sourceNode as FunctionNode;
+        const evalExpression = resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("eval")
+          ? runtime.functions.getStaticEvalExpression(functionNode.arguments) : null;
         return [
+          ...(evalExpression ? resolveBuiltinCallableNames(
+            suffixSteps.length > 0 ? { type: "path", steps: [evalExpression, ...suffixSteps] } as PathNode : evalExpression,
+            runtime.functions.getStaticEvalScope(functionNode.arguments, sourceScope),
+          ) : []),
           ...(resolveBuiltinCallableNames(functionNode.procedure, sourceScope).includes("lookup")
             ? resolveBuiltinCallableNames(functionNode, sourceScope)
             : []),
@@ -1453,8 +1477,19 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "function") {
       const functionNode = node as FunctionNode;
+      const specialBuiltins = resolveBuiltinCallableNames(functionNode.procedure, scope)
+        .filter((name) => name === "lookup" || name === "eval");
+      if (specialBuiltins.length > 0 && resolveCallableValues(functionNode.procedure, scope).length > 0) {
+        return [
+          ...customFunctionResultBuiltinCallableNames(functionNode, scope),
+          ...specialBuiltins.flatMap((name) => resolveBuiltinCallableNames({
+            ...functionNode,
+            procedure: { type: "variable", value: name, position: functionNode.position, resolvedBuiltin: true },
+          }, scope)),
+        ];
+      }
       if (
-        resolveBuiltinCallableNames(functionNode.procedure, scope).includes("eval")
+        specialBuiltins.includes("eval")
       ) {
         const expression = runtime.functions.getStaticEvalExpression(functionNode.arguments);
         return expression
