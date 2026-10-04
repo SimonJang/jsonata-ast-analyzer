@@ -1455,6 +1455,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     let groupScope = childScope(scope);
     let usesTupleStream = false;
     let hasTupleBindings = false;
+    let terminalTupleSort = false;
+    const tupleNames = new Set<string>();
     for (const [index, step] of steps.entries()) {
       const bindingStep = step as AstNode & {
         focusBinding?: { name: string };
@@ -1463,11 +1465,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       };
       const stagedStep = step as NameNode & { predicate?: AstNode[] };
       const stages = stagedStep.stages ?? stagedStep.predicate ?? [];
+      terminalTupleSort = step.type === "sort" && hasTupleBindings;
       usesTupleStream ||= Boolean(bindingStep.tuple || bindingStep.focusBinding || bindingStep.indexBinding ||
         stages.some((stage) => stage.type === "position-binding"));
       if (source.type === "path" && index === 0 && step.type === "array" &&
         (step as ArrayNode).initialPathPredicate) continue;
       if (bindingStep.focusBinding) {
+        tupleNames.add(bindingStep.focusBinding.name);
         const focused = prefixNode([
           ...steps.slice(0, index),
           { ...step, focusBinding: undefined, indexBinding: undefined } as AstNode,
@@ -1483,23 +1487,48 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       // Sorting existing tuples retains their bindings; only the sort that
       // starts the tuple stream assigns its direct positional variable.
       if (bindingStep.indexBinding && !(step.type === "sort" && hasTupleBindings)) {
+        tupleNames.add(bindingStep.indexBinding.name);
         groupScope = bindVariable(groupScope, bindingStep.indexBinding.name, []);
       }
       for (const stage of stages) {
-        if (stage.type === "position-binding") groupScope = bindVariable(groupScope, (stage as PositionBindingNode).name, []);
+        if (stage.type === "position-binding") {
+          const name = (stage as PositionBindingNode).name;
+          tupleNames.add(name);
+          groupScope = bindVariable(groupScope, name, []);
+        }
       }
       hasTupleBindings ||= usesTupleStream;
     }
+    const withOuterTupleOrigins = (resultScope: ScopeTracker): ScopeTracker => {
+      if (!terminalTupleSort) return resultScope;
+      // JSONata's sort retains the tuple-stream flag for singletons but drops
+      // it for larger streams. Group entries can therefore use outer bindings.
+      for (const name of tupleNames) {
+        const outerPaths = resolveVariable(scope, name) ?? [];
+        const outerAlias = resolveObjectAlias(scope, name);
+        const outerDynamicAlias = resolveDynamicObjectAlias(scope, name);
+        const outerSuffixPaths = resolveSuffixBasePaths(scope, name) ?? [];
+        if (!outerPaths.length && !outerAlias && !outerDynamicAlias && !outerSuffixPaths.length) continue;
+        resultScope = bindFocusObjectAliasScope(
+          resultScope, name,
+          mergeObjectAliases([resolveObjectAlias(resultScope, name), outerAlias]),
+          mergeDynamicObjectAliases([resolveDynamicObjectAlias(resultScope, name), outerDynamicAlias]),
+          [...(resolveVariable(resultScope, name) ?? []), ...outerPaths],
+          [...(resolveSuffixBasePaths(resultScope, name) ?? []), ...outerSuffixPaths],
+        );
+      }
+      return resultScope;
+    };
     let finalIndex = steps.length - 1;
     while (finalIndex >= 0 && steps[finalIndex].type === "sort") finalIndex--;
     const finalStep = steps[finalIndex];
     const selectedContext = source.type === "path"
       ? selectedPathAliasContext(source as PathNode, groupScope) : null;
     if (selectedContext && !(finalStep as AstNode & { focusBinding?: unknown })?.focusBinding) {
-      return bindFocusObjectAliasScope(
+      return withOuterTupleOrigins(bindFocusObjectAliasScope(
         groupScope, "", selectedContext.objectAlias, selectedContext.dynamicObjectAlias,
         [], selectedContext.suffixBasePaths,
-      );
+      ));
     }
     const focusStep = finalStep?.type === "apply"
       ? runtime.functions.appliedFunctionFromApply(finalStep as ApplyNode)
@@ -1549,10 +1578,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         groupScope = bindVariable(groupScope, focusStep.indexBinding.name, []);
       }
       if (!focusStep?.focusBinding) {
-        return bindFocusObjectAliasScope(
+        return withOuterTupleOrigins(bindFocusObjectAliasScope(
           groupScope, "", alias, dynamicAlias,
           alias || dynamicAlias ? [] : basePaths, suffixPaths,
-        );
+        ));
       }
     }
     const context = focusStep?.focusBinding
@@ -1560,13 +1589,13 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         ? prefixNode(steps.slice(0, finalIndex))
         : { type: "variable", value: "", position: 0 } as VariableNode
       : source;
-    return runtime.higherOrder.bindArgumentParameter(
+    return withOuterTupleOrigins(runtime.higherOrder.bindArgumentParameter(
       groupScope,
       { type: "variable", value: "", position: 0 },
       bindingAliasPaths(context, groupScope),
       context,
       groupScope,
-    );
+    ));
   }
 
   function groupResultDynamicObjectAliasForNode(

@@ -27,10 +27,10 @@ describe("constructed focus scopes", () => {
     expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), subtree("record")]);
   });
 
-  it.each(producers)("keeps grouped positions scalar after a sorted focus filter from %s", async (producer) => {
+  it.each(producers)("covers outer origins while a singleton sorted group returns a position from %s", async (producer) => {
     const expression = `($i:=record;$v:={"wrap":{"left":{"copy":record},"other":{"different":other}}};(${producer}).other@$child^(<$child.different.details.amount)[true]#$i{"group":$i})`;
     expect(await jsonata(expression).evaluate(input)).toEqual({ group: 0 });
-    expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), exact("record")]);
+    expect(accesses(expression)).toEqual([exact("other"), exact("other.details.amount"), subtree("record")]);
   });
 
   it.each(producers)("preserves a value selected before a sort rebinds its variable from %s", async (producer) => {
