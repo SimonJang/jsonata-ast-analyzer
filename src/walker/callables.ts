@@ -376,10 +376,20 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         continue;
       }
       if (value) {
+        // A callable container can also carry data aliases needed by its consumer.
         resultScope = bindVariable(
           resultScope,
           name,
           resolveVariable(resultScope, name) ?? [],
+        );
+        resultScope = runtime.aliases.bindSuffixBasePathsIfPresent(
+          resultScope, name, value.node, value.scope,
+        );
+        resultScope = runtime.aliases.bindObjectAliasIfPresent(
+          resultScope, name, value.node, value.scope,
+        );
+        resultScope = runtime.aliases.bindDynamicObjectAliasIfPresent(
+          resultScope, name, value.node, value.scope,
         );
         resultScope = runtime.functions.bindCallableValue(
           resultScope,
