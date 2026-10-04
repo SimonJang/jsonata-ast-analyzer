@@ -1666,8 +1666,17 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (paths.length === 1) return true;
       return paths.length > 0 && projectsDataPath(projection);
     };
+    const projectsPosition = (step: AstNode, prefixSteps: AstNode[]): boolean => {
+      if (step.type !== "variable") return false;
+      const name = (step as VariableNode).value;
+      return prefixSteps.some((prefix) => {
+        const staged = prefix as NameNode & { predicate?: AstNode[] };
+        return (staged.stages ?? staged.predicate ?? [])
+          .some((stage) => stage.type === "position-binding" && (stage as PositionBindingNode).name === name);
+      });
+    };
     const index = node.steps.findIndex((step, index) =>
-      index > 0 && (isResultAliasStep(step) ||
+      index > 0 && (projectsPosition(step, node.steps.slice(0, index)) || (isResultAliasStep(step) ||
         (isFunctionResultStep(node.steps[index - 1]) &&
           (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding)) &&
       (node.steps.slice(0, index).some(isFunctionResultStep) ||
@@ -1685,7 +1694,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
             ...node.steps.slice(0, index),
             ...((step as FunctionNode).procedure as PathNode).steps,
           ],
-        } as PathNode, scope).length > 0),
+        } as PathNode, scope).length > 0)),
     );
     if (index < 0) return null;
 
@@ -1724,6 +1733,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         );
       }
       if (bindingStep.indexBinding) contextScope = bindVariable(contextScope, bindingStep.indexBinding.name, []);
+      const staged = step as NameNode & { predicate?: AstNode[] };
+      for (const stage of staged.stages ?? staged.predicate ?? []) {
+        if (stage.type === "position-binding") contextScope = bindVariable(contextScope, (stage as PositionBindingNode).name, []);
+      }
     }
     const sourceScope = lastStep.focusBinding ? beforeLastFocus : contextScope;
     contextScope = runtime.higherOrder.bindArgumentParameter(

@@ -1056,7 +1056,8 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         wildcardBindings.nonPathVariables.forEach((name) =>
           nonPathVariables.add(name),
         );
-        if (wildcardStep.predicate && wildcardStep.predicate.length > 0) {
+        if (wildcardStep.predicate && wildcardStep.predicate.length > 0 &&
+          !(resultAliasSuffixStageStart >= 0 && i > resultAliasSuffixStageStart)) {
           paths.push(
             ...walkFilterStages(
               wildcardStep.predicate,
