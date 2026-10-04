@@ -854,6 +854,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
+    if (node.type === "bind") return resolveCallableValues((node as BindNode).rhs, scope);
     if (node.type === "variable" && (node as VariableNode).resolvedBuiltin) return [];
     if (node.type === "path" && isDefinitelyDataValue(node, scope)) return [];
     if (node.type !== "path" && callableGroup(node)) {
@@ -1182,6 +1183,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {
+    if (node.type === "bind") return resolveBuiltinCallableNames((node as BindNode).rhs, scope);
     if (node.type !== "path" && callableGroup(node)) {
       return groupedNodeBuiltinCallableNames(node, scope);
     }

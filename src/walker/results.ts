@@ -1584,6 +1584,9 @@ export function createResultOperations(
 
   /** Physical result roots that can receive a suffix; constructed fields use aliases. */
   function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+    if (node.type === "bind") {
+      return runtime.aliases.groupResultSuffixBasePaths((node as BindNode).rhs, scope);
+    }
     if (node.type === "variable") {
       const name = (node as VariableNode).value;
       const suffixPaths = resolveSuffixBasePaths(scope, name) ?? [];
@@ -1887,6 +1890,7 @@ export function createResultOperations(
           getSuffixableResultBasePaths(expr, scope),
         );
       case "name":
+      case "bind":
       case "path":
       case "variable":
       case "function":
@@ -2176,6 +2180,9 @@ export function createResultOperations(
   }
 
   function getResultBasePathsFromArg(node: AstNode, scope: ScopeTracker): string[] {
+    if (node.type === "bind") {
+      return selection.getSelectedResultPaths((node as BindNode).rhs, scope);
+    }
     const identityPaths = runtime.functions.identityReferencePaths(node, scope);
     if (identityPaths) return identityPaths;
   

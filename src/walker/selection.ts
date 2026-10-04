@@ -95,6 +95,7 @@ export function createSelectionOperations(
     const selectedPaths: string[] = [];
     for (const expression of node.expressions) {
       if (expression.type === "bind") {
+        selectedPaths.push(...getSelectedResultPaths((expression as BindNode).rhs, currentScope));
         currentScope = bindValue(currentScope, expression as BindNode);
       } else {
         selectedPaths.push(...getSelectedResultPaths(expression, currentScope));

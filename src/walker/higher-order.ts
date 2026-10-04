@@ -20,6 +20,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
    * Default: falls back to walkNode (no filter stages to strip)
    */
   function extractBasePaths(node: AstNode, scope: ScopeTracker): string[] {
+    if (node.type === "bind") return runtime.results.getResultBasePathsFromArg(node, scope);
     if (node.type === "variable" && (node as VariableNode).value === "") {
       const capturedCurrent = resolveVariable(scope, "");
       if (capturedCurrent !== null) return filterToBasePaths([...capturedCurrent]);

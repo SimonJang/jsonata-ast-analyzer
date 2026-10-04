@@ -25,6 +25,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     if (identityPaths) return identityPaths;
   
     switch (node.type) {
+      case "bind":
+        return bindingAliasPaths((node as BindNode).rhs, scope);
       case "name": {
         const currentPaths = resolveVariable(scope, "");
         return currentPaths?.length
@@ -178,6 +180,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   }
 
   function objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null {
+    if (node.type === "bind") return groupResultObjectAliasForNode((node as BindNode).rhs, scope);
     if (node.type === "object") return objectAliasFromObject(node as ObjectNode, scope);
     if (node.type === "path") return objectAliasFromPathProjection(node as PathNode, scope);
     if (node.type === "array") {
@@ -1082,6 +1085,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: AstNode,
     scope: ScopeTracker,
   ): DynamicObjectAlias | null {
+    if (node.type === "bind") return groupResultDynamicObjectAliasForNode((node as BindNode).rhs, scope);
     if (node.type === "path") {
       const chained = chainedPathContext(node as PathNode, scope);
       if (chained) {
