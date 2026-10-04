@@ -246,7 +246,11 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                 resolveSuffixBasePaths(contextScope, "") ?? [],
               ) : []),
           ...(focusIndex < node.steps.length - 1
-            ? walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope) : []),
+            ? walkChainedContext({ ...node, steps: node.steps.slice(focusIndex + 1) }, contextScope)
+            : node.group ? walkAliasGroupEntries(
+                node.group, resolveObjectAlias(contextScope, ""), resolveDynamicObjectAlias(contextScope, ""),
+                contextScope, resolveSuffixBasePaths(contextScope, "") ?? [],
+              ) : []),
         ];
       }
     }

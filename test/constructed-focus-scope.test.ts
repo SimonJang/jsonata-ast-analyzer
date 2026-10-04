@@ -85,4 +85,49 @@ describe("constructed focus scopes", () => {
     expect(accesses(expression)).toEqual([exact("key"), subtree("other"), exact("record")]);
   });
 
+
+  it.each(producers)("reads grouped values through a terminal focus from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details]{"group":$child.copy.details})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ group: input.record.details });
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("record"), subtree("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("reads a grouped parent value beside a terminal focus from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details]{"group":other.different.details})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ group: input.other.details });
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), subtree("other.details"),
+      exact("record"), exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("reads a dynamic grouping key through a terminal focus from %s", async (producer) => {
+    const expression = `($v:=${shape};(${producer}).*@$child[$child.copy.details]{($child.copy.name.label):$child.copy.details})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ One: input.record.details });
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("record"), subtree("record.details"),
+      exact("record.details.*"), exact("record.name.label"),
+    ]);
+  });
+
+  it.each(producers)("reads grouped parent values consumed by count from %s", async (producer) => {
+    const expression = `($v:=${shape};$count((${producer}).*@$child[$child.copy.details]{"group":other.different.details}))`;
+    expect(await jsonata(expression).evaluate(input)).toBe(1);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("other.details"),
+      exact("record"), exact("record.details"), exact("record.details.*"),
+    ]);
+  });
+
+  it.each(producers)("reads dynamic group keys consumed by count from %s", async (producer) => {
+    const expression = `($v:=${shape};$count((${producer}).*@$child[$child.copy.details]{($child.copy.name.label):$child.copy.details}))`;
+    expect(await jsonata(expression).evaluate(input)).toBe(1);
+    expect(accesses(expression)).toEqual([
+      exact("key"), exact("other"), exact("record"), exact("record.details"),
+      exact("record.details.*"), exact("record.name.label"),
+    ]);
+  });
+
 });
