@@ -181,12 +181,17 @@ export function createSelectionOperations(
       }
       case "path": {
         const path = node as PathNode;
+        const selectedContext = runtime.aliases.selectedPathAliasContext(path, scope);
+        if (selectedContext) {
+          return [
+            ...(selectedContext.objectAlias ? [...selectedContext.objectAlias.values()].flatMap((paths) => [...paths]) : []),
+            ...(selectedContext.dynamicObjectAlias ? runtime.aliases.selectLookupDynamicObjectAliasPaths(selectedContext.dynamicObjectAlias, []) : []),
+            ...selectedContext.suffixBasePaths,
+          ];
+        }
         const objectAlias = runtime.aliases.objectAliasForNode(path, scope);
         if (objectAlias) {
-          return [
-            ...[...objectAlias.values()].flatMap((paths) => [...paths]),
-            ...(runtime.aliases.selectedWildcardPathAliasContext(path, scope)?.suffixBasePaths ?? []),
-          ];
+          return [...objectAlias.values()].flatMap((paths) => [...paths]);
         }
         const hasContext = resolveVariable(scope, "") !== null;
         const contextAlias = hasContext ? resolveObjectAlias(scope, "") : null;

@@ -61,7 +61,7 @@ export interface AliasOperations {
   objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAlias | null;
   mergeObjectAliases(aliases: Array<ObjectAlias | null>): ObjectAlias | null;
   objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null;
-  selectedWildcardPathAliasContext(node: PathNode, scope: ScopeTracker): { objectAlias: ObjectAlias | null; suffixBasePaths: string[] } | null;
+  selectedPathAliasContext(node: PathNode, scope: ScopeTracker): { objectAlias: ObjectAlias | null; dynamicObjectAlias: DynamicObjectAlias | null; suffixBasePaths: string[] } | null;
   objectAliasFromBlock(node: BlockNode, scope: ScopeTracker): ObjectAlias | null;
   selectObjectAliasPaths(alias: ObjectAlias, suffixSteps: AstNode[]): string[] | null;
   mergeDynamicObjectAliases(aliases: Array<DynamicObjectAlias | null>): DynamicObjectAlias | null;

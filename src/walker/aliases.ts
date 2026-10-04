@@ -7,6 +7,11 @@ import type { AliasOperations, WalkerRuntime } from "./runtime.js";
 import { createSelectionOperations } from "./selection.js";
 
 const LOCAL_CONTEXT = "\u0001context";
+type SelectedAliasContext = {
+  objectAlias: ObjectAlias | null;
+  dynamicObjectAlias: DynamicObjectAlias | null;
+  suffixBasePaths: string[];
+};
 
 export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   const selection = createSelectionOperations(runtime);
@@ -139,7 +144,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: PathNode,
     scope: ScopeTracker,
   ): ObjectAlias | null {
-    const selected = selectedWildcardPathAliasContext(node, scope);
+    const selected = selectedPathAliasContext(node, scope);
     if (selected) return selected.objectAlias;
     const chained = chainedPathContext(node, scope);
     if (chained) {
@@ -343,16 +348,27 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     return paths.length ? paths : null;
   }
 
-  function selectedWildcardPathAliasContext(node: PathNode, scope: ScopeTracker) {
+  function selectedPathAliasContext(node: PathNode, scope: ScopeTracker): SelectedAliasContext | null {
     const [first, ...selectors] = node.steps;
-    if (first?.type !== "variable" || !selectors.some((step) => step.type === "wildcard") ||
+    if (first?.type !== "variable" || !selectors.length ||
         !selectors.every((step) => step.type === "name" || step.type === "wildcard")) return null;
-    const alias = resolveObjectAlias(scope, (first as VariableNode).value);
-    if (!alias) return null;
+    const name = (first as VariableNode).value;
+    const alias = resolveObjectAlias(scope, name);
+    const dynamic = resolveDynamicObjectAlias(scope, name);
+    return alias || dynamic
+      ? selectedAliasContext(alias, dynamic, selectors, resolveSuffixBasePaths(scope, name) ?? []) : null;
+  }
+
+  function selectedAliasContext(
+    alias: ObjectAlias | null,
+    dynamic: DynamicObjectAlias | null,
+    selectors: AstNode[],
+    sourceBases: readonly string[],
+  ): SelectedAliasContext {
+    if (!selectors.length) return { objectAlias: alias, dynamicObjectAlias: dynamic, suffixBasePaths: [...sourceBases] };
     const fields = new Map<string, string[]>();
-    const suffixBasePaths = (resolveSuffixBasePaths(scope, (first as VariableNode).value) ?? [])
-      .map((source) => appendPath(source, buildPathString(selectors)));
-    for (const [key, sources] of alias) {
+    const suffixBasePaths = sourceBases.map((source) => appendPath(source, buildPathString(selectors)));
+    for (const [key, sources] of alias ?? []) {
       const keys = key.split(".");
       let consumed = 0;
       while (consumed < keys.length && consumed < selectors.length &&
@@ -366,28 +382,62 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffixBasePaths.push(...sources.map((source) => appendPath(source, buildPathString(selectors.slice(consumed)))));
       }
     }
-    return { objectAlias: fields.size ? fields : null, suffixBasePaths };
+    const aliases: Array<ObjectAlias | null> = [fields.size ? fields : null];
+    const variants: Array<DynamicObjectAlias["variants"][number]> = [];
+    for (const variant of dynamic?.variants ?? []) {
+      const prefixes = variant.prefixSteps ?? [];
+      if (prefixes.length >= selectors.length && selectors.every((step, index) =>
+          step.type === "wildcard" || (step as NameNode).value === prefixes[index])) {
+        variants.push({ ...variant, prefixSteps: prefixes.slice(selectors.length) });
+        continue;
+      }
+      const relative = dynamicVariantSuffixSteps(variant, selectors);
+      if (!relative?.length) continue;
+      for (const [key, value] of variant.node.entries) {
+        if (staticObjectKey(key) !== null) continue;
+        const objectAlias = groupResultObjectAliasForNode(value, variant.scope);
+        const dynamicAlias = groupResultDynamicObjectAliasForNode(value, variant.scope);
+        const selectedField = value.type === "name" || value.type === "path" &&
+          (value as PathNode).steps.every((step) => ["name", "variable", "wildcard", "descendant", "parent"].includes(step.type));
+        const valueBases = !objectAlias && !dynamicAlias && selectedField
+          ? bindingAliasPaths(value, variant.scope) : groupResultSuffixBasePaths(value, variant.scope);
+        const selected = selectedAliasContext(
+          objectAlias ? runtime.higherOrder.resolveDynamicVariantObjectAlias(objectAlias, variant) : null,
+          dynamicAlias ? runtime.higherOrder.resolveDynamicVariantDynamicObjectAlias(dynamicAlias, variant) : null,
+          relative.slice(1),
+          runtime.higherOrder.resolveDynamicVariantPaths(valueBases, variant),
+        );
+        aliases.push(selected.objectAlias);
+        variants.push(...(selected.dynamicObjectAlias?.variants ?? []));
+        suffixBasePaths.push(...selected.suffixBasePaths);
+      }
+    }
+    return {
+      objectAlias: mergeObjectAliases(aliases),
+      dynamicObjectAlias: variants.length ? { variants } : null,
+      suffixBasePaths,
+    };
   }
 
-  function wildcardSuffixContextScope(
+  function aliasSuffixContextScope(
     selectors: AstNode[],
     objectAlias: ObjectAlias | null,
     dynamicObject: DynamicObjectAlias | null,
     scope: ScopeTracker,
     suffixBasePaths: readonly string[],
   ): ScopeTracker | null {
-    if (!objectAlias || !selectors.some((step) => step.type === "wildcard")) return null;
-    const contextName = "\u0000wildcard-stage";
+    if ((!objectAlias && !dynamicObject) || !selectors.length) return null;
+    const contextName = "\u0000alias-stage";
     const sourceScope = bindFocusObjectAliasScope(
       scope, contextName, objectAlias, dynamicObject, [], suffixBasePaths,
     );
     const source: PathNode = {
       type: "path", steps: [{ type: "variable", value: contextName, position: 0 }, ...selectors],
     };
-    const selected = selectedWildcardPathAliasContext(source, sourceScope);
-    if (!selected) return null;
+    const selected = selectedPathAliasContext(source, sourceScope);
+    if (!selected || !selected.objectAlias && !selected.dynamicObjectAlias) return null;
     return bindFocusObjectAliasScope(
-      scope, "", selected.objectAlias, dynamicObjectAliasForNode(source, sourceScope),
+      scope, "", selected.objectAlias, selected.dynamicObjectAlias,
       selectAliasSuffixContextPaths(selectors, objectAlias, dynamicObject, scope, suffixBasePaths),
       selected.suffixBasePaths,
     );
@@ -776,7 +826,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
               suffixBasePaths,
             )
           : [];
-      const selectedScope = wildcardSuffixContextScope(
+      const selectedScope = aliasSuffixContextScope(
         suffixSteps.slice(0, index + 1), objectAlias, dynamicObjectAlias, scope, suffixBasePaths,
       );
       const stages = step.type === "wildcard" ? (step as WildcardNode).predicate : nameStep.stages;
@@ -832,7 +882,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (step.type !== "sort") continue;
   
       const contextPrefixSteps = suffixSteps.slice(0, index);
-      const selectedScope = wildcardSuffixContextScope(
+      const selectedScope = aliasSuffixContextScope(
         contextPrefixSteps, objectAlias, dynamicObjectAlias, scope, suffixBasePaths,
       );
       if (selectedScope) {
@@ -1191,17 +1241,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
       if (method) return dynamicObjectAliasForNode(method.node, method.scope);
       const path = node as PathNode;
-      if (selectedWildcardPathAliasContext(path, scope)) {
-        const [first, ...selectors] = path.steps;
-        const original = resolveDynamicObjectAlias(scope, (first as VariableNode).value);
-        const variants = original?.variants.flatMap((variant) => {
-          const prefixes = variant.prefixSteps ?? [];
-          if (prefixes.length < selectors.length || !selectors.every((step, index) =>
-              step.type === "wildcard" || (step as NameNode).value === prefixes[index])) return [];
-          return [{ ...variant, prefixSteps: prefixes.slice(selectors.length) }];
-        }) ?? [];
-        return variants.length ? { variants } : null;
-      }
+      const selected = selectedPathAliasContext(path, scope);
+      if (selected) return selected.dynamicObjectAlias;
       const chained = chainedPathContext(node as PathNode, scope);
       if (chained) {
         return groupResultDynamicObjectAliasForNode(
@@ -2281,7 +2322,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     objectAliasFromObject,
     mergeObjectAliases,
     objectAliasForNode,
-    selectedWildcardPathAliasContext,
+    selectedPathAliasContext,
     objectAliasFromBlock,
     selectObjectAliasPaths,
     mergeDynamicObjectAliases,
