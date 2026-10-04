@@ -437,10 +437,13 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
   }
 
   function terminalFocusResultNode(node: AstNode): AstNode | null {
-    if (node.type !== "path" || (node as PathNode).group ||
-        !((node as PathNode).steps.at(-1) as NameNode | undefined)?.focusBinding) return null;
+    if (node.type !== "path" || (node as PathNode).group) return null;
+    const steps = (node as PathNode).steps;
+    let finalIndex = steps.length - 1;
+    while (finalIndex >= 0 && steps[finalIndex].type === "sort") finalIndex--;
+    if (!(steps[finalIndex] as NameNode | undefined)?.focusBinding) return null;
     // A terminal focus stores the selected child but returns its input context.
-    const prefix = (node as PathNode).steps.slice(0, -1);
+    const prefix = steps.slice(0, finalIndex);
     return prefix.length ? { type: "path", steps: prefix } as PathNode
       : { type: "variable", value: "", position: 0 };
   }

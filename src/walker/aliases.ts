@@ -1915,7 +1915,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     };
     // A focus binding stores the selected value while leaving the current
     // context at the value before that step.
-    const context = lastStep.focusBinding
+    const context = prefixSteps.every((step) => step.type === "sort")
+      ? { type: "variable", value: "", position: 0 } as VariableNode
+      : lastStep.focusBinding
       ? prefixSteps.length > 1
         ? prefixNode(prefixSteps.slice(0, -1))
         : { type: "variable", value: "", position: 0 } as VariableNode

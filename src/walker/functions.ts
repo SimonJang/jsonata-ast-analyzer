@@ -533,6 +533,10 @@ export function createFunctionOperations(
     }
     if (node.type === "path") {
       const path = node as PathNode;
+      if (path.steps.some((step) => (step as AstNode & { focusBinding?: unknown }).focusBinding) &&
+          path.steps.some((step) => step.type === "sort")) {
+        return runtime.paths.walkPath(path, scope);
+      }
       const [first, ...suffixSteps] = path.steps;
       const producedByProjection =
         runtime.callables.pathProjectionCallableValues(path, scope).length > 0 ||
