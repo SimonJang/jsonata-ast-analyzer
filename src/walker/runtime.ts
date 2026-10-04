@@ -155,6 +155,7 @@ export interface FunctionOperations {
 }
 
 export interface HigherOrderOperations {
+  functionArgumentResultPaths(node: AstNode, scope: ScopeTracker): string[];
   extractBasePaths(node: AstNode, scope: ScopeTracker): string[];
   walkHigherOrderCall(node: FunctionNode, semantics: Record<number, string>, scope: ScopeTracker): string[];
   higherOrderCallbackDataPaths(funcName: string, dataArg: AstNode | undefined, scope: ScopeTracker, usesImplicitRoot?: boolean): string[];

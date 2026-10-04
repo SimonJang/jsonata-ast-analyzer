@@ -1438,11 +1438,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         node.steps.slice(0, index).some((prefixStep) => hasVariableProjectionSource(prefixStep, step)) ||
         (projectsDataPath(step) && node.steps.slice(0, index).some((prefixStep) =>
           isResultAliasStep(prefixStep) && !isTransparentPathBlock(prefixStep))) ||
-        (step.type === "function" && runtime.functions.resultUsesContextDefault(step, scope)) ||
-        (step.type === "function" && (node.steps[index - 1] as AstNode & { focusBinding?: unknown }).focusBinding) ||
-        (step.type === "function" && runtime.callables.resolveBuiltinCallableNames(
-          (step as FunctionNode).procedure, scope,
-        ).includes("lookup"))) &&
+        step.type === "function") &&
       // Stored callable procedures need their full producer path so that the
       // callable resolver can inspect the function's returned container.
       !(step.type === "function" && (step as FunctionNode).procedure.type === "path" &&

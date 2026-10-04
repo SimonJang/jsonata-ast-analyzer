@@ -225,9 +225,15 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         !(step as NameNode).indexBinding);
       const consumesContext = chained.tail.steps[0]?.type === "function" &&
         runtime.functions.resultUsesContextDefault(chained.tail.steps[0], chained.scope);
+      const tailPaths = walkChainedContext(chained.tail, chained.scope);
+      const prefixPath = buildPathString(prefixSteps);
+      const readsPrefix = prefixPath && tailPaths.some((path) => {
+        const relativePath = path.replace(/^\0\.?/, "");
+        return relativePath === prefixPath || relativePath.startsWith(`${prefixPath}.`);
+      });
       return [
-        ...(structuralPrefix && !consumesContext ? [] : walkChainedContext(chained.prefix, scope)),
-        ...walkChainedContext(chained.tail, chained.scope),
+        ...(structuralPrefix && !consumesContext && readsPrefix ? [] : walkChainedContext(chained.prefix, scope)),
+        ...tailPaths,
       ];
     }
 

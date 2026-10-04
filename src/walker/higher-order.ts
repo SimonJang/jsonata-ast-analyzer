@@ -5,8 +5,10 @@ import { HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH } from "./constants.js";
 import { prefixProjectionPaths, appendPath, resolveParentPathSegments, isRootReference, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, filterToBasePaths, hasPendingFocusReset } from "./path-utils.js";
 import type { HigherOrderOperations, WalkerRuntime, ResolvedLambdaCall, ResolvedPartialCall } from "./runtime.js";
+import { createSelectionOperations } from "./selection.js";
 
 export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrderOperations {
+  const selection = createSelectionOperations(runtime);
   /**
    * Extract only the collection-identity (base) paths from a data argument node,
    * excluding filter predicate paths. Used specifically for HOF lambda parameter
@@ -121,6 +123,17 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     }
     // For other node types, walkNode is fine (no filter stages to strip)
     return runtime.core.walkNode(node, scope);
+  }
+
+  function functionArgumentResultPaths(node: AstNode, scope: ScopeTracker): string[] {
+    if (["array", "object", "condition", "block", "bind"].includes(node.type)) {
+      return selection.getSelectedResultPaths(node, scope);
+    }
+    return node.type === "name" || node.type === "path" &&
+      (node as PathNode).steps[0]?.type === "name" &&
+      (node as PathNode).steps.every((step) => ["name", "wildcard", "descendant", "parent"].includes(step.type))
+      ? runtime.aliases.bindingAliasPaths(node, scope)
+      : extractBasePaths(node, scope);
   }
 
   /**
@@ -306,7 +319,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     const basePaths = usesImplicitRoot
       ? [ROOT_PATH]
       : dataArg
-        ? extractBasePaths(dataArg, scope)
+        ? functionArgumentResultPaths(dataArg, scope)
         : [];
     if (funcName === "map" && dataArg) {
       if (dataArg.type === "block") return basePaths;
@@ -778,8 +791,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
     // The caller has found a callback in the nonempty argument list.
-    const dataArgPaths = extractBasePaths(dataArg, dataArgScope);
-    const accumulatorPaths = extractBasePaths(accumulatorArg, dataArgScope);
+    const dataArgPaths = functionArgumentResultPaths(dataArg, dataArgScope);
+    const accumulatorPaths = functionArgumentResultPaths(accumulatorArg, dataArgScope);
     let lambdaScope = childScope(parentScope);
   
     for (let i = 0; i < lambda.arguments.length; i++) {
@@ -1333,7 +1346,10 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
             )
           : runtime.core.walkNode(arg, argumentScope));
       if (!identityPaths) paths.push(...argPaths);
-      argPathSets.push(argPaths);
+      const resultPaths = functionArgumentResultPaths(arg, argumentScope);
+      argPathSets.push(capturedArgumentContext?.length
+        ? capturedArgumentContext.flatMap((contextPrefix) => prefixProjectionPaths(contextPrefix, resultPaths))
+        : resultPaths);
     }
   
     // Create a scope binding each lambda parameter to its corresponding arg paths
@@ -1730,6 +1746,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
 
   return {
     extractBasePaths,
+    functionArgumentResultPaths,
     walkHigherOrderCall,
     higherOrderCallbackDataPaths,
     higherOrderCallbackDataNodes,

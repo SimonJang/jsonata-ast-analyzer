@@ -2184,6 +2184,7 @@ describe("path-stage semantics", () => {
   it("keeps root-context arguments absolute in function path steps", () => {
     expect(sortPaths(extractPaths("Account.$string($$.root)"))).toEqual(
       sortPaths([
+        { path: "Account", confidence: "static" },
         { path: "root", confidence: "static" },
         { path: "root.**", confidence: "static" },
       ]),

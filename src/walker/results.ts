@@ -3,7 +3,7 @@ import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
 import { HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, PATH_PRESERVING_RESULT_FUNCTIONS } from "./constants.js";
-import { appendPath, resolveParentPathSegments, filterToBasePaths } from "./path-utils.js";
+import { appendPath, resolveParentPathSegments, filterToBasePaths, markAbsolute } from "./path-utils.js";
 import type { ResultOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
 import { createSelectionOperations } from "./selection.js";
 
@@ -486,7 +486,7 @@ export function createResultOperations(
   
     for (let i = 0; i < lambda.arguments.length; i++) {
       const param = lambda.arguments[i];
-      const argPaths = i < callArgs.length ? runtime.higherOrder.extractBasePaths(callArgs[i], callScope) : [];
+      const argPaths = i < callArgs.length ? runtime.higherOrder.functionArgumentResultPaths(callArgs[i], callScope) : [];
       lambdaScope =
         i < callArgs.length
           ? runtime.higherOrder.bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
@@ -530,7 +530,7 @@ export function createResultOperations(
   
     for (let i = 0; i < lambda.arguments.length; i++) {
       const param = lambda.arguments[i];
-      const argPaths = i < callArgs.length ? runtime.higherOrder.extractBasePaths(callArgs[i], callScope) : [];
+      const argPaths = i < callArgs.length ? runtime.higherOrder.functionArgumentResultPaths(callArgs[i], callScope) : [];
       lambdaScope =
         i < callArgs.length
           ? runtime.higherOrder.bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
@@ -742,8 +742,8 @@ export function createResultOperations(
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
     // A resolved callback proves the dense argument list is nonempty.
-    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
-    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
+    const dataArgPaths = runtime.higherOrder.functionArgumentResultPaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.functionArgumentResultPaths(accumulatorArg, scope);
     let bodyAlias: ObjectAlias | null = null;
     if (callback) {
       let lambdaScope = childScope(callback.scope);
@@ -839,8 +839,8 @@ export function createResultOperations(
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
     // A resolved callback proves the dense argument list is nonempty.
-    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
-    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
+    const dataArgPaths = runtime.higherOrder.functionArgumentResultPaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.functionArgumentResultPaths(accumulatorArg, scope);
     let callbackAlias: DynamicObjectAlias | null = null;
     if (callback) {
       let lambdaScope = childScope(callback.scope);
@@ -1177,7 +1177,7 @@ export function createResultOperations(
   
     for (let i = 0; i < lambda.arguments.length; i++) {
       const param = lambda.arguments[i];
-      const argPaths = i < callArgs.length ? runtime.higherOrder.extractBasePaths(callArgs[i], callScope) : [];
+      const argPaths = i < callArgs.length ? runtime.higherOrder.functionArgumentResultPaths(callArgs[i], callScope) : [];
       lambdaScope =
         i < callArgs.length
           ? runtime.higherOrder.bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
@@ -1300,8 +1300,8 @@ export function createResultOperations(
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
     // A resolved callback proves the dense argument list is nonempty.
-    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
-    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
+    const dataArgPaths = runtime.higherOrder.functionArgumentResultPaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.functionArgumentResultPaths(accumulatorArg, scope);
     const lambdaPaths = callback
       ? (() => {
           let lambdaScope = childScope(callback.scope);
@@ -1673,8 +1673,8 @@ export function createResultOperations(
     const dataArg = args[0];
     const accumulatorArg = args[2] ?? dataArg;
     // A resolved callback proves the dense argument list is nonempty.
-    const dataArgPaths = runtime.higherOrder.extractBasePaths(dataArg, scope);
-    const accumulatorPaths = runtime.higherOrder.extractBasePaths(accumulatorArg, scope);
+    const dataArgPaths = runtime.higherOrder.functionArgumentResultPaths(dataArg, scope);
+    const accumulatorPaths = runtime.higherOrder.functionArgumentResultPaths(accumulatorArg, scope);
     const partialPaths =
       resolvedCallback && dataArg
         ? runtime.higherOrder.higherOrderPartialLambdaCalls(
@@ -1752,7 +1752,7 @@ export function createResultOperations(
   
     for (let i = 0; i < lambda.arguments.length; i++) {
       const param = lambda.arguments[i];
-      const argPaths = i < callArgs.length ? runtime.higherOrder.extractBasePaths(callArgs[i], callScope) : [];
+      const argPaths = i < callArgs.length ? runtime.higherOrder.functionArgumentResultPaths(callArgs[i], callScope) : [];
       lambdaScope =
         i < callArgs.length
           ? runtime.higherOrder.bindArgumentParameter(lambdaScope, param, argPaths, callArgs[i], callScope)
@@ -2210,8 +2210,29 @@ export function createResultOperations(
     }
   
     if (node.type === "function") {
-      const paths = getFunctionResultBasePaths(node as FunctionNode, scope);
-      return paths.length > 0 ? paths : runtime.core.walkNode(node, scope).slice(0, 1);
+      const call = node as FunctionNode;
+      const paths = getFunctionResultBasePaths(call, scope);
+      if (paths.length > 0) return paths;
+      const builtins = runtime.callables.resolveBuiltinCallableNames(call.procedure, scope);
+      const callables = runtime.callables.resolveCallableValues(call.procedure, scope);
+      const opaquePartial = (binding: NonNullable<ReturnType<typeof resolvePartial>>, depth = 0): boolean => {
+        if (depth >= 8) return true;
+        return runtime.callables.resolveBuiltinCallableNames(binding.partial.procedure, binding.scope)
+          .some((name) => options.opaqueFunctions.has(name)) ||
+          runtime.callables.resolveCallableValues(binding.partial.procedure, binding.scope)
+            .some((callable) => callable.kind === "partial" && opaquePartial(callable.binding, depth + 1));
+      };
+      const opaque = builtins.some((name) => options.opaqueFunctions.has(name)) ||
+        callables.some((callable) => callable.kind === "partial" && opaquePartial(callable.binding));
+      // Known result metadata can be empty: scalar reads are not value origins.
+      if (!opaque && (builtins.length > 0 || callables.length > 0)) return [];
+      const contextPaths = resolveVariable(scope, "");
+      if (contextPaths?.length) {
+        return markAbsolute(contextPaths.flatMap((contextPath) =>
+          runtime.paths.walkContextExpression(node, contextPath, scope),
+        ).slice(0, 1));
+      }
+      return runtime.core.walkNode(node, scope).slice(0, 1);
     }
   
     if (node.type === "block") {

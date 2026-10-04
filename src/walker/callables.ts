@@ -412,7 +412,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     for (let index = 0; index < binding.lambda.arguments.length; index++) {
       const parameter = binding.lambda.arguments[index];
       const arg = callArgs[index];
-      const argPaths = arg ? runtime.higherOrder.extractBasePaths(arg, callScope) : [];
+      const argPaths = arg ? runtime.higherOrder.functionArgumentResultPaths(arg, callScope) : [];
       resultScope = arg
         ? runtime.higherOrder.bindArgumentParameter(resultScope, parameter, argPaths, arg, callScope)
         : bindVariable(resultScope, parameter.value, argPaths);
