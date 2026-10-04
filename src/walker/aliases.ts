@@ -1853,11 +1853,12 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (isTransparentPathBlock(step)) {
         return hasVariableProjectionSource(((step as BlockNode).expressions[0] as PathNode).steps[0], projection);
       }
-      if (step.type !== "variable" || (step as VariableNode).focusBinding) return false;
+      if (step.type !== "variable") return false;
       const name = (step as VariableNode).value;
       if (resolveValue(scope, name) &&
           (runtime.callables.resolveCallableValues(step, scope).length > 0 ||
            runtime.callables.resolveBuiltinCallableNames(step, scope).length > 0)) return true;
+      if ((step as VariableNode).focusBinding) return false;
       const objectAlias = resolveObjectAlias(scope, name);
       if (objectAlias) {
         return (resolveSuffixBasePaths(scope, name)?.length ?? 0) === 0 || projectsDataPath(projection);
