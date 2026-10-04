@@ -18,11 +18,11 @@ describe("alias operation contracts", () => {
     expect(runtime.aliases.selectLookupDynamicObjectAliasPaths(alias!, [])).toEqual(["source"]);
   });
 
-  it("selects only immediate matching keys under a wildcard alias prefix", () => {
-    const aliases = new Map([["copy.value", ["source"]], ["other", ["ignored"]], ["copy.nested.value", ["alsoIgnored"]]]);
+  it("selects immediate values and constructed descendants under a wildcard alias prefix", () => {
+    const aliases = new Map([["copy.value", ["source"]], ["other", ["ignored"]], ["copy.nested.value", ["nestedSource"]]]);
     const operations = walkerRuntime().aliases;
     const wildcard: AstNode = { type: "wildcard", value: "*", position: 0 };
-    expect(operations.selectObjectAliasPaths(aliases, [name("copy"), wildcard])).toEqual(["source"]);
+    expect(operations.selectObjectAliasPaths(aliases, [name("copy"), wildcard])).toEqual(["source", "nestedSource"]);
     expect(operations.selectObjectAliasPaths(aliases, [name("missing"), wildcard])).toBeNull();
   });
 

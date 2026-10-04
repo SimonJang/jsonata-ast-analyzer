@@ -12,6 +12,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     scope: ScopeTracker,
     stageVariables: ReadonlySet<string> = new Set(),
     keepBarePathsRootRelative = false,
+    preserveCurrentContext = false,
   ): string[] {
     const localPaths = runtime.core.walkNode(expr, childScope(createScope()));
     const localSet = new Set(localPaths);
@@ -24,7 +25,8 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       containsBuiltinContextDefaultCall(expr) ||
       runtime.functions.resultUsesContextDefault(expr, scope);
     if (usesCurrentContext && contextPrefix) {
-      const contextScope = bindVariable(childScope(scope), "", [contextPrefix]);
+      const contextScope = preserveCurrentContext
+        ? childScope(scope) : bindVariable(childScope(scope), "", [contextPrefix]);
       const contextPaths = runtime.core.walkNode(expr, contextScope);
       if (keepBarePathsRootRelative && stageVariables.size > 0) {
         return contextPaths;
@@ -1301,7 +1303,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         const blockEvaluationStageVariables = new Set(
           blockExpressionStageVariables,
         );
-        if (capturesCurrentContext) {
+        if (capturesCurrentContext && inheritedFunctionContext === undefined) {
           blockEvaluationScope = bindVariable(
             childScope(stageScope),
             "",
@@ -1333,6 +1335,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               blockEvaluationScope,
               blockEvaluationStageVariables,
               true,
+              inheritedFunctionContext !== undefined,
             ),
           );
         }
@@ -1345,6 +1348,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               stageScope,
               blockExpressionStageVariables,
               true,
+              inheritedFunctionContext !== undefined,
             ),
           );
         }

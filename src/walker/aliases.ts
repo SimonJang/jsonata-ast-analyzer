@@ -139,6 +139,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: PathNode,
     scope: ScopeTracker,
   ): ObjectAlias | null {
+    const selected = selectedWildcardPathAliasContext(node, scope);
+    if (selected) return selected.objectAlias;
     const chained = chainedPathContext(node, scope);
     if (chained) {
       return groupResultObjectAliasForNode(
@@ -276,7 +278,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     alias: ObjectAlias,
     suffixSteps: AstNode[],
   ): string[] | null {
-    const [selector, ...rest] = suffixSteps;
+    const [selector] = suffixSteps;
     if (!selector) return [...alias.values()].flatMap((paths) => [...paths]);
   
     if (selector.type === "name") {
@@ -293,18 +295,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
       const wildcardStep = suffixSteps[keyParts.length];
       if (!best && wildcardStep?.type === "wildcard") {
-        const prefix = `${keyParts.join(".")}.`;
-        const suffix = buildPathString(suffixSteps.slice(keyParts.length + 1));
-        const wildcardPaths: string[] = [];
-  
-        for (const [key, paths] of alias) {
-          const restKey = key.startsWith(prefix) ? key.slice(prefix.length) : "";
-          if (restKey && !restKey.includes(".")) {
-            wildcardPaths.push(...paths.map((path) => appendPath(path, suffix)));
-          }
-        }
-  
-        return wildcardPaths.length > 0 ? wildcardPaths : null;
+        return selectWildcardObjectAliasPaths(alias, suffixSteps);
       }
   
       if (!best) return null;
@@ -322,12 +313,60 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       return best.paths.map((path) => appendPath(path, suffix));
     }
     if (selector.type === "wildcard") {
-      const suffix = buildPathString(rest);
-      return [...alias.values()].flatMap((paths) =>
-        paths.map((path) => appendPath(path, suffix)),
-      );
+      return selectWildcardObjectAliasPaths(alias, suffixSteps);
     }
     return null;
+  }
+
+  function selectWildcardObjectAliasPaths(alias: ObjectAlias, suffixSteps: AstNode[]): string[] | null {
+    const steps = suffixSteps.filter((step, index) => step.type !== "variable" ||
+      (suffixSteps[index - 1] as AstNode & { focusBinding?: { name: string } })?.focusBinding?.name !==
+        (step as VariableNode).value);
+    const paths: string[] = [];
+    for (const [key, sources] of alias) {
+      const fields = key.split(".");
+      let consumed = 0;
+      while (consumed < fields.length && consumed < steps.length) {
+        const step = steps[consumed];
+        if (step.type === "wildcard" || step.type === "name" &&
+            aliasKeySegment((step as NameNode).value) === fields[consumed]) {
+          consumed++;
+        } else {
+          break;
+        }
+      }
+      // A remaining virtual field must match before following its input origin.
+      if (consumed < fields.length && consumed < steps.length) continue;
+      const suffix = buildPathString(steps.slice(consumed));
+      paths.push(...sources.map((source) => appendPath(source, suffix)));
+    }
+    return paths.length ? paths : null;
+  }
+
+  function selectedWildcardPathAliasContext(node: PathNode, scope: ScopeTracker) {
+    const [first, ...selectors] = node.steps;
+    if (first?.type !== "variable" || !selectors.some((step) => step.type === "wildcard") ||
+        !selectors.every((step) => step.type === "name" || step.type === "wildcard")) return null;
+    const alias = resolveObjectAlias(scope, (first as VariableNode).value);
+    if (!alias) return null;
+    const fields = new Map<string, string[]>();
+    const suffixBasePaths = (resolveSuffixBasePaths(scope, (first as VariableNode).value) ?? [])
+      .map((source) => appendPath(source, buildPathString(selectors)));
+    for (const [key, sources] of alias) {
+      const keys = key.split(".");
+      let consumed = 0;
+      while (consumed < keys.length && consumed < selectors.length &&
+          (selectors[consumed].type === "wildcard" ||
+           aliasKeySegment((selectors[consumed] as NameNode).value) === keys[consumed])) consumed++;
+      if (consumed < keys.length && consumed < selectors.length) continue;
+      if (consumed < keys.length) {
+        const remaining = keys.slice(consumed).join(".");
+        fields.set(remaining, [...(fields.get(remaining) ?? []), ...sources]);
+      } else {
+        suffixBasePaths.push(...sources.map((source) => appendPath(source, buildPathString(selectors.slice(consumed)))));
+      }
+    }
+    return { objectAlias: fields.size ? fields : null, suffixBasePaths };
   }
 
   function selectDynamicObjectValuePaths(
@@ -1105,6 +1144,18 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     if (node.type === "path") {
       const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
       if (method) return dynamicObjectAliasForNode(method.node, method.scope);
+      const path = node as PathNode;
+      if (selectedWildcardPathAliasContext(path, scope)) {
+        const [first, ...selectors] = path.steps;
+        const original = resolveDynamicObjectAlias(scope, (first as VariableNode).value);
+        const variants = original?.variants.flatMap((variant) => {
+          const prefixes = variant.prefixSteps ?? [];
+          if (prefixes.length < selectors.length || !selectors.every((step, index) =>
+              step.type === "wildcard" || (step as NameNode).value === prefixes[index])) return [];
+          return [{ ...variant, prefixSteps: prefixes.slice(selectors.length) }];
+        }) ?? [];
+        return variants.length ? { variants } : null;
+      }
       const chained = chainedPathContext(node as PathNode, scope);
       if (chained) {
         return groupResultDynamicObjectAliasForNode(
@@ -2181,6 +2232,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     objectAliasFromObject,
     mergeObjectAliases,
     objectAliasForNode,
+    selectedWildcardPathAliasContext,
     objectAliasFromBlock,
     selectObjectAliasPaths,
     mergeDynamicObjectAliases,

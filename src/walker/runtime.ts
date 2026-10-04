@@ -41,7 +41,7 @@ export interface CoreOperations {
 }
 
 export interface PathOperations {
-  walkContextExpression(expr: AstNode, contextPrefix: string, scope: ScopeTracker, stageVariables?: ReadonlySet<string>, keepBarePathsRootRelative?: boolean): string[];
+  walkContextExpression(expr: AstNode, contextPrefix: string, scope: ScopeTracker, stageVariables?: ReadonlySet<string>, keepBarePathsRootRelative?: boolean, preserveCurrentContext?: boolean): string[];
   walkContextCallableSelection(expr: AstNode, contextPrefix: string, scope: ScopeTracker): string[];
   walkPath(node: PathNode, scope: ScopeTracker): string[];
   walkResolvedVariableSuffixFilterStages(suffixSteps: AstNode[], resolvedPath: string, scope: ScopeTracker, stageVariables: ReadonlySet<string>): string[];
@@ -61,6 +61,7 @@ export interface AliasOperations {
   objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAlias | null;
   mergeObjectAliases(aliases: Array<ObjectAlias | null>): ObjectAlias | null;
   objectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null;
+  selectedWildcardPathAliasContext(node: PathNode, scope: ScopeTracker): { objectAlias: ObjectAlias | null; suffixBasePaths: string[] } | null;
   objectAliasFromBlock(node: BlockNode, scope: ScopeTracker): ObjectAlias | null;
   selectObjectAliasPaths(alias: ObjectAlias, suffixSteps: AstNode[]): string[] | null;
   mergeDynamicObjectAliases(aliases: Array<DynamicObjectAlias | null>): DynamicObjectAlias | null;

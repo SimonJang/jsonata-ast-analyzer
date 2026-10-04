@@ -1621,6 +1621,8 @@ export function createResultOperations(
       if (pathNode.group) return [];
       const method = runtime.callables.resolveStoredMethodPath(pathNode, scope);
       if (method) return getResultSuffixBasePaths(method.node, method.scope);
+      const wildcardContext = runtime.aliases.selectedWildcardPathAliasContext(pathNode, scope);
+      if (wildcardContext) return wildcardContext.suffixBasePaths;
       const chained = runtime.aliases.chainedPathContext(pathNode, scope);
       if (chained) {
         return getResultSuffixBasePaths(
