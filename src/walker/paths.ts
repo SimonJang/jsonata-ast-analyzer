@@ -443,10 +443,6 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
       const dynamicObjectAlias = resolveDynamicObjectAlias(scope, varStep.value);
       if (objectAlias || dynamicObjectAlias) {
         const suffixBaseBinding = resolveSuffixBasePaths(scope, varStep.value) ?? [];
-        const unmatchedSuffixBaseBinding = runtime.aliases.unmatchedAliasSuffixBasePaths(
-          objectAlias,
-          suffixBaseBinding,
-        );
         const aliasScope = varStep.focusBinding
           ? runtime.aliases.bindFocusObjectAliasScope(
               scope,
@@ -463,7 +459,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           dynamicObjectAlias,
           suffixSteps,
           aliasScope,
-          unmatchedSuffixBaseBinding,
+          suffixBaseBinding,
           Boolean(varStep.focusBinding),
         );
         const variableStagePaths = [
@@ -474,7 +470,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                   dynamicObjectAlias,
                   (stage as unknown as FilterStage).expr,
                   aliasScope,
-                  unmatchedSuffixBaseBinding,
+                  suffixBaseBinding,
                 )
               : [],
           ),
@@ -484,7 +480,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                 objectAlias,
                 dynamicObjectAlias,
                 aliasScope,
-                unmatchedSuffixBaseBinding,
+                suffixBaseBinding,
               )
             : []),
         ];
@@ -501,7 +497,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           objectAlias,
           dynamicObjectAlias,
           aliasScope,
-          unmatchedSuffixBaseBinding,
+          suffixBaseBinding,
           Boolean(varStep.focusBinding),
         );
         const suffixProjectionPaths = runtime.aliases.walkAliasSuffixProjectionSteps(
@@ -521,11 +517,11 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
         );
         const suffix = buildPathString(suffixSteps);
         const suffixBasePaths =
-          suffix && unmatchedSuffixBaseBinding.length > 0
-            ? unmatchedSuffixBaseBinding.map((path) => appendPath(path, suffix))
+          suffix && suffixBaseBinding.length > 0
+            ? suffixBaseBinding.map((path) => appendPath(path, suffix))
             : [];
         const selectedObjectPaths = objectPaths ?? [];
-        const suffixBaseRoots = new Set(unmatchedSuffixBaseBinding);
+        const suffixBaseRoots = new Set(suffixBaseBinding);
         const groupBasePaths = [
           ...selectedObjectPaths.filter((path) => !suffixBaseRoots.has(path)),
           ...suffixBasePaths,
@@ -537,7 +533,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
                 objectAlias,
                 dynamicObjectAlias,
                 aliasScope,
-                unmatchedSuffixBaseBinding,
+                suffixBaseBinding,
               )
             : runtime.aliases.walkAliasSuffixGroupEntries(
                 node.group,
@@ -1215,7 +1211,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
               runtime.aliases.objectAliasForNode(arrayStep, stageScope),
               runtime.aliases.dynamicObjectAliasForNode(arrayStep, stageScope),
               resultBasePaths,
-              resultBasePaths,
+              prefixProjectionPaths(
+                contextPrefix,
+                runtime.aliases.groupResultSuffixBasePaths(arrayStep, stageScope),
+              ),
             );
             predicateStageVariables.add(arrayStep.focusBinding.name);
           }
@@ -1276,7 +1275,10 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           contextPrefix,
         );
         const blockDynamicObjectAlias = runtime.aliases.dynamicObjectAliasForNode(blockStep, stageScope);
-        const blockSuffixBasePaths = blockBasePaths;
+        const blockSuffixBasePaths = prefixProjectionPaths(
+          contextPrefix,
+          runtime.aliases.groupResultSuffixBasePaths(blockStep, stageScope),
+        );
         const blockExpressionStageVariables = new Set(stageVariables);
         if (blockStep.focusBinding) {
           stageScope = runtime.aliases.bindFocusObjectAliasScope(
@@ -1728,7 +1730,12 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
           objectAlias,
           dynamicObjectAlias,
           resultBasePaths,
-          resultBasePaths,
+          usesContextDefault
+            ? runtime.aliases.groupResultSuffixBasePaths(resultAliasStep, resultScope)
+            : prefixProjectionPaths(
+                contextPrefix,
+                runtime.aliases.groupResultSuffixBasePaths(resultAliasStep, resultScope),
+              ),
         );
       }
       if (indexBinding) {

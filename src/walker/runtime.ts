@@ -77,7 +77,6 @@ export interface AliasOperations {
   groupResultObjectAliasForNode(node: AstNode, scope: ScopeTracker): ObjectAlias | null;
   groupResultDynamicObjectAliasForNode(node: AstNode, scope: ScopeTracker): DynamicObjectAlias | null;
   groupResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[];
-  groupResultSuffixableBasePaths(node: AstNode, scope: ScopeTracker): string[];
   bindObjectAliasIfPresent(scope: ScopeTracker, name: string, node: AstNode, aliasScope: ScopeTracker): ScopeTracker;
   bindDynamicObjectAliasIfPresent(scope: ScopeTracker, name: string, node: AstNode, aliasScope: ScopeTracker): ScopeTracker;
   bindFocusObjectAliasScope(scope: ScopeTracker, name: string, objectAlias: ObjectAlias | null, dynamicObjectAlias: DynamicObjectAlias | null, basePaths: readonly string[], suffixBasePaths: readonly string[]): ScopeTracker;
@@ -95,11 +94,10 @@ export interface AliasOperations {
   objectConstructorContextBasePaths(node: ObjectNode, contextPrefix: string, scope: ScopeTracker): string[];
   objectConstructorContextAlias(node: ObjectNode, prefixSteps: AstNode[], scope: ScopeTracker): ObjectAlias | null;
   blockContextBasePaths(node: BlockNode, contextPrefix: string, scope: ScopeTracker): string[];
-  pathResultAliasContextBasePaths(node: PathNode, scope: ScopeTracker): string[];
+  pathResultAliasContextBasePaths(node: PathNode, scope: ScopeTracker, suffixBasesOnly?: boolean): string[];
   hasResultAliasObjectSuffixSelection(node: PathNode, scope: ScopeTracker): boolean;
   hasVariableBeforeResultAlias(node: PathNode, resultAliasStepIndex?: number): boolean;
   prefixObjectAlias(alias: ObjectAlias | null, contextPrefix: string): ObjectAlias | null;
-  unmatchedAliasSuffixBasePaths(objectAlias: ObjectAlias | null, suffixBasePaths: readonly string[]): string[];
   selectResultAliasProjectionStepPaths(step: AstNode, projectionStep: AstNode, scope: ScopeTracker, preserveUnmappedLocalPaths?: boolean): string[] | null;
   projectionStepExpressions(step: AstNode): AstNode[] | null;
   selectAliasExpressionPaths(objectAlias: ObjectAlias | null, dynamicObject: DynamicObjectAlias | null, expression: AstNode, scope: ScopeTracker, suffixBasePaths?: readonly string[], preserveUnmappedLocalPaths?: boolean, skipLocalPaths?: boolean): string[];

@@ -1575,20 +1575,21 @@ export function createResultOperations(
   
     if (funcName === "append" || funcName === "zip") {
       return args.flatMap((arg) =>
-        runtime.aliases.groupResultSuffixableBasePaths(arg, argScope),
+        runtime.aliases.groupResultSuffixBasePaths(arg, argScope),
       );
     }
   
     return args[0] ? runtime.aliases.groupResultSuffixBasePaths(args[0], argScope) : [];
   }
 
+  /** Physical result roots that can receive a suffix; constructed fields use aliases. */
   function getResultSuffixBasePaths(node: AstNode, scope: ScopeTracker): string[] {
     if (node.type === "variable") {
       const name = (node as VariableNode).value;
       const suffixPaths = resolveSuffixBasePaths(scope, name) ?? [];
       const objectAlias = resolveObjectAlias(scope, name);
       if (objectAlias || resolveDynamicObjectAlias(scope, name)) {
-        return runtime.aliases.unmatchedAliasSuffixBasePaths(objectAlias, suffixPaths);
+        return [...suffixPaths];
       }
       return runtime.functions.identityReferencePaths(node, scope) ??
         [...(suffixPaths.length ? suffixPaths : resolveVariable(scope, name) ?? [])];
@@ -1605,9 +1606,9 @@ export function createResultOperations(
     if (node.type === "condition") {
       const condition = node as ConditionNode;
       return [
-        ...runtime.aliases.groupResultSuffixableBasePaths(condition.then, scope),
+        ...runtime.aliases.groupResultSuffixBasePaths(condition.then, scope),
         ...(condition.else
-          ? runtime.aliases.groupResultSuffixableBasePaths(condition.else, scope)
+          ? runtime.aliases.groupResultSuffixBasePaths(condition.else, scope)
           : []),
       ];
     }
@@ -1634,7 +1635,7 @@ export function createResultOperations(
       ) {
         return getResultBasePathsFromArg(pathNode, scope);
       }
-      return runtime.aliases.pathResultAliasContextBasePaths(pathNode, scope);
+      return runtime.aliases.pathResultAliasContextBasePaths(pathNode, scope, true);
     }
   
     if (node.type === "array") {
@@ -1653,7 +1654,7 @@ export function createResultOperations(
     const accumulatorArg = args[2] ?? args[0];
     if (!accumulatorArg) return [];
   
-    return runtime.aliases.groupResultSuffixableBasePaths(accumulatorArg, scope);
+    return runtime.aliases.groupResultSuffixBasePaths(accumulatorArg, scope);
   }
 
   function getReduceCallbackResultSuffixBasePaths(
@@ -1870,11 +1871,7 @@ export function createResultOperations(
       } else if (expr.type === "variable") {
         const name = (expr as VariableNode).value;
         const suffixBasePaths = resolveSuffixBasePaths(currentScope, name) ?? [];
-        const objectAlias = resolveObjectAlias(currentScope, name);
-        const objectAliasBases = new Set(
-          objectAlias ? [...objectAlias.values()].flatMap((paths) => [...paths]) : [],
-        );
-        result = suffixBasePaths.filter((path) => !objectAliasBases.has(path));
+        result = [...suffixBasePaths];
       } else {
         result = getResultSuffixBasePaths(expr, currentScope);
       }
@@ -1948,20 +1945,15 @@ export function createResultOperations(
     if (objectPaths) paths.push(...objectPaths);
   
     const suffix = buildPathString(selectorSteps);
-    const objectAliasBases = new Set(
-      objectAlias ? [...objectAlias.values()].flatMap((basePaths) => [...basePaths]) : [],
-    );
     const suffixBasePaths =
       objectArg.type === "variable"
         ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
         : runtime.aliases.groupResultSuffixBasePaths(objectArg, scope);
     if (objectArg.type !== "object" && suffixBasePaths.length > 0 && suffix) {
       paths.push(
-        ...suffixBasePaths
-          .filter((path) => !objectAliasBases.has(path))
-          .map((path) =>
-            staticSelector ? appendPath(path, staticSelector) : appendDynamicLookupMarker(path),
-          ),
+        ...suffixBasePaths.map((path) =>
+          staticSelector ? appendPath(path, staticSelector) : appendDynamicLookupMarker(path),
+        ),
       );
     }
   
@@ -2007,9 +1999,6 @@ export function createResultOperations(
       objectArg,
       scope,
     );
-    const objectAliasBases = new Set(
-      objectAlias ? [...objectAlias.values()].flatMap((basePaths) => [...basePaths]) : [],
-    );
     const suffixBasePaths =
       objectArg.type === "variable"
         ? (resolveSuffixBasePaths(scope, (objectArg as VariableNode).value) ?? [])
@@ -2017,7 +2006,7 @@ export function createResultOperations(
     const pathLikeBases =
       objectArg.type === "object"
         ? []
-        : suffixBasePaths.filter((path) => !objectAliasBases.has(path));
+        : suffixBasePaths;
   
     if (pathValueAliasBases.length > 0 || pathLikeBases.length > 0) {
       const pathLikeLookupBases = staticSelector

@@ -642,15 +642,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffixBasePaths,
       ) ?? [];
     const suffix = buildPathString(suffixSteps);
-    const unmatchedSuffixBasePaths = unmatchedAliasSuffixBasePaths(
-      objectAlias,
-      suffixBasePaths,
-    );
     const suffixBaseContextPaths =
-      suffix && unmatchedSuffixBasePaths.length > 0
-        ? unmatchedSuffixBasePaths.map((path) => appendPath(path, suffix))
+      suffix && suffixBasePaths.length > 0
+        ? suffixBasePaths.map((path) => appendPath(path, suffix))
         : [];
-    const suffixBaseRoots = new Set(unmatchedSuffixBasePaths);
+    const suffixBaseRoots = new Set(suffixBasePaths);
     return [
       ...aliasPaths.filter((path) => !suffixBaseRoots.has(path)),
       ...suffixBaseContextPaths,
@@ -1174,15 +1170,6 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       : runtime.results.getResultSuffixBasePaths(node, scope);
   }
 
-  function groupResultSuffixableBasePaths(
-    node: AstNode,
-    scope: ScopeTracker,
-  ): string[] {
-    return (node as AstNode & { group?: GroupByNode }).group
-      ? []
-      : runtime.results.getSuffixableResultBasePaths(node, scope);
-  }
-
   function bindObjectAliasIfPresent(
     scope: ScopeTracker,
     name: string,
@@ -1216,11 +1203,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     if (dynamicObjectAlias) {
       focusScope = bindDynamicObjectAlias(focusScope, name, dynamicObjectAlias);
     }
-    const objectAliasBases = new Set(
-      objectAlias ? [...objectAlias.values()].flatMap((paths) => [...paths]) : [],
-    );
-    const pathLikeBases = suffixBasePaths.filter((path) => !objectAliasBases.has(path));
-    focusScope = bindSuffixBasePaths(focusScope, name, pathLikeBases);
+    focusScope = bindSuffixBasePaths(focusScope, name, suffixBasePaths);
     return focusScope;
   }
 
@@ -1268,7 +1251,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const paths =
       currentPaths?.length &&
       node.type === "path" &&
-      (node as PathNode).steps[0]?.type === "name"
+      (node as PathNode).steps[0]?.type === "name" &&
+      !(node as PathNode).steps.some(isResultAliasStep)
         ? bindingAliasPaths(node, aliasScope)
         : groupResultSuffixBasePaths(node, aliasScope);
     return bindSuffixBasePaths(scope, name, paths);
@@ -1303,6 +1287,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (projection.type !== "block") return false;
       let result: AstNode | undefined = projection;
       while (result?.type === "block") result = (result as BlockNode).expressions.at(-1);
+      if (result?.type === "variable" && (result as VariableNode).value === "") return true;
       return result?.type === "path" && (result as PathNode).steps.every(
         (part) => ["name", "variable", "wildcard", "descendant"].includes(part.type),
       );
@@ -1314,11 +1299,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const name = (step as VariableNode).value;
       const objectAlias = resolveObjectAlias(scope, name);
       if (objectAlias) {
-        return unmatchedAliasSuffixBasePaths(
-          objectAlias, resolveSuffixBasePaths(scope, name) ?? [],
-        ).length === 0 || projectsDataPath(projection);
+        return (resolveSuffixBasePaths(scope, name)?.length ?? 0) === 0 || projectsDataPath(projection);
       }
-      if (resolveDynamicObjectAlias(scope, name)) return false;
+      if (resolveDynamicObjectAlias(scope, name)) return projectsDataPath(projection);
       const paths = resolveVariable(scope, name) ?? [];
       if (paths.length === 1) return true;
       return paths.length > 0 && projectsDataPath(projection);
@@ -1461,10 +1444,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const suffix = buildPathString(suffixSteps);
     if (dynamicObject) {
       const suffixBasePaths = suffix
-        ? unmatchedAliasSuffixBasePaths(
-            objectAlias,
-            runtime.results.getResultSuffixBasePaths(step, scope),
-          ).map((path) => appendPath(path, suffix))
+        ? runtime.results.getResultSuffixBasePaths(step, scope).map((path) => appendPath(path, suffix))
         : [];
       return [...stepReadPaths, ...resultBasePaths, ...suffixBasePaths];
     }
@@ -1742,6 +1722,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   function pathResultAliasContextBasePaths(
     node: PathNode,
     scope: ScopeTracker,
+    suffixBasesOnly = false,
   ): string[] {
     const resultAliasStepIndex = node.steps.findIndex(isResultAliasStep);
     if (resultAliasStepIndex < 0) return runtime.results.getResultBasePathsFromArg(node, scope);
@@ -1778,17 +1759,21 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
     if (resultAliasStep.type === "array") {
       return withContext(
-        arrayConstructorContextBasePaths(resultAliasStep as ArrayNode, "", scope),
+        suffixBasesOnly
+          ? groupResultSuffixBasePaths(resultAliasStep, scope)
+          : arrayConstructorContextBasePaths(resultAliasStep as ArrayNode, "", scope),
       );
     }
     if (resultAliasStep.type === "object") {
       return [];
     }
     if (resultAliasStep.type === "block") {
-      return withContext(blockContextBasePaths(resultAliasStep as BlockNode, "", scope));
+      return withContext(suffixBasesOnly
+        ? groupResultSuffixBasePaths(resultAliasStep, scope)
+        : blockContextBasePaths(resultAliasStep as BlockNode, "", scope));
     }
   
-    const resultBasePaths = suffix
+    const resultBasePaths = suffix || suffixBasesOnly
       ? runtime.results.getResultSuffixBasePaths(resultAliasStep, scope)
       : bindingAliasPaths(resultAliasStep, scope);
     return resultBasePaths.length > 0 ? withContext(resultBasePaths) : [];
@@ -1842,18 +1827,6 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       fields.set(key, prefixProjectionPaths(contextPrefix, [...paths]));
     }
     return fields;
-  }
-
-  function unmatchedAliasSuffixBasePaths(
-    objectAlias: ObjectAlias | null,
-    suffixBasePaths: readonly string[],
-  ): string[] {
-    if (!objectAlias || suffixBasePaths.length === 0) return [...suffixBasePaths];
-  
-    const aliasValueRoots = new Set(
-      [...objectAlias.values()].flatMap((paths) => [...paths]),
-    );
-    return suffixBasePaths.filter((path) => !aliasValueRoots.has(path));
   }
 
   function selectResultAliasProjectionStepPaths(
@@ -2050,7 +2023,6 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     groupResultObjectAliasForNode,
     groupResultDynamicObjectAliasForNode,
     groupResultSuffixBasePaths,
-    groupResultSuffixableBasePaths,
     bindObjectAliasIfPresent,
     bindDynamicObjectAliasIfPresent,
     bindFocusObjectAliasScope,
@@ -2072,7 +2044,6 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     hasResultAliasObjectSuffixSelection,
     hasVariableBeforeResultAlias,
     prefixObjectAlias,
-    unmatchedAliasSuffixBasePaths,
     selectResultAliasProjectionStepPaths,
     projectionStepExpressions,
     selectAliasExpressionPaths,

@@ -104,7 +104,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
       dynamicObjectAlias,
       pathNode.steps.slice(varStepIndex + 1),
       scope,
-      runtime.aliases.unmatchedAliasSuffixBasePaths(objectAlias, suffixBasePaths),
+      suffixBasePaths,
     );
     return aliasPaths ? aliasPaths.map(resolveParentPathSegments) : [];
   }
@@ -491,13 +491,9 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     if (selectedPatternPrefixes.length === 0) return null;
   
     const transformBasePaths = runtime.higherOrder.extractBasePaths(lhs, scope);
-    const unmatchedSuffixBasePaths = runtime.aliases.unmatchedAliasSuffixBasePaths(
-      objectAlias,
-      suffixBasePaths,
-    );
     const fallbackPrefixes =
       suffixBasePaths.length > 0
-        ? unmatchedSuffixBasePaths
+        ? suffixBasePaths
         : transformBasePaths.length > 0
           ? transformBasePaths
           : [lhsPaths[0] ?? ""];

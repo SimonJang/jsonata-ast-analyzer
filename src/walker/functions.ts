@@ -346,7 +346,7 @@ export function createFunctionOperations(
               objectAlias,
               dynamicObjectAlias,
               [resolvedPath],
-              suffixBasePaths.length > 0 ? suffixBasePaths : [resolvedPath],
+              runtime.results.getResultSuffixBasePaths(node, scope),
             );
             predicateStageVariables.add(node.focusBinding.name);
           }
@@ -381,7 +381,7 @@ export function createFunctionOperations(
             objectAlias,
             dynamicObjectAlias,
             variableBasePaths,
-            suffixBasePaths.length > 0 ? suffixBasePaths : variableBasePaths,
+            runtime.results.getResultSuffixBasePaths(node, scope),
           );
           groupStageVariables.add(node.focusBinding.name);
         }
