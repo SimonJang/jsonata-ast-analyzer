@@ -66,4 +66,23 @@ describe("constructed focus scopes", () => {
     ]);
   });
 
+
+  it.each(producers)("shadows an outer data alias with a wildcard position from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer}).*@$child#$i[$i=0].$i)`;
+    expect(await jsonata(expression).evaluate(input)).toBe(0);
+    expect(accesses(expression)).toEqual([exact("key"), exact("other"), exact("record")]);
+  });
+
+  it.each(producers)("shadows an outer data alias with a named position from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer}).other@$child#$i[$i=0].$i)`;
+    expect(await jsonata(expression).evaluate(input)).toBe(0);
+    expect(accesses(expression)).toEqual([exact("key"), exact("other"), exact("record")]);
+  });
+
+  it.each(producers)("keeps positional fields scalar beside selected data from %s", async (producer) => {
+    const expression = `($i:=record;$v:=${shape};(${producer}).other@$child#$i[$i=0].{"position":$i,"value":$child.different})`;
+    expect(await jsonata(expression).evaluate(input)).toEqual({ position: 0, value: input.other });
+    expect(accesses(expression)).toEqual([exact("key"), subtree("other"), exact("record")]);
+  });
+
 });

@@ -364,10 +364,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       ] }, scope);
       if (selected?.objectAlias || selected?.dynamicObjectAlias) {
         if (focusIndex === node.steps.length - 1) return selected;
-        const focusScope = bindFocusObjectAliasScope(
+        let focusScope = bindFocusObjectAliasScope(
           scope, focusStep.focusBinding!.name, selected.objectAlias, selected.dynamicObjectAlias,
           [], selected.suffixBasePaths,
         );
+        if (focusStep.indexBinding) focusScope = bindVariable(focusScope, focusStep.indexBinding.name, []);
         const parent: AstNode = focusIndex === 1 ? node.steps[0]
           : { type: "path", steps: node.steps.slice(0, focusIndex) };
         const contextScope = runtime.higherOrder.bindArgumentParameter(
