@@ -1646,7 +1646,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     let scopedCallScope = childScope(callScope);
     const scopedArguments = args.map((arg, index) => {
       const argumentScope = argumentScopes[index] ?? callScope;
-      if (argumentScope === callScope) return arg;
+      // Atomic literals need no scope binding; preserve static keys/programs.
+      if (argumentScope === callScope || ["string", "number", "value", "regex"].includes(arg.type)) return arg;
   
       const variable: VariableNode = {
         type: "variable",

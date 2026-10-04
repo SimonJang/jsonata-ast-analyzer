@@ -501,10 +501,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         binding.partial, callArgs, binding.scope, callScope,
       );
       const scoped = runtime.higherOrder.scopePartialArguments(args, argumentScopes, callScope);
-      // Literal arguments have no lexical context and retain static selectors.
-      const scopedArgs = scoped.arguments.map((arg, index) =>
-        ["string", "number", "value", "regex"].includes(args[index].type) ? args[index] : arg,
-      );
+      const scopedArgs = scoped.arguments;
       const callables = resolveCallableValues(binding.partial.procedure, binding.scope);
       return [
         {

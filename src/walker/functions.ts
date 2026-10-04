@@ -983,7 +983,7 @@ export function createFunctionOperations(
   ): ScopeTracker {
     const contextArg = args[1];
     if (!contextArg) return scope;
-    const paths = runtime.results.getResultBasePathsFromArg(contextArg, scope);
+    const paths = runtime.higherOrder.functionArgumentResultPaths(contextArg, scope);
     const currentScope = runtime.higherOrder.bindArgumentParameter(
       childScope(scope), { type: "variable", value: "", position: 0 },
       paths, contextArg, scope,
