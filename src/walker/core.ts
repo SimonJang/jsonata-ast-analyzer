@@ -10,11 +10,12 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
 
   function collectConstructorAssignments(node: AstNode): readonly BindNode[] {
     if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
-    if (node.type !== "array" && node.type !== "object") return [];
+    if (node.type !== "array" && node.type !== "object" && node.type !== "function") return [];
     const cached = constructorAssignments.get(node);
     if (cached) return cached;
     const expressions = node.type === "array" ? (node as ArrayNode).expressions
-      : (node as ObjectNode).entries.flatMap(([key, value]) => [key, value]);
+      : node.type === "object" ? (node as ObjectNode).entries.flatMap(([key, value]) => [key, value])
+      : [(node as FunctionNode).procedure, ...(node as FunctionNode).arguments];
     const assignments = expressions.flatMap((expression) => [
       ...collectConstructorAssignments(expression),
       ...(expression.type === "bind" ? [expression as BindNode] : []),
