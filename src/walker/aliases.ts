@@ -2687,7 +2687,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const mappedPaths = runtime.core.walkNode(rewritten, aliasScope(scope));
       if (!skipLocalPaths) return mappedPaths;
       const localMappedPaths = new Set(runtime.core.walkNode(rewritten, aliasScope(createScope())));
-      return mappedPaths.filter((path) => !localMappedPaths.has(path));
+      return markAbsolute(mappedPaths.filter((path) => !localMappedPaths.has(path)));
     }
     const paths: string[] = [];
     const localPaths = new Set(runtime.core.walkNode(expression, childScope(createScope())));
@@ -2737,7 +2737,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       paths.push(...aliasPaths);
     }
   
-    return paths;
+    return skipLocalPaths ? markAbsolute(paths) : paths;
   }
 
   function selectAliasSuffixPaths(
