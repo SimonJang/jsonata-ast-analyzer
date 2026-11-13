@@ -891,19 +891,9 @@ export function createFunctionOperations(
           }
         }
         if (argIndex === 1 && funcName !== "contains") {
-          // Iterating matchers invoke the returned continuation after each match.
-          paths.push(...walkFunction({
-            type: "function",
-            value: "(",
-            position: node.position,
-            procedure: {
-              type: "path",
-              steps: [
-                { type: "function", value: "(", position: node.position, procedure: arg, arguments: [generatedArgument] },
-                { type: "name", value: "next", position: node.position },
-              ],
-            },
-            arguments: [],
+          paths.push(...walkMatcherContinuations({
+            type: "function", value: "(", position: node.position,
+            procedure: arg as FunctionNode["procedure"], arguments: [generatedArgument],
           }, scope));
         }
         continue;
@@ -939,6 +929,32 @@ export function createFunctionOperations(
     }
   
     return withFunctionStages(paths);
+  }
+
+  function walkMatcherContinuations(initialCall: FunctionNode, scope: ScopeTracker): string[] {
+    const paths: string[] = [];
+    const visited = new Set<AstNode>();
+    let call = initialCall;
+    while (true) {
+      const nextCall: FunctionNode = {
+        type: "function", value: "(", position: call.position,
+        procedure: {
+          type: "path",
+          steps: [call, { type: "name", value: "next", position: call.position }],
+        },
+        arguments: [],
+      };
+      const continuations = runtime.callables.resolveCallableValues(nextCall.procedure, scope);
+      const nodes = continuations.map((callable) => callable.kind === "lambda"
+        ? callable.binding.lambda
+        : callable.kind === "partial" ? callable.binding.partial : callable.binding.transform);
+      // Recursive continuations must be analyzed once, without unrolling forever.
+      if (!nodes.some((node) => !visited.has(node))) break;
+      nodes.forEach((node) => visited.add(node));
+      paths.push(...walkFunction(nextCall, scope));
+      call = nextCall;
+    }
+    return paths;
   }
 
   function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {

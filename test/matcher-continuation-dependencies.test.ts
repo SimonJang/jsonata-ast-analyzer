@@ -28,4 +28,28 @@ describe("custom matcher continuations", () => {
       { path: "text", confidence: "static", coverage: "exact" },
     ]);
   });
+
+  it("follows continuations returned by another continuation", async () => {
+    const expression = '($matcher := function($text){{"match":"x","start":0,"end":1,"groups":[],"next":function(){{"match":"x","start":1,"end":2,"groups":[],"next":function(){($$.config.stop; $nothing)}}}}}; $match(text,$matcher))';
+    const reads: string[] = [];
+    const result = await jsonata(expression).evaluate({ text: "xx", config: { get stop() { reads.push("config.stop"); return true; } } });
+    expect(JSON.parse(JSON.stringify(result))).toEqual([
+      { match: "x", index: 0, groups: [] },
+      { match: "x", index: 1, groups: [] },
+    ]);
+    expect(reads).toEqual(["config.stop"]);
+    expect(analyzeExpression(expression).accesses).toContainEqual({
+      path: "config.stop", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("terminates analysis for a recursive continuation", async () => {
+    const expression = '($next := function(){$$.config.stop ? $nothing : {"match":"x","start":0,"end":1,"groups":[],"next":$next}}; $matcher := function($text){{"match":"x","start":0,"end":1,"groups":[],"next":$next}}; $match(text,$matcher))';
+    expect(await jsonata(expression).evaluate({ text: "x", config: { stop: true } })).toEqual({
+      match: "x", index: 0, groups: [],
+    });
+    expect(analyzeExpression(expression).accesses).toContainEqual({
+      path: "config.stop", confidence: "static", coverage: "exact",
+    });
+  });
 });
