@@ -17,6 +17,35 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
   .sort((a, b) => a.path.localeCompare(b.path));
 
 describe("data projections from constructed contexts", () => {
+  it.each([
+    '{"copy":record}.{"wrapper":$}.wrapper.copy.details.amount',
+    '({"copy":record}).{"wrapper":$}.wrapper.copy.details.amount',
+    '{"copy":record}.{"wrapper":$}.wrapper.{"next":$}.next.copy.details.amount',
+  ])("traces a literal object's current value through an object wrapper: %s", async (source) => {
+    expect(await jsonata(source).evaluate(input)).toBe(10);
+    expect(accesses(source)).toContainEqual(subtree("record.details.amount"));
+  });
+
+  it("traces the original root through a wrapper after a literal object", async () => {
+    const source = '{"copy":other}.{"wrapper":$$}.wrapper.record.details.amount';
+    expect(await jsonata(source).evaluate(input)).toBe(10);
+    expect(accesses(source)).toContainEqual(subtree("record.details.amount"));
+  });
+
+  it("retains every constructed item when wrapping an array's current values", async () => {
+    const source = '[{"copy":record},{"copy":other}].{"wrapper":$}.wrapper.copy.details.amount';
+    expect(Array.from(await jsonata(source).evaluate(input))).toEqual([10, 20]);
+    for (const path of ["record.details.amount", "other.details.amount"]) {
+      expect(accesses(source)).toContainEqual(subtree(path));
+    }
+  });
+
+  it("retains serialization dependencies through a current-value wrapper", async () => {
+    const source = '$string({"copy":record}.{"wrapper":$}.wrapper)';
+    expect(await jsonata(source).evaluate(input)).toBe(JSON.stringify({ copy: input.record }));
+    expect(accesses(source)).toContainEqual(exact("record.**"));
+  });
+
   for (const projection of [
     '([left.copy,other.different])', '[left.copy,other.different]',
     '($x:=left.copy;$x)', '($x:=[left.copy,other.different];$x)',
