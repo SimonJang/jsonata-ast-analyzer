@@ -154,9 +154,6 @@ export function createSelectionOperations(
         );
       case "apply": {
         const apply = node as ApplyNode;
-        if (apply.rhs.type === "transform") {
-          return runtime.results.getResultBasePathsFromArg(apply.lhs, scope);
-        }
         const applied = runtime.functions.appliedFunctionFromApply(apply);
         return applied
           ? runtime.results.getFunctionResultBasePaths(applied, scope)

@@ -653,6 +653,31 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     });
   }
 
+  function transformResultObjectAlias(
+    binding: TransformBinding,
+    input: AstNode,
+    callScope: ScopeTracker,
+  ): ObjectAlias | null {
+    const updates = staticTransformPatternSequences(binding.transform.pattern).map((pattern) => {
+      const selected: AstNode = pattern.length ? {
+        type: "path", steps: [...(input.type === "path" ? (input as PathNode).steps : [input]), ...pattern.map((value): AstNode =>
+          value === "*" ? { type: "wildcard", position: 0 }
+            : { type: "name", value, position: 0 })],
+      } as PathNode : input;
+      const updateScope = runtime.higherOrder.bindArgumentParameter(
+        transformInvocationScope(binding, callScope),
+        { type: "variable", value: "", position: 0 },
+        runtime.aliases.bindingAliasPaths(selected, callScope), selected, callScope,
+      );
+      const alias = runtime.aliases.groupResultObjectAliasForNode(binding.transform.update, updateScope);
+      const prefix = pattern.map((key) => key.replaceAll("%", "%25").replaceAll(".", "%2E")).join(".");
+      return alias && new Map([...alias].map(([key, paths]) => [prefix ? `${prefix}.${key}` : key, paths]));
+    });
+    return runtime.aliases.mergeObjectAliases([
+      runtime.aliases.groupResultObjectAliasForNode(input, callScope), ...updates,
+    ]);
+  }
+
   function transformUpdateBuiltinCallableNames(
     node: FunctionNode,
     suffixSteps: AstNode[],
@@ -750,6 +775,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   }
 
   return {
+    transformResultObjectAlias,
     resolveTransformFunctionCalls,
     transformWritesSuffix,
     transformOutputSelectionSourcePaths,

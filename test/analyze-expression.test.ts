@@ -96,7 +96,7 @@ describe("analyzeExpression", () => {
         {
           path: "payload.Account.name",
           confidence: "static",
-          coverage: "exact",
+          coverage: "subtree",
         },
       ],
     });

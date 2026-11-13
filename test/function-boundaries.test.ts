@@ -6,7 +6,7 @@ import { walkerRuntime } from "./support/walker-runtime.js";
 describe("function-analysis boundaries", () => {
   it.each([
     { label: "partial", expression: "($local := $substring(?,0,2); $local(name))", accesses: [{ path: "name", confidence: "static", coverage: "exact" }] },
-    { label: "transform", expression: '($local := |$|{"copy":name}|; $local(item))', accesses: [{ path: "item", confidence: "static", coverage: "subtree" }, { path: "item.**", confidence: "static", coverage: "exact" }, { path: "item.name", confidence: "static", coverage: "exact" }] },
+    { label: "transform", expression: '($local := |$|{"copy":name}|; $local(item))', accesses: [{ path: "item", confidence: "static", coverage: "subtree" }, { path: "item.**", confidence: "static", coverage: "exact" }, { path: "item.name", confidence: "static", coverage: "subtree" }] },
     { label: "stored builtin", expression: "($local := [$uppercase,$lowercase]; $local[0](name))", accesses: [{ path: "name", confidence: "static", coverage: "exact" }] },
     { label: "stored lambda", expression: "($local := [function($x){$x.name},function($x){$x.code}]; $local[0](item))", accesses: [{ path: "item", confidence: "static", coverage: "exact" }, { path: "item.name", confidence: "static", coverage: "subtree" }] },
   ])("honors a local $label binding even when its name is configured as opaque", ({ expression, accesses }) => {

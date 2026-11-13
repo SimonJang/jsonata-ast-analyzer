@@ -28,7 +28,9 @@ export function createResultOperations(
     }
     if (node.procedure.type === "transform") {
       return node.arguments[0]
-        ? runtime.aliases.groupResultObjectAliasForNode(node.arguments[0], scope)
+        ? runtime.transforms.transformResultObjectAlias(
+            { transform: node.procedure, scope }, node.arguments[0], scope,
+          )
         : null;
     }
     if (node.procedure.type === "condition") {
@@ -60,7 +62,9 @@ export function createResultOperations(
             }
             if (callable.kind === "transform") {
               return node.arguments[0]
-                ? runtime.aliases.groupResultObjectAliasForNode(node.arguments[0], scope)
+                ? runtime.transforms.transformResultObjectAlias(
+                    callable.binding, node.arguments[0], scope,
+                  )
                 : null;
             }
             return getPartialFunctionResultObjectAlias(
@@ -924,9 +928,15 @@ export function createResultOperations(
       );
     }
     if (node.procedure.type === "transform") {
-      return node.arguments[0]
-        ? getResultBasePathsFromArg(node.arguments[0], scope)
-        : [];
+      const input = node.arguments[0];
+      if (!input) return [];
+      const alias = runtime.transforms.transformResultObjectAlias(
+        { transform: node.procedure, scope }, input, scope,
+      );
+      return [
+        ...getResultBasePathsFromArg(input, scope),
+        ...(alias ? [...alias.values()].flatMap((paths) => [...paths]) : []),
+      ];
     }
     if (node.procedure.type === "condition") {
       return runtime.functions.conditionalProcedureCalls(node).flatMap((call) =>
@@ -953,9 +963,13 @@ export function createResultOperations(
             );
           }
           if (callable.kind === "transform") {
-            return node.arguments[0]
-              ? getResultBasePathsFromArg(node.arguments[0], scope)
-              : [];
+            const input = node.arguments[0];
+            if (!input) return [];
+            const alias = runtime.transforms.transformResultObjectAlias(callable.binding, input, scope);
+            return [
+              ...getResultBasePathsFromArg(input, scope),
+              ...(alias ? [...alias.values()].flatMap((paths) => [...paths]) : []),
+            ];
           }
           return getPartialFunctionResultBasePaths(
             callable.binding,

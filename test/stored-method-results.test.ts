@@ -74,7 +74,7 @@ describe("stored method results and argument context", () => {
   ])("retains transform method input and update dependencies in %s", async (expression) => {
     expect(await jsonata(expression).evaluate(input)).toEqual({ nested: { total: 10, copy: 10 } });
     expect(analyzeExpression(expression).accesses).toContainEqual({
-      path: "first.nested.total", confidence: "static", coverage: "exact",
+      path: "first.nested.total", confidence: "static", coverage: "subtree",
     });
   });
 

@@ -213,6 +213,7 @@ export interface HigherOrderOperations {
 }
 
 export interface TransformOperations {
+  transformResultObjectAlias(binding: TransformBinding, input: AstNode, callScope: ScopeTracker): ObjectAlias | null;
   resolveTransformFunctionCalls(functionNode: FunctionNode, scope: ScopeTracker, requireAllCallables?: boolean): ResolvedTransformCall[];
   transformWritesSuffix(functionNode: FunctionNode, suffixSteps: AstNode[], scope: ScopeTracker): boolean;
   transformOutputSelectionSourcePaths(functionNode: FunctionNode, suffixSteps: AstNode[], scope: ScopeTracker): string[] | null;
