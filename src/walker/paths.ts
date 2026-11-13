@@ -230,6 +230,27 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
    * filter stages on name steps, sort steps, and group-by expressions.
    */
   function walkPath(node: PathNode, scope: ScopeTracker): string[] {
+    const transformCall = (step: AstNode): FunctionNode | null => {
+      if (step.type === "apply" && (step as ApplyNode).rhs.type === "transform") {
+        return { ...step, ...runtime.functions.appliedFunctionFromApply(step as ApplyNode)! } as FunctionNode;
+      }
+      if (step.type === "block") {
+        const block = step as BlockNode;
+        if (block.expressions.length !== 1 || block.group || block.predicate?.length ||
+            block.focusBinding || block.indexBinding) return null;
+        const inner = block.expressions[0];
+        if (inner.type === "function" &&
+            runtime.transforms.resolveTransformFunctionCalls(inner as FunctionNode, scope).length > 0) {
+          return inner as FunctionNode;
+        }
+        return transformCall(inner);
+      }
+      return null;
+    };
+    const normalizedSteps = node.steps.map((step) => transformCall(step) ?? step);
+    if (normalizedSteps.some((step, index) => step !== node.steps[index])) {
+      return walkPath({ ...node, steps: normalizedSteps }, scope);
+    }
     const paths = walkPathSource(node, scope);
     return node.steps.some((step) => step.type === "sort")
       ? [...paths, ...walkTupleSortFallbackPaths(node, scope)] : paths;

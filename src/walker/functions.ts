@@ -232,12 +232,12 @@ export function createFunctionOperations(
       const func = node.rhs as FunctionNode;
       return { ...func, arguments: [node.lhs, ...func.arguments] };
     }
-    if (node.rhs.type === "variable") {
-      const procedure = node.rhs as VariableNode;
+    if (node.rhs.type === "variable" || node.rhs.type === "transform") {
+      const procedure = node.rhs as VariableNode | TransformNode;
       return {
         type: "function",
         value: "(",
-        position: procedure.position,
+        position: procedure.position ?? 0,
         procedure,
         arguments: [node.lhs],
       };
@@ -1342,7 +1342,8 @@ export function createFunctionOperations(
     const lhsPaths = runtime.core.walkNode(node.lhs, scope);
     paths.push(...lhsPaths);
   
-    const appliedFunction = appliedFunctionFromApply(node);
+    const appliedFunction = node.rhs.type === "transform"
+      ? null : appliedFunctionFromApply(node);
     if (appliedFunction) {
       // walkFunction will re-walk the lhs arg, but dedup in extractPaths handles it
       paths.push(...walkFunction(appliedFunction, scope));
