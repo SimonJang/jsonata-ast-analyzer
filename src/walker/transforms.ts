@@ -557,7 +557,14 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     if (node.type === "function") {
       const call = node as FunctionNode;
       const names = runtime.callables.resolveBuiltinCallableNames(call.procedure, scope);
-      if (!names.includes("lookup") || runtime.callables.resolveCallableValues(call.procedure, scope).length) return [];
+      if (runtime.callables.resolveCallableValues(call.procedure, scope).length) return [];
+      if (names.includes("append")) {
+        return call.arguments.flatMap((argument) => staticTransformPatternAlternatives(argument, scope));
+      }
+      if (names.some((name) => ["filter", "single", "sort", "reverse", "shuffle", "distinct"].includes(name))) {
+        return call.arguments[0] ? staticTransformPatternAlternatives(call.arguments[0], scope) : [];
+      }
+      if (!names.includes("lookup")) return [];
       const args = runtime.functions.withImplicitRootFunctionArgument("lookup", call.arguments, call.position, scope);
       if (!args[0] || !args[1]) return [];
       const key = runtime.aliases.staticObjectKey(args[1]) ?? "*";
