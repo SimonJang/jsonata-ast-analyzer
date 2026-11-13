@@ -279,6 +279,14 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     const cached = scopeCache.get(scope);
     if (cached) return [...paths, ...cached];
     scopeCache.set(scope, []);
+    const projectedAssignments = new Map<string, AstNode[]>();
+    for (const assignment of assignments) {
+      const projected = projectedValues.get(assignment.rhs);
+      if (!projected || projected.value.type === "transform" || projected.value.type === "lambda" && !(projected.value as LambdaNode).thunk) continue;
+      const values = projectedAssignments.get(assignment.lhs.value) ?? [];
+      values.push(projected.value);
+      projectedAssignments.set(assignment.lhs.value, values);
+    }
     const descendants: string[] = [];
     for (const assignment of assignments) {
       const projected = projectedValues.get(assignment.rhs);
@@ -296,6 +304,8 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
           break;
         }
         for (const name of names) {
+          // A later row can feed a peer assignment's result back into this binding.
+          for (const value of projectedAssignments.get(name) ?? []) pending.push({ node: value, scope });
           const captured = resolveValue(entry.scope, name);
           if (captured) pending.push(captured);
         }
