@@ -1,5 +1,5 @@
 import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
-import { type ScopeTracker, childScope, bindVariable, resolveVariable } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, bindValue, resolveVariable } from "../scope.js";
 import { appendPath } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
@@ -81,6 +81,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         runtime.aliases.bindingAliasPaths(value, evaluationScope),
         value, evaluationScope,
       );
+      nextScope = bindValue(nextScope, name, value, evaluationScope);
     }
     evaluationCache.set(evaluationScope, nextScope);
     return nextScope;

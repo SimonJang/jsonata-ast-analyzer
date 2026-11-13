@@ -5,6 +5,35 @@ import { analyzeExpression } from "../src/index.js";
 describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
+  it.each([
+    '$exists($target:=node) ? $target : missing',
+    '$not($exists($target:=node)) ? missing : $target',
+    '$count([$target:=node])=1 ? $target : missing',
+    '$count({"a":$target:=node})=1 ? $target : missing',
+  ])("retains assigned target layouts through %s", async (pattern) => {
+    for (const stored of [false, true]) {
+      const transform = `|${pattern}|{"copy":$$.other}|`;
+      const source = stored
+        ? `($t:=${transform};$v:=$t({"node":{}});$clone($v.node.copy))`
+        : `$clone(({"node":{}} ~> ${transform}).node.copy)`;
+      let reads = 0;
+      const other = { details: { get amount() { reads++; return 10; } } };
+      expect(await jsonata(source).evaluate({ other })).toEqual({ details: { amount: 10 } });
+      expect(reads).toBeGreaterThan(0);
+      expect(analyzeExpression(source).accesses).toContainEqual({
+        path: "other.**", confidence: "static", coverage: "exact",
+      });
+    }
+  });
+
+  it("retains methods inserted at a predicate-assigned target", async () => {
+    const source = '($t:=|$exists($target:=node) ? $target : missing|{"run":function(){$$.other.details.amount}}|;$v:=$t({"node":{}});$v.node.run())';
+    expect(await jsonata(source).evaluate(input)).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
   it("keeps inserted values shallow when counting a result with known targets", async () => {
     const source = '$count(record ~> |a|{"copy":$$.other}|)';
     let reads = 0;
