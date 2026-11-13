@@ -17,6 +17,26 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
   .sort((a, b) => a.path.localeCompare(b.path));
 
 describe("data projections from constructed contexts", () => {
+  it.each([
+    '{"outer":items{"group":details}}.outer.group.amount',
+    '($v:={"outer":items{"group":details}};$v.outer.group.amount)',
+  ])("preserves grouped fields stored inside a constructor: %s", async (source) => {
+    const data = { items: [{ details: { amount: 10 } }, { details: { amount: 20 } }] };
+    expect(Array.from(await jsonata(source).evaluate(data))).toEqual([10, 20]);
+    expect(accesses(source)).toContainEqual(subtree("items.details.amount"));
+  });
+
+  it("preserves dynamic group keys inside a constructor", async () => {
+    const source = '{"outer":items{name:details}}.outer.one.amount';
+    const data = { items: [
+      { name: "one", details: { amount: 10 } },
+      { name: "two", details: { amount: 20 } },
+    ] };
+    expect(await jsonata(source).evaluate(data)).toBe(10);
+    expect(accesses(source)).toContainEqual(subtree("items.details.amount"));
+    expect(accesses(source)).toContainEqual(exact("items.name"));
+  });
+
   it("keeps predicates on nested constructed values relative to their input sources", async () => {
     const source = '($map(items,function($r){{"out":[$$.enabled?{"copy":$r.other}:{"copy":$r.details}]}}).{"wrapper":$}.wrapper).out.copy[active].amount';
     const data = { enabled: true, items: [

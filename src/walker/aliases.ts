@@ -112,7 +112,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (field === null) continue;
       const key = aliasKeySegment(field);
   
-      const nestedAlias = objectAliasForNode(valueNode, scope);
+      const nestedAlias = groupResultObjectAliasForNode(valueNode, scope);
       const aliases = nestedAlias
         ? groupResultSuffixBasePaths(valueNode, scope)
         : valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
@@ -1356,7 +1356,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const key = staticObjectKey(keyNode);
       if (key === null) continue;
   
-      const nestedAlias = dynamicObjectAliasForNode(valueNode, scope);
+      const nestedAlias = groupResultDynamicObjectAliasForNode(valueNode, scope);
       if (!nestedAlias) continue;
   
       variants.push(
