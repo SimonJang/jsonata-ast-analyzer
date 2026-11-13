@@ -1008,6 +1008,10 @@ export function createFunctionOperations(
           isUnknownHostProcedure(procedure, scope, nextVisited)) return true;
       if (runtime.callables.customFunctionResultBodies(node as FunctionNode, scope).some((body) =>
         isUnknownHostProcedure(body.node, body.scope, nextVisited, selectors))) return true;
+      if (runtime.callables.callableContainerProducerInputs(node as FunctionNode, scope).some((input) =>
+        isUnknownHostProcedure(input, scope, nextVisited, selectors))) return true;
+      if (runtime.callables.higherOrderCallableResultBodies(node as FunctionNode, scope).some((body) =>
+        isUnknownHostProcedure(body.node, body.scope, nextVisited, selectors))) return true;
       if (runtime.callables.resolveBuiltinCallableNames(procedure, scope).includes("eval")) {
         const args = (node as FunctionNode).arguments;
         const expression = getStaticEvalExpression(args, scope);

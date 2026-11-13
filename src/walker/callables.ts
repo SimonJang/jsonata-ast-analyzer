@@ -1795,6 +1795,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     compositionLambda,
     customFunctionResultCallableValues,
     customFunctionResultBodies,
+    callableContainerProducerInputs,
+    higherOrderCallableResultBodies,
     partialResultTargets,
     customFunctionResultBuiltinCallableNames,
     higherOrderResultCallableValues,

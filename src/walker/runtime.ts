@@ -122,6 +122,8 @@ export interface CallableOperations {
   compositionLambda(node: ApplyNode, scope: ScopeTracker): LambdaNode | null;
   customFunctionResultCallableValues(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): ResolvedCallable[];
   customFunctionResultBodies(node: FunctionNode, scope: ScopeTracker): Array<{ node: AstNode; scope: ScopeTracker }>;
+  callableContainerProducerInputs(node: FunctionNode, scope: ScopeTracker): AstNode[];
+  higherOrderCallableResultBodies(node: FunctionNode, scope: ScopeTracker): Array<{ node: AstNode; scope: ScopeTracker }>;
   partialResultTargets(node: FunctionNode, scope: ScopeTracker, preserveValues?: boolean): Array<{ callables: ResolvedCallable[]; builtins: string[]; arguments: AstNode[]; scope: ScopeTracker }>;
   customFunctionResultBuiltinCallableNames(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): string[];
   higherOrderResultCallableValues(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): ResolvedCallable[];

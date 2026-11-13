@@ -1234,7 +1234,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         );
       }
       return runtime.callables.resolveCallableValues(arg, argScope).length > 0 ||
-        runtime.callables.resolveBuiltinCallableNames(arg, argScope).length > 0
+        runtime.callables.resolveBuiltinCallableNames(arg, argScope).length > 0 ||
+        hasOpaqueCallableValue(arg, argScope)
         ? runtime.functions.bindCallableValue(valueScope, param.value, values, argScope)
         : valueScope;
     }
@@ -1644,6 +1645,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         call.arguments.some((arg) => hasOpaqueCallableValue(arg, scope, next)) ||
         runtime.transforms.resolveTransformFunctionCalls(call, scope, false).some(({ binding }) =>
           hasOpaqueCallableValue(binding.transform.update, binding.scope, next)) ||
+        runtime.callables.higherOrderCallableResultBodies(call, scope).some((body) =>
+          hasOpaqueCallableValue(body.node, body.scope, next)) ||
         runtime.callables.customFunctionResultBodies(call, scope).some((body) =>
           hasOpaqueCallableValue(body.node, body.scope, next));
     }

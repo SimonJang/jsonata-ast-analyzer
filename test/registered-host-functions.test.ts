@@ -4,6 +4,32 @@ import { analyzeExpression, extractPaths } from "../src/index.js";
 
 describe("registered host function dependencies", () => {
   it.each([
+    '$reverse([$custom])[0]',
+    '$append([],$custom)[0]',
+    '$single([$custom])',
+    '$filter([$custom],function($x){true})[0]',
+    '$map([1],function(){$custom})[0]',
+    '$each({"run":$custom},function($v){$v})[0]',
+    '$sift({"run":$custom},function(){true}).run',
+    '$merge([{"run":$custom}]).run',
+    '$spread({"run":$custom}).run',
+  ])("preserves registered callable results from %s", async (producer) => {
+    for (const source of [
+      `($f:=${producer};$count($f(record)))`,
+      `($apply:=function($f,$x){$f($x)};$count($apply((${producer}),record)))`,
+    ]) {
+      const expression = jsonata(source);
+      expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+      let reads = 0;
+      expect(await expression.evaluate({ record: { details: { get amount() { reads++; return 10; } } } })).toBe(1);
+      expect(reads).toBeGreaterThan(0);
+      expect(analyzeExpression(source).accesses).toContainEqual({
+        path: "record.**", confidence: "static", coverage: "exact",
+      });
+    }
+  });
+
+  it.each([
     '$count($eval("$custom")(record))',
     '($f:=$eval("$custom");$count($f(record)))',
     '($apply:=function($f,$x){$f($x)};$count($apply($eval("$custom"),record)))',
