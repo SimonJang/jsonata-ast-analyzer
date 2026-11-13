@@ -4,6 +4,50 @@ import { analyzeExpression, extractPaths } from "../src/index.js";
 
 describe("registered host function dependencies", () => {
   it.each([
+    '($apply:=function($f,$x){$f($x)};$count($apply($custom,record)))',
+    '($f:=$custom;$apply:=function($cb,$x){$cb($x)};$count($apply($f,record)))',
+    '$count((function($r,$x){$r.run($x)})({"run":$custom},record))',
+    '$count((function($r,$x){$r[0]($x)})([$custom],record))',
+  ])("preserves registered callable arguments through %s", async (source) => {
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    let reads = 0;
+    expect(await expression.evaluate({ record: { details: { get amount() { reads++; return 10; } } } })).toBe(1);
+    expect(reads).toBeGreaterThan(0);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("preserves registered factory results passed as callable arguments", async () => {
+    const source = '($apply:=function($f,$x){$f($x)};$count($apply($make(),record)))';
+    const expression = jsonata(source);
+    expression.registerFunction("make", () => (record: { details: { amount: number } }) => record.details.amount, "<:f>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(1);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("keeps forwarded scalar computations out of host argument origins", async () => {
+    const source = '$custom((function($x){$x})($count(record)))';
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (count: number) => count + 1, "<n:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(2);
+    expect(analyzeExpression(source).accesses).toEqual([
+      { path: "record", confidence: "static", coverage: "exact" },
+    ]);
+  });
+
+  it("preserves builtin semantics for forwarded callable arguments", async () => {
+    const source = '($apply:=function($f,$x){$f($x)};$apply($count,record))';
+    expect(await jsonata(source).evaluate({ record: { details: { amount: 10 } } })).toBe(1);
+    expect(analyzeExpression(source).accesses).toEqual([
+      { path: "record", confidence: "static", coverage: "exact" },
+    ]);
+  });
+
+  it.each([
     { method: 'function(){$$.other.details.amount}', call: "()" },
     { method: '$eval', call: '("$$.other.details.amount")' },
   ])("retains captured reads from $method inserted at an opaque target", async ({ method, call }) => {

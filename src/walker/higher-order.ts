@@ -1588,12 +1588,9 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     nextScope = runtime.aliases.bindObjectAliasIfPresent(nextScope, param.value, arg, argScope);
     nextScope = runtime.aliases.bindDynamicObjectAliasIfPresent(nextScope, param.value, arg, argScope);
     const callables = runtime.callables.resolveCallableValues(arg, argScope);
-    if (
-      callables.length === 0 &&
-      runtime.callables.resolveBuiltinCallableNames(arg, argScope).length === 0
-    ) {
-      return nextScope;
-    }
+    if (callables.length === 0 &&
+        runtime.callables.resolveBuiltinCallableNames(arg, argScope).length === 0 &&
+        !hasOpaqueCallableValue(arg, argScope)) return nextScope;
     nextScope = runtime.functions.bindCallableValue(nextScope, param.value, arg, argScope);
     return callables.length === 1 &&
       callables[0].kind === "lambda" &&
@@ -1605,6 +1602,56 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
           argScope,
         )
       : nextScope;
+  }
+
+  function hasOpaqueCallableValue(node: AstNode, scope: ScopeTracker, visited = new Set<AstNode>()): boolean {
+    if (visited.has(node)) return false;
+    const next = new Set([...visited, node]);
+    if (node.type === "variable") {
+      const value = resolveValue(scope, (node as VariableNode).value);
+      return value ? hasOpaqueCallableValue(value.node, value.scope, next)
+        : runtime.functions.isUnknownHostProcedure(node, scope);
+    }
+    if (node.type === "object") {
+      return (node as ObjectNode).entries.some(([, value]) => hasOpaqueCallableValue(value, scope, next));
+    }
+    if (node.type === "array") {
+      return (node as ArrayNode).expressions.some((value) => hasOpaqueCallableValue(value, scope, next));
+    }
+    if (node.type === "condition") {
+      const condition = node as ConditionNode;
+      return [condition.then, condition.else].some((value) => value && hasOpaqueCallableValue(value, scope, next));
+    }
+    if (node.type === "block") {
+      const expressions = (node as BlockNode).expressions;
+      let blockScope = childScope(scope);
+      for (const expression of expressions.slice(0, -1)) {
+        const previous = blockScope;
+        if (expression.type === "bind") blockScope = runtime.callables.bindCallableBlockValue(blockScope, expression as BindNode);
+        blockScope = runtime.core.bindArrayAssignmentEffects(expression, blockScope, previous);
+      }
+      const result = expressions.at(-1);
+      return Boolean(result && hasOpaqueCallableValue(result, blockScope, next));
+    }
+    if (node.type === "function") {
+      const call = node as FunctionNode;
+      return runtime.functions.isUnknownHostProcedure(call.procedure, scope) ||
+        call.arguments.some((arg) => hasOpaqueCallableValue(arg, scope, next)) ||
+        runtime.transforms.resolveTransformFunctionCalls(call, scope, false).some(({ binding }) =>
+          hasOpaqueCallableValue(binding.transform.update, binding.scope, next)) ||
+        runtime.callables.customFunctionResultBodies(call, scope).some((body) =>
+          hasOpaqueCallableValue(body.node, body.scope, next));
+    }
+    if (node.type === "apply") {
+      const call = runtime.functions.appliedFunctionFromApply(node as ApplyNode);
+      return Boolean(call && hasOpaqueCallableValue(call, scope, next));
+    }
+    if (node.type === "path") {
+      const first = (node as PathNode).steps[0];
+      return Boolean(first && hasOpaqueCallableValue(first, scope, next));
+    }
+    if (node.type === "partial") return hasOpaqueCallableValue((node as PartialNode).procedure, scope, next);
+    return false;
   }
 
   function lambdaNeedsForwardScope(
