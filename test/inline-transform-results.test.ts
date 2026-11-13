@@ -6,6 +6,19 @@ describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
   it.each([
+    '$ ~> $lookup("a")',
+    '$ ~> function($x){$x.a}',
+    '$ ~> $lookup(?,"a")',
+    '($ ~> function($x){$x}).a',
+  ])("retains update sources through chained target selectors: %s", async (pattern) => {
+    const source = `($v:=record ~> |(${pattern})|{"copy":$$.other}|;$v.a.copy.details.amount)`;
+    expect(await jsonata(source).evaluate({ ...input, record: { a: {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it.each([
     '$lookup(?,"a")($)',
     '(function($x,$key){$lookup($x,$key)})(?,"a")($)',
     '($pick:=$lookup(?,"a");$pick($))',

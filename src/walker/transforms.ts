@@ -1,4 +1,4 @@
-import type { ArrayNode, AstNode, BindNode, BlockNode, ConditionNode, FunctionNode, LambdaNode, NameNode, ObjectNode, PathNode, TransformNode, VariableNode } from "../types.js";
+import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FunctionNode, LambdaNode, NameNode, ObjectNode, PathNode, TransformNode, VariableNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, createScope, childScope, bindVariable, bindValue, resolveValue, resolvePartial, resolveTransform, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias, type TransformBinding } from "../scope.js";
 import { ROOT_PATH, TRANSFORM_CURRENT_PATH } from "./constants.js";
@@ -550,6 +550,16 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
 
   function staticTransformPatternAlternatives(node: AstNode, scope: ScopeTracker, active = new Set<LambdaNode>()): string[][] {
     if (isRootReference(node)) return [[]];
+    if (node.type === "apply") {
+      const apply = node as ApplyNode;
+      const call = runtime.functions.appliedFunctionFromApply(apply) ??
+        (runtime.callables.isFunctionProcedureNode(apply.rhs) &&
+         (runtime.callables.resolveCallableValues(apply.rhs, scope).length ||
+          runtime.callables.resolveBuiltinCallableNames(apply.rhs, scope).length)
+          ? { type: "function", value: "(", position: apply.position, procedure: apply.rhs, arguments: [apply.lhs] } as FunctionNode
+          : null);
+      return call ? staticTransformPatternAlternatives(call, scope, active) : [];
+    }
     if (node.type === "lambda") {
       const lambda = node as LambdaNode;
       return lambda.thunk ? staticTransformPatternAlternatives(lambda.body, scope, active) : [];
