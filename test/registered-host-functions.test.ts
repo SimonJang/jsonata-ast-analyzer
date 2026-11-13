@@ -4,6 +4,22 @@ import { analyzeExpression, extractPaths } from "../src/index.js";
 
 describe("registered host function dependencies", () => {
   it.each([
+    '$custom ~> $count',
+    '(function($x){$x}) ~> $custom',
+    '($custom ~> function($x){$x}) ~> $count',
+  ])("traces registered functions in composition %s", async (composition) => {
+    const source = `($f:=${composition};$count($f(record)))`;
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    let reads = 0;
+    expect(await expression.evaluate({ record: { details: { get amount() { reads++; return 10; } } } })).toBe(1);
+    expect(reads).toBeGreaterThan(0);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
     '($p:=$append(?,[]);$p([$custom])[0])',
     '($p:=$map(?,function(){$custom});$p([1])[0])',
     '($p:=$lookup(?,"run");$p({"run":$custom}))',

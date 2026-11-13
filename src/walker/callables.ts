@@ -642,7 +642,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       return compositionLambda(node as ApplyNode, scope);
     }
     return resolveCallableValues(node, scope).length > 0 ||
-      resolveBuiltinCallableNames(node, scope).length > 0
+      resolveBuiltinCallableNames(node, scope).length > 0 ||
+      (!isDefinitelyDataValue(node, scope) && runtime.functions.isUnknownHostProcedure(node, scope))
       ? (node as FunctionNode["procedure"])
       : null;
   }
