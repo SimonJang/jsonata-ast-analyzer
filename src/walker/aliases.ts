@@ -1980,6 +1980,11 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const projectsVariable = (step: AstNode, prefixSteps: AstNode[]): boolean => {
       if (step.type !== "variable") return false;
       const name = (step as VariableNode).value;
+      if (name && name !== "$") {
+        const prefix: PathNode = { type: "path", steps: prefixSteps };
+        const afterPrefix = runtime.core.bindArrayAssignmentEffects(prefix, scope);
+        if (resolveValue(afterPrefix, name) !== resolveValue(scope, name)) return true;
+      }
       if (name === "" && prefixSteps.some(isResultAliasStep)) {
         const prefix: PathNode = { type: "path", steps: prefixSteps };
         if (runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||
@@ -2044,7 +2049,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         ? prefixNode(prefixSteps.slice(0, -1))
         : { type: "variable", value: "", position: 0 } as VariableNode
       : prefix;
-    let contextScope = childScope(scope);
+    let contextScope = childScope(runtime.core.bindArrayAssignmentEffects(prefix, scope));
     let beforeLastFocus = contextScope;
     for (const [index, step] of prefixSteps.entries()) {
       const bindingStep = step as AstNode & {

@@ -6,6 +6,39 @@ const input = { record: { details: { amount: 10 } }, other: { details: { amount:
 
 describe("path assignment effects", () => {
   it.each([
+    'record.{"a":$x:=$}.($x.details.amount)',
+    'record.{"a":$x:=$}.$x.details.amount',
+    'record.[$x:=$].($x.details.amount)',
+    'record.{"a":$f:=function(){details.amount}}.($f())',
+  ])("retains assignments for later steps in %s", async (projection) => {
+    const source = `$count(${projection})`;
+    let reads = 0;
+    const record = { details: { get amount() { reads++; return 10; } } };
+    expect(await jsonata(source).evaluate({ ...input, record })).toBe(1);
+    expect(reads).toBeGreaterThan(0);
+    expect(analyzeExpression(source).accesses.map(({ path }) => path)).toContain("record.details.amount");
+  });
+
+  it("retains later path result origins for deep consumers", async () => {
+    const source = '$clone(record.{"a":$x:=$}.($x.details))';
+    let reads = 0;
+    const record = { details: { get amount() { reads++; return 10; } } };
+    expect(await jsonata(source).evaluate({ ...input, record })).toEqual({ amount: 10 });
+    expect(reads).toBeGreaterThan(0);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.details.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("keeps local prefix assignments out of later path steps", async () => {
+    const source = '($x:=record;other.($x:=$).($x.details.amount))';
+    expect(await jsonata(source).evaluate(input)).toBe(10);
+    const paths = analyzeExpression(source).accesses.map(({ path }) => path);
+    expect(paths).toContain("record.details.amount");
+    expect(paths).not.toContain("other.details.amount");
+  });
+
+  it.each([
     '(record.{"a":$x:=$};$x.details.amount)',
     '(record.[$x:=$];$x.details.amount)',
     '(record.{"a":$x:=details};$x.amount)',
