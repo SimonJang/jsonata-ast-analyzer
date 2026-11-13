@@ -69,4 +69,60 @@ describe("registered host function dependencies", () => {
       { path: "record", confidence: "static", coverage: "exact" },
     ]);
   });
+
+  it("retains closure reads when a registered function invokes a stored callback", async () => {
+    const source = "($f := function(){record.details.amount}; $custom($f))";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", async (callback: () => Promise<number>) => callback(), "<f:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.details.amount", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
+    "($f := function(){record}; $custom($f))",
+    "$custom(function(){record})",
+    "($f := function($v){record}; $custom($f(?)))",
+    '($f := {"callback":function(){record}}; $custom($f.callback))',
+    '($f := {"callback":function(){record}}; $custom($lookup($f,"callback")))',
+  ])("covers host reads of objects returned by callback arguments: %s", async (source) => {
+    const expression = jsonata(source);
+    expression.registerFunction("custom", async (callback: () => Promise<{ details: { amount: number } }>) => (await callback()).details.amount, "<f:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("follows callbacks passed to an opaque builtin replacement", async () => {
+    const source = "($f := function(){record}; $count($f))";
+    const expression = jsonata(source);
+    expression.registerFunction("count", async (callback: () => Promise<{ details: { amount: number } }>) => (await callback()).details.amount, "<f:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source, { opaqueFunctions: ["count"] }).accesses).toEqual([
+      { path: "record", confidence: "static", coverage: "exact" },
+      { path: "record.**", confidence: "static", coverage: "exact" },
+    ]);
+  });
+
+  it("terminates when a callback can recurse through its host function", async () => {
+    const source = "($f := function(){$$.config.stop ? 10 : $custom($f)}; $custom($f))";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", async (callback: () => Promise<number>) => callback(), "<f:n>");
+    expect(await expression.evaluate({ config: { stop: true } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "config.stop", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("honors a host-function alias that shadows a builtin name", async () => {
+    const source = "($map := $custom; $map(record))";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
 });

@@ -95,6 +95,8 @@ This is useful when a host replaces a built-in with different semantics. Argumen
 
 Unknown function names are treated as registered host functions. For example, `$custom(record)` reports `record` and `record.**`, because JavaScript registered with JSONata's `registerFunction()` can inspect any descendant of the argument. No registration information is needed for these conservative argument dependencies.
 
+Known JSONata callbacks passed to a host function are conservatively followed for captured input reads. Descendants of their returned input values are included too, since the host can inspect those values. Callback parameter origins cannot be inferred without a host-function contract.
+
 With no options, removing `coverage` from `analyzeExpression(expression).accesses` produces exactly the same paths, confidence, and order as `extractPaths(expression)`.
 
 ### Types

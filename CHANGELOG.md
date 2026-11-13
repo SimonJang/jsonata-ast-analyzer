@@ -5,6 +5,7 @@
 ### Fixed
 
 - Include conservative argument-descendant dependencies for registered host functions and opaque replacements of built-ins.
+- Retain captured input reads and returned-value descendants for callbacks passed to host functions.
 - Follow custom matcher continuations and preserve source paths selected from custom match groups.
 - Include object-property enumeration reads for explicit `$keys`, `$spread`, `$boolean`, `$not`, and `$merge` inputs while preserving constructed-object boundaries.
 - Resolve static `$eval` result paths with their actual context bindings, including forwarded constructed objects.

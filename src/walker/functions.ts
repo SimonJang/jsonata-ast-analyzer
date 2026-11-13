@@ -802,12 +802,9 @@ export function createFunctionOperations(
       return withFunctionStages(walkStoredCallablePaths());
     }
 
-    if (!node.internalTruthiness && options.opaqueFunctions.has(funcName)) {
-      return withFunctionStages(
-        args.flatMap((argument) => [
-          ...runtime.core.walkNode(argument, scope), ...deepValueReadPaths(argument, scope),
-        ]),
-      );
+    if ((!node.internalTruthiness && options.opaqueFunctions.has(funcName)) ||
+        isUnknownHostProcedure(node.procedure, scope)) {
+      return withFunctionStages(walkHostArguments(args, scope, node.position));
     }
 
     if (args.length === 0 && IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)) {
@@ -892,7 +889,7 @@ export function createFunctionOperations(
             );
           }
         }
-        if (argIndex === 1 && funcName !== "contains") {
+        if (argIndex === 1 && MATCHER_CALLBACK_FUNCTIONS.has(funcName) && funcName !== "contains") {
           paths.push(...walkMatcherContinuations({
             type: "function", value: "(", position: node.position,
             procedure: arg as FunctionNode["procedure"], arguments: [generatedArgument],
@@ -929,22 +926,44 @@ export function createFunctionOperations(
     if (funcName === "lookup") {
       paths.push(...runtime.results.getLookupResultBasePaths(args, scope));
     }
-    if (isUnknownHostProcedure(node.procedure, scope)) {
-      paths.push(...args.flatMap((arg) => deepValueReadPaths(arg, scope)));
-    }
   
     return withFunctionStages(paths);
+  }
+
+  function walkHostArguments(args: AstNode[], scope: ScopeTracker, position: number): string[] {
+    const descendants: string[] = [];
+    const paths = args.flatMap((arg) => {
+      const callable = runtime.callables.isFunctionProcedureNode(arg) && (
+        runtime.callables.resolveCallableValues(arg, scope).length > 0 ||
+        runtime.callables.resolveBuiltinCallableNames(arg, scope).length > 0
+      );
+      if (!callable) {
+        descendants.push(...deepValueReadPaths(arg, scope));
+        return runtime.core.walkNode(arg, scope);
+      }
+      const call: FunctionNode = {
+        type: "function", value: "(", position,
+        procedure: arg as FunctionNode["procedure"],
+        arguments: [{ type: "value", value: null, position }],
+      };
+      descendants.push(...deepValueReadPaths(call, scope));
+      return [
+        ...walkCallableSelection(arg, scope),
+        ...walkFunction(call, scope),
+      ];
+    });
+    return [...paths, ...descendants];
   }
 
   function isUnknownHostProcedure(node: AstNode, scope: ScopeTracker, visited = new Set<AstNode>()): boolean {
     if (node.type !== "variable" || visited.has(node)) return false;
     const name = (node as VariableNode).value;
-    if (BUILTIN_FUNCTIONS.has(name)) return false;
+    if ((node as VariableNode).resolvedBuiltin) return false;
     const binding = resolveValue(scope, name);
     if (binding) {
       return isUnknownHostProcedure(binding.node, binding.scope, new Set([...visited, node]));
     }
-    return name !== "" && name !== "$" && resolveVariable(scope, name) === null;
+    return name !== "" && name !== "$" && !BUILTIN_FUNCTIONS.has(name) && resolveVariable(scope, name) === null;
   }
 
   function walkMatcherContinuations(initialCall: FunctionNode, scope: ScopeTracker): string[] {

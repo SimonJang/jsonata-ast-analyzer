@@ -16,6 +16,7 @@ describe("function-analysis boundaries", () => {
   it("retains closure reads from a lambda passed to an unknown function", () => {
     expect(analyzeExpression("$custom(function($v){customer.name})")).toEqual({ accesses: [
       { path: "customer.name", confidence: "static", coverage: "exact" },
+      { path: "customer.name.**", confidence: "static", coverage: "exact" },
     ] });
   });
 
