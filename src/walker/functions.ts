@@ -869,7 +869,11 @@ export function createFunctionOperations(
           : [];
       if (callableArguments.length > 0) {
         paths.push(...walkCallableSelection(arg, scope));
-        const generatedArgument: AstNode = {
+        const matchInputs = argIndex === 2 && funcName === "replace"
+          ? getMatcherCallNodes(args, scope) : [];
+        const generatedArgument: AstNode = matchInputs.length > 0 ? {
+          type: "array", expressions: matchInputs, position: node.position,
+        } : {
           type: "value",
           value: null,
           position: node.position,
@@ -1010,13 +1014,17 @@ export function createFunctionOperations(
     return calls;
   }
 
-  function getMatchResultNodes(args: AstNode[], scope: ScopeTracker): AstNode[] {
+  function getMatcherCallNodes(args: AstNode[], scope: ScopeTracker): FunctionNode[] {
     if (!args[0] || !args[1] || !runtime.callables.isFunctionProcedureNode(args[1])) return [];
     const initialCall: FunctionNode = {
       type: "function", value: "(", position: 0,
       procedure: args[1], arguments: [args[0]],
     };
-    return matcherCalls(initialCall, scope).map((call): ObjectNode => ({
+    return matcherCalls(initialCall, scope);
+  }
+
+  function getMatchResultNodes(args: AstNode[], scope: ScopeTracker): AstNode[] {
+    return getMatcherCallNodes(args, scope).map((call): ObjectNode => ({
       type: "object", position: call.position,
       entries: [["match", "match"], ["index", "start"], ["groups", "groups"]].map(([key, source]) => [
         { type: "string", value: key, position: call.position },

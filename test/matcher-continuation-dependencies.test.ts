@@ -81,4 +81,32 @@ describe("custom matcher continuations", () => {
       path: "config.groups", confidence: "static", coverage: "subtree",
     });
   });
+
+  it.each([
+    "function($m){$m.groups.label}",
+    "($f := function($m){$m.groups.label}; $f)",
+    "(function($m){$m.groups.label})(?)",
+  ])("traces custom matcher groups passed into a replacement callback: %s", async (callback) => {
+    const expression = `($matcher := function($text){{"match":"x","start":0,"end":1,"groups":config.groups,"next":function(){$nothing}}}; $replace(text,$matcher,${callback}))`;
+    const reads: string[] = [];
+    expect(await jsonata(expression).evaluate({
+      text: "x", config: { groups: [{ get label() { reads.push("config.groups.label"); return "chosen"; } }] },
+    })).toBe("chosen");
+    expect(reads).toEqual(["config.groups.label"]);
+    expect(analyzeExpression(expression).accesses).toContainEqual({
+      path: "config.groups.label", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("passes continuation match groups into later replacement calls", async () => {
+    const expression = '($matcher := function($text){{"match":"x","start":0,"end":1,"groups":config.first,"next":function(){{"match":"x","start":1,"end":2,"groups":config.second,"next":function(){$nothing}}}}}; $replace(text,$matcher,function($m){$m.groups.label}))';
+    expect(await jsonata(expression).evaluate({
+      text: "xx", config: { first: [{ label: "a" }], second: [{ label: "b" }] },
+    })).toBe("ab");
+    for (const path of ["config.first.label", "config.second.label"]) {
+      expect(analyzeExpression(expression).accesses).toContainEqual({
+        path, confidence: "static", coverage: "exact",
+      });
+    }
+  });
 });
