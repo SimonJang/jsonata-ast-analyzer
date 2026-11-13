@@ -18,6 +18,18 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
 
 describe("data projections from constructed contexts", () => {
   it.each([
+    '$append([{"copy":other}],[])',
+    '$merge([{"copy":other}])',
+    '$lookup({"box":{"copy":other}},"box")',
+    '(function($x){{"copy":$x}})(other)',
+  ])("preserves constructed fields returned by a projected function: %s", async (producer) => {
+    const source = `(items.{"out":${producer}}).out.copy.amount`;
+    const data = { items: [{ other: { amount: 10 } }, { other: { amount: 20 } }] };
+    expect(Array.from(await jsonata(source).evaluate(data))).toEqual([10, 20]);
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+  });
+
+  it.each([
     '(items.{"out":($v:=other;{"copy":$v})}).out.copy.amount',
     '($rows:=items.{"out":($v:=other;{"copy":$v})};$rows.out.copy.amount)',
   ])("preserves nested fields returned by a projection block: %s", async (source) => {

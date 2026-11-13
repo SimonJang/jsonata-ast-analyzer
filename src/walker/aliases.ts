@@ -205,7 +205,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         addValue(key, (value as BlockNode).expressions[0]);
         return;
       }
-      if (value.type === "block") {
+      if (value.type === "block" || value.type === "function" || value.type === "apply") {
         projectionScope ??= groupResultScope({ type: "path", steps: prefixSteps } as PathNode, scope);
         const nested = groupResultObjectAliasForNode(value, projectionScope);
         if (nested) {
