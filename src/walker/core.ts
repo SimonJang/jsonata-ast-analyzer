@@ -1,4 +1,4 @@
-import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
+import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, SortNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
 import { type ScopeTracker, childScope, bindVariable, bindValue, bindObjectAlias, bindDynamicObjectAlias, bindSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, resolveValue, resolveVariable } from "../scope.js";
 import { appendPath, collectVariableNames, markAbsolute } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
@@ -33,6 +33,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     let expressions: AstNode[];
     switch (node.type) {
       case "array": expressions = (node as ArrayNode).expressions; break;
+      case "sort": expressions = (node as SortNode).terms.map((term) => term.expression); break;
       case "object": expressions = (node as ObjectNode).entries.flatMap(([key, value]) => [key, value]); break;
       case "function": expressions = [(node as FunctionNode).procedure, ...(node as FunctionNode).arguments]; break;
       case "condition": expressions = [(node as ConditionNode).condition, (node as ConditionNode).then, (node as ConditionNode).else]

@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Retain assignment effects through constructors, function arguments, operators, projections, filters, and grouping, including dependent and repeated writes.
+- Retain assignment effects through constructors, function arguments, operators, projections, filters, sorting, and grouping, including dependent and repeated writes.
 - Cover data origins carried through input-dependent projection updates with conservative descendant summaries.
 - Follow cycles between projected variable assignments when summarizing repeated updates.
 - Preserve sources and descendant dependencies for values inserted into transform results.

@@ -4,7 +4,32 @@ import { analyzeExpression } from "../src/index.js";
 
 const input = { record: { name: "a", details: { amount: 10 } }, other: { details: { amount: 20 } } };
 
-describe("filter and grouping assignment effects", () => {
+describe("filter, sorting, and grouping assignment effects", () => {
+  it.each([
+    '($x:=other.details;rows^($count($x:=details));$x.amount)',
+    '($x:=other.details;rows^($count({"a":$x:=details}));$x.amount)',
+    '($x:=other.details;rows^($count([$x:=details]));$x.amount)',
+    '($x:=other.details;$r:=rows;$r^($count($x:=details));$x.amount)',
+    '($x:=other.details;$reverse(rows)^($count($x:=details));$x.amount)',
+    '($f:=function(){other.details.amount};rows^($count($f:=function(){details.amount}));$f())',
+  ])("retains sort key assignments in %s", async (source) => {
+    for (const count of [0, 1, 2]) {
+      const rows = Array.from({ length: count }, () => input.record);
+      expect(await jsonata(source).evaluate({ ...input, rows })).toBe(count < 2 ? 20 : 10);
+    }
+    const paths = analyzeExpression(source).accesses.map(({ path }) => path);
+    expect(paths).toContain("rows.details.amount");
+    expect(paths).toContain("other.details.amount");
+  });
+
+  it.each([
+    '($x:=other.details;rows@$r^($count($x:=$r.details));$x.amount)',
+    '($x:=other.details;rows^(($x:=details;$count($x)));$x.amount)',
+  ])("keeps tuple and block sort assignments local in %s", async (source) => {
+    expect(await jsonata(source).evaluate({ ...input, rows: [input.record, input.record] })).toBe(20);
+    expect(analyzeExpression(source).accesses.map(({ path }) => path)).not.toContain("rows.details.amount");
+  });
+
   it("retains leading array assignments before tuple path stages", async () => {
     const source = '([$x:=record]@$row.details;$x.details.amount)';
     expect(await jsonata(source).evaluate(input)).toBe(10);
