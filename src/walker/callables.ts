@@ -861,19 +861,20 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         );
       }
     }
-    return contextPaths.length > 0
-      ? bindVariable(projectionScope, "", contextPaths)
-      : projectionScope;
+    const prefix: PathNode = { type: "path", steps: prefixSteps };
+    return runtime.higherOrder.bindArgumentParameter(
+      projectionScope, { type: "variable", value: "", position: 0 },
+      contextPaths, prefix, scope,
+    );
   }
 
   function pathProjectionCallableValues(
     path: PathNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
-    const projectionIndex = path.steps.findIndex(
-      (step, index) =>
-        index > 0 && ["object", "array", "block", "condition"].includes(step.type),
-    );
+    const projectionIndex = path.steps.reduce((found, step, index) =>
+      index > 0 && ["object", "array", "block", "condition"].includes(step.type) ? index : found,
+    -1);
     if (projectionIndex < 0) return [];
     return resolveCallableValues(
       {
@@ -888,10 +889,9 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     path: PathNode,
     scope: ScopeTracker,
   ): string[] {
-    const projectionIndex = path.steps.findIndex(
-      (step, index) =>
-        index > 0 && ["object", "array", "block", "condition"].includes(step.type),
-    );
+    const projectionIndex = path.steps.reduce((found, step, index) =>
+      index > 0 && ["object", "array", "block", "condition"].includes(step.type) ? index : found,
+    -1);
     if (projectionIndex < 0) return [];
     return resolveBuiltinCallableNames(
       {
@@ -1108,15 +1108,15 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const path = node as PathNode;
       const method = resolveStoredMethodPath(path, scope);
       if (method) return resolveCallableValues(method.node, method.scope);
+      const groupedValues = groupedPathCallableValues(path, scope);
+      if (groupedValues.length > 0) return groupedValues;
+      const projectionValues = pathProjectionCallableValues(path, scope);
+      if (projectionValues.length > 0) return projectionValues;
       const chained = runtime.aliases.chainedPathContext(path, scope);
       if (chained) {
         const values = resolveCallableValues(chained.tail, chained.scope);
         if (values.length > 0) return values;
       }
-      const groupedValues = groupedPathCallableValues(path, scope);
-      if (groupedValues.length > 0) return groupedValues;
-      const projectionValues = pathProjectionCallableValues(path, scope);
-      if (projectionValues.length > 0) return projectionValues;
       const [first, ...rawSuffixSteps] = path.steps;
       const suffixSteps = rawSuffixSteps.filter((step) => step.type !== "sort" &&
         !(step.type === "variable" && (step as VariableNode).value === "" && !(step as VariableNode).group));

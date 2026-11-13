@@ -1414,7 +1414,14 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       ? extractBasePaths(callArgs[0], argumentScopes[0] ?? callScope)
       : [];
     const capturedContextPaths = resolveVariable(scope, "");
-    const bodyPaths = capturedContextPaths?.length
+    const capturedObject = resolveObjectAlias(scope, "");
+    const capturedDynamicObject = resolveDynamicObjectAlias(scope, "");
+    const bodyPaths = capturedObject || capturedDynamicObject
+      ? runtime.aliases.selectAliasExpressionPaths(
+          capturedObject, capturedDynamicObject, lambda.body, lambdaScope,
+          resolveSuffixBasePaths(scope, "") ?? [],
+        )
+      : capturedContextPaths?.length
       ? capturedContextPaths.flatMap((contextPath) =>
           runtime.paths.walkContextExpression(lambda.body, contextPath, lambdaScope),
         )

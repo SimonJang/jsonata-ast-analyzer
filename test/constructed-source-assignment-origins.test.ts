@@ -4,6 +4,11 @@ import { analyzeExpression } from "../src/index.js";
 
 describe("assignments over constructed projection contexts", () => {
   it.each([
+    '$map(rows.{"copy":details}.{"run":function(){copy.amount}}.run,function($f){$f()})',
+    '$map(rows.{"copy":details}.{($$.key):function(){copy.amount}}.copy,function($f){$f()})',
+    '($f:=function(){other.amount};rows.{"copy":details}^($count($f:=function(){copy.amount}));$f())',
+    '($f:=function(){other.amount};$r:=rows;$r.{"copy":details}^($count($f:=function(){copy.amount}));$f())',
+    '($f:=function(){other.amount};rows.{"copy":details}^($count($f:=function(){copy.amount})).{"out":$f()})',
     '($x:=other;rows.{"copy":details}^($count($x:={"copy":copy}));$x.copy.amount)',
     '($x:=other;$r:=rows;$r.{"copy":details}^($count($x:={"copy":copy}));$x.copy.amount)',
     '($x:=other;rows.{"copy":details}^($count($x:={($$.key):copy}));$x.copy.amount)',
