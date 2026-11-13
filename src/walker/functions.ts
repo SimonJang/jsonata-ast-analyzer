@@ -169,6 +169,10 @@ export function createFunctionOperations(
   }
 
   function deepValueReadPaths(node: AstNode, scope: ScopeTracker): string[] {
+    if ((node.type === "name" || node.type === "path" && (node as PathNode).steps[0]?.type === "name") &&
+        (resolveObjectAlias(scope, "") || resolveDynamicObjectAlias(scope, ""))) {
+      return deepValueReadPaths(explicitContextExpression(node, ""), scope);
+    }
     // Resolve plain leaf selections with the path walker so mixed aliases and
     // parent steps use the same context as their ordinary reads.
     const plainSelection = node.type === "name" || (node.type === "path" &&

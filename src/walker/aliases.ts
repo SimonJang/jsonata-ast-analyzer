@@ -2647,6 +2647,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     const requiresAliasContext = (value: unknown): boolean => {
       if (!value || typeof value !== "object" || value instanceof RegExp) return false;
       const record = value as Record<string, unknown>;
+      if (record.type === "bind" &&
+          (objectAlias?.size || dynamicObject || suffixBasePaths.length)) return true;
       if (record.type === "descendant" &&
           (objectAlias?.size || dynamicObject || suffixBasePaths.length)) return true;
       if (record.type === "function" && Array.isArray(record.arguments) && record.arguments.length === 1 &&
