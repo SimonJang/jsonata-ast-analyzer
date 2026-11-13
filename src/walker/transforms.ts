@@ -169,30 +169,6 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     return null;
   }
 
-  function staticTransformPatternSequences(pattern: AstNode): string[][] {
-    if (isRootReference(pattern)) return [[]];
-    if (pattern.type === "name") return [[(pattern as NameNode).value]];
-    if (pattern.type === "wildcard") return [["*"]];
-    if (pattern.type === "array") {
-      return (pattern as ArrayNode).expressions.flatMap(staticTransformPatternSequences);
-    }
-    if (pattern.type !== "path") return [];
-  
-    const sequence: string[] = [];
-    for (const step of (pattern as PathNode).steps) {
-      if (step.type === "name") {
-        sequence.push((step as NameNode).value);
-      } else if (step.type === "wildcard") {
-        sequence.push("*");
-      } else if (isRootReference(step)) {
-        continue;
-      } else {
-        return [];
-      }
-    }
-    return [sequence];
-  }
-
   function resolveTransformFunctionCalls(
     functionNode: FunctionNode,
     scope: ScopeTracker,
@@ -304,7 +280,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
           .map(([key]) => runtime.aliases.staticObjectKey(key))
           .filter((key): key is string => key !== null),
       );
-      return staticTransformPatternSequences(binding.transform.pattern).some(
+      return staticTransformPatternAlternatives(binding.transform.pattern, transformInvocationScope(binding, scope)).some(
         (pattern) =>
           suffixNames.length === pattern.length + 1 &&
           pattern.every(
@@ -345,7 +321,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
       const { binding } = resolvedCall;
       if (binding.transform.update.type !== "object") return [];
       const callSelections: TransformOutputSelection[] = [];
-      for (const pattern of staticTransformPatternSequences(binding.transform.pattern)) {
+      for (const pattern of staticTransformPatternAlternatives(binding.transform.pattern, transformInvocationScope(binding, scope))) {
         if (
           suffixNames.length <= pattern.length ||
           !pattern.every(
@@ -572,28 +548,38 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     return paths;
   }
 
-  function staticTransformPatternAlternatives(node: AstNode): string[][] {
+  function staticTransformPatternAlternatives(node: AstNode, scope: ScopeTracker): string[][] {
     if (isRootReference(node)) return [[]];
+    if (node.type === "function") {
+      const call = node as FunctionNode;
+      const names = runtime.callables.resolveBuiltinCallableNames(call.procedure, scope);
+      if (!names.includes("lookup") || runtime.callables.resolveCallableValues(call.procedure, scope).length) return [];
+      const args = runtime.functions.withImplicitRootFunctionArgument("lookup", call.arguments, call.position, scope);
+      if (!args[0] || !args[1]) return [];
+      const key = runtime.aliases.staticObjectKey(args[1]) ?? "*";
+      return staticTransformPatternAlternatives(args[0], scope).map((prefix) => [...prefix, key]);
+    }
+
     if (node.type === "array") {
       return (node as ArrayNode).expressions.flatMap((expression) =>
-        staticTransformPatternAlternatives(expression),
+        staticTransformPatternAlternatives(expression, scope),
       );
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
       return [condition.then, condition.else].flatMap((branch) =>
-        branch ? staticTransformPatternAlternatives(branch) : [],
+        branch ? staticTransformPatternAlternatives(branch, scope) : [],
       );
     }
     if (node.type === "block") {
       const expressions = (node as BlockNode).expressions;
       const result = expressions[expressions.length - 1];
-      return result ? staticTransformPatternAlternatives(result) : [];
+      return result ? staticTransformPatternAlternatives(result, scope) : [];
     }
     if (node.type === "path") {
       let alternatives: string[][] = [[]];
       for (const step of (node as PathNode).steps) {
-        const stepAlternatives = staticTransformPatternAlternatives(step);
+        const stepAlternatives = staticTransformPatternAlternatives(step, scope);
         if (stepAlternatives.length === 0) return [];
         alternatives = alternatives.flatMap((prefix) =>
           stepAlternatives.map((suffix) => [...prefix, ...suffix]),
@@ -609,8 +595,9 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   function transformUpdateMatches(
     pattern: AstNode,
     suffixSteps: AstNode[],
+    scope: ScopeTracker,
   ): Array<{ locationNames: string[]; updateSuffix: AstNode[] }> {
-    return staticTransformPatternAlternatives(pattern).flatMap(
+    return staticTransformPatternAlternatives(pattern, scope).flatMap(
       (patternNames) => {
         const locationSteps = suffixSteps.slice(0, patternNames.length);
         if (locationSteps.length !== patternNames.length) return [];
@@ -673,8 +660,8 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     return runtime.callables.resolveCallableValues(node.procedure, scope).flatMap((callable) => {
       if (callable.kind !== "transform") return [];
       const matches = suffixSteps.length
-        ? transformUpdateMatches(callable.binding.transform.pattern, suffixSteps)
-        : staticTransformPatternAlternatives(callable.binding.transform.pattern).map((locationNames) => ({
+        ? transformUpdateMatches(callable.binding.transform.pattern, suffixSteps, transformInvocationScope(callable.binding, scope))
+        : staticTransformPatternAlternatives(callable.binding.transform.pattern, transformInvocationScope(callable.binding, scope)).map((locationNames) => ({
             locationNames, updateSuffix: [] as AstNode[],
           }));
       return matches.flatMap(({ locationNames, updateSuffix }) => {
@@ -695,7 +682,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     input: AstNode,
     callScope: ScopeTracker,
   ): ObjectAlias | null {
-    const updates = staticTransformPatternSequences(binding.transform.pattern).map((pattern) => {
+    const updates = staticTransformPatternAlternatives(binding.transform.pattern, transformInvocationScope(binding, callScope)).map((pattern) => {
       const updateScope = transformMatchScope(binding, input, pattern, callScope);
       const alias = runtime.aliases.groupResultObjectAliasForNode(binding.transform.update, updateScope);
       const prefix = pattern.map((key) => key.replaceAll("%", "%25").replaceAll(".", "%2E")).join(".");
@@ -714,8 +701,8 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     return runtime.callables.resolveCallableValues(node.procedure, scope).flatMap((callable) => {
       if (callable.kind !== "transform") return [];
       const matches = suffixSteps.length
-        ? transformUpdateMatches(callable.binding.transform.pattern, suffixSteps)
-        : staticTransformPatternAlternatives(callable.binding.transform.pattern).map((locationNames) => ({
+        ? transformUpdateMatches(callable.binding.transform.pattern, suffixSteps, transformInvocationScope(callable.binding, scope))
+        : staticTransformPatternAlternatives(callable.binding.transform.pattern, transformInvocationScope(callable.binding, scope)).map((locationNames) => ({
             locationNames, updateSuffix: [] as AstNode[],
           }));
       return matches.flatMap(({ locationNames, updateSuffix }) => {
@@ -736,7 +723,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     input: AstNode,
     callScope: ScopeTracker,
   ): DynamicObjectAlias | null {
-    const updates = staticTransformPatternSequences(binding.transform.pattern).map((pattern) => {
+    const updates = staticTransformPatternAlternatives(binding.transform.pattern, transformInvocationScope(binding, callScope)).map((pattern) => {
       const scope = transformMatchScope(binding, input, pattern, callScope);
       let update = binding.transform.update;
       const wildcard = pattern.includes("*");

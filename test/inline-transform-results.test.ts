@@ -6,6 +6,43 @@ describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
   it.each([
+    '$lookup($,$$.selected)',
+    '$lookup($,"a")',
+    '$lookup($$.selected)',
+  ])("retains inserted field sources when lookup selects transform targets: %s", async (pattern) => {
+    const source = `($v:=record ~> |${pattern}|{"copy":$$.other}|;$v.a.copy.details.amount)`;
+    expect(await jsonata(source).evaluate({ ...input, selected: "a", record: { a: {}, b: {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("resolves captured lookup aliases in transform patterns", async () => {
+    const source = '($l:=$lookup;$t:=|$l($,$$.selected)|{"copy":$$.other}|;$v:=$t(record);$v.a.copy.details.amount)';
+    expect(await jsonata(source).evaluate({ ...input, selected: "a", record: { a: {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("preserves literal field names in lookup-based transform targets", async () => {
+    const source = '($v:=record ~> |$lookup($,"a.b")|{"copy":$$.other}|;$v.`a.b`.copy.details.amount)';
+    expect(await jsonata(source).evaluate({ ...input, record: { "a.b": {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("tracks serialization after a computed transform target selection", async () => {
+    const source = '$string(record ~> |$lookup($,$$.selected)|{"copy":$$.other}|)';
+    const data = { ...input, selected: "a", record: { a: {}, b: {} } };
+    expect(await jsonata(source).evaluate(data)).toBe(JSON.stringify({ a: { copy: input.other }, b: {} }));
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
     '($t:=|*|{"copy":$$.other}|;$v:=$t(record);$v.a.copy.details.amount)',
     '($v:=record ~> |*|{"copy":$$.other}|;$v.a.copy.details.amount)',
   ])("retains inserted field sources below wildcard transform targets: %s", async (source) => {
