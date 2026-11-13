@@ -10,19 +10,28 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
 
   function collectConstructorAssignments(node: AstNode): readonly BindNode[] {
     if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
-    if (!["array", "object", "function", "condition"].includes(node.type)) return [];
     const cached = constructorAssignments.get(node);
     if (cached) return cached;
-    const expressions = node.type === "array" ? (node as ArrayNode).expressions
-      : node.type === "object" ? (node as ObjectNode).entries.flatMap(([key, value]) => [key, value])
-      : node.type === "function" ? [(node as FunctionNode).procedure, ...(node as FunctionNode).arguments]
-      : [(node as ConditionNode).condition, (node as ConditionNode).then, (node as ConditionNode).else].filter((value): value is AstNode => Boolean(value));
+    let expressions: AstNode[];
+    switch (node.type) {
+      case "array": expressions = (node as ArrayNode).expressions; break;
+      case "object": expressions = (node as ObjectNode).entries.flatMap(([key, value]) => [key, value]); break;
+      case "function": expressions = [(node as FunctionNode).procedure, ...(node as FunctionNode).arguments]; break;
+      case "condition": expressions = [(node as ConditionNode).condition, (node as ConditionNode).then, (node as ConditionNode).else]
+        .filter((value): value is AstNode => Boolean(value)); break;
+      case "binary": expressions = [(node as BinaryNode).lhs, (node as BinaryNode).rhs]; break;
+      case "apply": expressions = [(node as ApplyNode).lhs, (node as ApplyNode).rhs]; break;
+      case "negate": expressions = (node as NegateNode).expression ? [(node as NegateNode).expression!] : []; break;
+      default: return [];
+    }
     const assignments = expressions.flatMap((expression, index) => {
       const effects = [
         ...collectConstructorAssignments(expression),
         ...(expression.type === "bind" ? [expression as BindNode] : []),
       ];
-      return node.type === "condition" && index > 0 ? effects.map((assignment): BindNode => ({
+      const optional = node.type === "condition" && index > 0 ||
+        node.type === "binary" && ["and", "or"].includes((node as BinaryNode).value) && index === 1;
+      return optional ? effects.map((assignment): BindNode => ({
         ...assignment,
         rhs: {
           type: "condition", position: assignment.position,
@@ -288,24 +297,26 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   /** Extract paths from both sides of a binary operator. */
   function walkBinary(node: BinaryNode, scope: ScopeTracker): string[] {
     const booleanOperands = node.value === "and" || node.value === "or";
-    const paths = [node.lhs, node.rhs].flatMap((operand) =>
-      walkNode(booleanOperands ? runtime.functions.asBooleanExpression(operand) : operand, scope),
+    const rightScope = bindArrayAssignmentEffects(node.lhs, scope);
+    const operands = [{ node: node.lhs, scope }, { node: node.rhs, scope: rightScope }];
+    const paths = operands.flatMap(({ node: operand, scope: operandScope }) =>
+      walkNode(booleanOperands ? runtime.functions.asBooleanExpression(operand) : operand, operandScope),
     );
     if (node.value === "=" || node.value === "!=") {
       const scalarComparison = [node.lhs, node.rhs].some((operand) =>
         ["string", "number", "value"].includes(operand.type),
       );
-      for (const operand of [node.lhs, node.rhs]) {
-        const identityPaths = runtime.functions.identityReferencePaths(operand, scope);
+      for (const { node: operand, scope: operandScope } of operands) {
+        const identityPaths = runtime.functions.identityReferencePaths(operand, operandScope);
         if (identityPaths) {
           paths.push(...identityPaths.map((path) => appendPath(path, "**")));
         } else if (!scalarComparison) {
-          paths.push(...runtime.functions.deepValueReadPaths(operand, scope));
+          paths.push(...runtime.functions.deepValueReadPaths(operand, operandScope));
         }
       }
     } else if (node.value === "&") {
       paths.push(...runtime.functions.deepValueReadPaths(node.lhs, scope));
-      paths.push(...runtime.functions.deepValueReadPaths(node.rhs, scope));
+      paths.push(...runtime.functions.deepValueReadPaths(node.rhs, rightScope));
     }
     return paths;
   }
