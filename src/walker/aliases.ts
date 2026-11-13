@@ -106,26 +106,31 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
 
   function objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAlias | null {
     const fields = new Map<string, readonly string[]>();
-  
-    for (const [keyNode, valueNode] of node.entries) {
-      const field = staticObjectKey(keyNode);
-      if (field === null) continue;
-      const key = aliasKeySegment(field);
-  
-      const nestedAlias = groupResultObjectAliasForNode(valueNode, scope);
-      const dynamicAlias = groupResultDynamicObjectAliasForNode(valueNode, scope);
-      const aliases = nestedAlias || dynamicAlias
-        ? groupResultSuffixBasePaths(valueNode, scope)
-        : valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
-      if (aliases.length > 0) fields.set(key, aliases);
-  
-      if (nestedAlias) {
-        for (const [nestedKey, nestedAliases] of nestedAlias) {
-          fields.set(`${key}.${nestedKey}`, nestedAliases);
+    const concurrentScope = runtime.core.bindArrayAssignmentEffects(node, scope);
+    const scopes = concurrentScope === scope ? [scope] : [scope, concurrentScope];
+
+    for (const valueScope of scopes) {
+      for (const [keyNode, valueNode] of node.entries) {
+        const field = staticObjectKey(keyNode);
+        if (field === null) continue;
+        const key = aliasKeySegment(field);
+
+        const nestedAlias = groupResultObjectAliasForNode(valueNode, valueScope);
+        const dynamicAlias = groupResultDynamicObjectAliasForNode(valueNode, valueScope);
+        const aliases = nestedAlias || dynamicAlias
+          ? groupResultSuffixBasePaths(valueNode, valueScope)
+          : valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, valueScope);
+        if (aliases.length > 0) fields.set(key, [...(fields.get(key) ?? []), ...aliases]);
+
+        if (nestedAlias) {
+          for (const [nestedKey, nestedAliases] of nestedAlias) {
+            const field = `${key}.${nestedKey}`;
+            fields.set(field, [...(fields.get(field) ?? []), ...nestedAliases]);
+          }
         }
       }
     }
-  
+
     return fields.size > 0 ? fields : null;
   }
 
@@ -1352,23 +1357,27 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: ObjectNode,
     scope: ScopeTracker,
   ): DynamicObjectAlias {
-    const variants: Array<DynamicObjectAlias["variants"][number]> = [{ node, scope }];
-  
-    for (const [keyNode, valueNode] of node.entries) {
-      const key = staticObjectKey(keyNode);
-      if (key === null) continue;
-  
-      const nestedAlias = groupResultDynamicObjectAliasForNode(valueNode, scope);
-      if (!nestedAlias) continue;
-  
-      variants.push(
-        ...nestedAlias.variants.map((variant) => ({
-          ...variant,
-          prefixSteps: [key, ...(variant.prefixSteps ?? [])],
-        })),
-      );
+    const concurrentScope = runtime.core.bindArrayAssignmentEffects(node, scope);
+    const scopes = concurrentScope === scope ? [scope] : [scope, concurrentScope];
+    const variants: Array<DynamicObjectAlias["variants"][number]> = scopes.map((scope) => ({ node, scope }));
+
+    for (const valueScope of scopes) {
+      for (const [keyNode, valueNode] of node.entries) {
+        const key = staticObjectKey(keyNode);
+        if (key === null) continue;
+
+        const nestedAlias = groupResultDynamicObjectAliasForNode(valueNode, valueScope);
+        if (!nestedAlias) continue;
+
+        variants.push(
+          ...nestedAlias.variants.map((variant) => ({
+            ...variant,
+            prefixSteps: [key, ...(variant.prefixSteps ?? [])],
+          })),
+        );
+      }
     }
-  
+
     return { variants };
   }
 

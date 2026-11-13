@@ -4,18 +4,20 @@ import { appendPath } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
 export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
-  const arrayAssignments = new WeakMap<AstNode, readonly BindNode[]>();
+  const constructorAssignments = new WeakMap<AstNode, readonly BindNode[]>();
 
-  function collectArrayAssignments(node: AstNode): readonly BindNode[] {
-    if (node.type === "bind") return collectArrayAssignments((node as BindNode).rhs);
-    if (node.type !== "array") return [];
-    const cached = arrayAssignments.get(node);
+  function collectConstructorAssignments(node: AstNode): readonly BindNode[] {
+    if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
+    if (node.type !== "array" && node.type !== "object") return [];
+    const cached = constructorAssignments.get(node);
     if (cached) return cached;
-    const assignments = (node as ArrayNode).expressions.flatMap((expression) => [
-      ...collectArrayAssignments(expression),
+    const expressions = node.type === "array" ? (node as ArrayNode).expressions
+      : (node as ObjectNode).entries.flatMap(([key, value]) => [key, value]);
+    const assignments = expressions.flatMap((expression) => [
+      ...collectConstructorAssignments(expression),
       ...(expression.type === "bind" ? [expression as BindNode] : []),
     ]);
-    arrayAssignments.set(node, assignments);
+    constructorAssignments.set(node, assignments);
     return assignments;
   }
 
@@ -24,7 +26,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     scope: ScopeTracker,
     evaluationScope = scope,
   ): ScopeTracker {
-    const assignments = collectArrayAssignments(node);
+    const assignments = collectConstructorAssignments(node);
     if (assignments.length === 0) return scope;
     const choices = new Map<string, AstNode>();
     for (const assignment of assignments) {
@@ -570,6 +572,10 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       ...walkValueExpression(key, scope),
       ...walkValueExpression(val, scope),
     ]);
+    const concurrentScope = bindArrayAssignmentEffects(node, scope);
+    if (concurrentScope !== scope) {
+      for (const [, value] of node.entries) paths.push(...walkValueExpression(value, concurrentScope));
+    }
     if (node.predicate && node.predicate.length > 0) {
       const objectAlias = runtime.aliases.objectAliasFromObject(node, scope);
       const dynamicObjectAlias = runtime.aliases.dynamicObjectAliasForNode(node, scope);

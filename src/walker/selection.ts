@@ -141,10 +141,13 @@ export function createSelectionOperations(
         return getBlockSelectedResultPaths(node as BlockNode, scope);
       case "array":
         return getArraySelectedResultPaths(node as ArrayNode, scope);
-      case "object":
-        return (node as ObjectNode).entries.flatMap(([, value]) =>
-          getSelectedResultPaths(value, scope),
-        );
+      case "object": {
+        const concurrentScope = runtime.core.bindArrayAssignmentEffects(node, scope);
+        const scopes = concurrentScope === scope ? [scope] : [scope, concurrentScope];
+        return scopes.flatMap((valueScope) => (node as ObjectNode).entries.flatMap(([, value]) =>
+          getSelectedResultPaths(value, valueScope),
+        ));
+      }
       case "bind":
         return getSelectedResultPaths((node as BindNode).rhs, scope);
       case "function":
