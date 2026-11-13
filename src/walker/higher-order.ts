@@ -184,6 +184,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       }
     }
   
+    if (funcName === "reduce") paths.push(...reducerIterationReadPaths(args, scope, node.position));
+
     if (callback) {
       // Get the data argument (first non-lambda arg) BASE paths for binding
       // Uses extractBasePaths to exclude filter predicate paths from binding
@@ -801,6 +803,39 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       binding.forwardScope ?? dataArgScope,
       binding.name,
     );
+  }
+
+  function reducerIterationReadPaths(args: AstNode[], scope: ScopeTracker, position: number): string[] {
+    if (!args[0] || !args[1]) return [];
+    const marker = "\0reduce-accumulator";
+    const symbolicScope = bindVariable(childScope(scope), marker, [marker]);
+    const call: FunctionNode = {
+      type: "function", value: "(", position,
+      procedure: args[1] as FunctionNode["procedure"],
+      arguments: [
+        { type: "variable", value: marker, position }, args[0],
+        { type: "number", value: 0, position }, args[0],
+      ],
+    };
+    // Compare returned logical fields with a symbolic accumulator before widening repeated updates.
+    const symbolicPaths = selection.getSelectedResultPaths(call, symbolicScope);
+    const alias = runtime.aliases.objectAliasForNode(call, symbolicScope);
+    const dynamic = runtime.aliases.dynamicObjectAliasForNode(call, symbolicScope);
+    const dynamicAccumulator = dynamic && runtime.aliases.selectLookupDynamicObjectAliasPaths(dynamic, [])
+      .some((path) => path.startsWith(marker));
+    const descends = runtime.results.getResultSuffixBasePaths(call, symbolicScope)
+      .some((path) => path.startsWith(marker) && path !== marker);
+    const changesShape = descends || (alias
+      ? [...alias].some(([field, origins]) => origins.some((path) =>
+          path.startsWith(marker) && path !== appendPath(marker, field)))
+      : symbolicPaths.some((path) => path.startsWith(marker) && (path !== marker || Boolean(dynamicAccumulator))));
+    return changesShape ? [
+      ...runtime.functions.deepValueReadPaths(args[2] ?? args[0], scope),
+      ...runtime.functions.deepValueReadPaths(args[0], scope),
+      ...runtime.functions.deepValueReadPaths({
+        ...call, arguments: [args[2] ?? args[0], ...call.arguments.slice(1)],
+      }, scope),
+    ] : [];
   }
 
   function walkReduceLambdaWithBindings(

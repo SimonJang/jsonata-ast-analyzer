@@ -203,7 +203,7 @@ const paths = extractPaths(
 // ]
 ```
 
-Assignments exposed to the surrounding JSONata scope are retained through constructors, function arguments, operators, projections, filters, sorting, and grouping. Block and tuple-local assignments stay local. Multi-item tuple sorting can expose assignments in predicates, subsequent sort keys, and grouping to the outer scope; the analyzer retains both possible scopes. If a projection repeatedly updates a variable from its previous value, directly or through other variables, the number of updates depends on the input, so descendant summaries (`**`) conservatively cover the possible value origins.
+Assignments exposed to the surrounding JSONata scope are retained through constructors, function arguments, operators, projections, filters, sorting, and grouping. Block and tuple-local assignments stay local. Multi-item tuple sorting can expose assignments in predicates, subsequent sort keys, and grouping to the outer scope; the analyzer retains both possible scopes. If projection assignments or reducer callbacks repeatedly change a value’s shape, the number of updates depends on the input, so descendant summaries (`**`) conservatively cover the possible value origins.
 
 ### Filter predicates
 
