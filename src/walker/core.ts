@@ -10,16 +10,27 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
 
   function collectConstructorAssignments(node: AstNode): readonly BindNode[] {
     if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
-    if (node.type !== "array" && node.type !== "object" && node.type !== "function") return [];
+    if (!["array", "object", "function", "condition"].includes(node.type)) return [];
     const cached = constructorAssignments.get(node);
     if (cached) return cached;
     const expressions = node.type === "array" ? (node as ArrayNode).expressions
       : node.type === "object" ? (node as ObjectNode).entries.flatMap(([key, value]) => [key, value])
-      : [(node as FunctionNode).procedure, ...(node as FunctionNode).arguments];
-    const assignments = expressions.flatMap((expression) => [
-      ...collectConstructorAssignments(expression),
-      ...(expression.type === "bind" ? [expression as BindNode] : []),
-    ]);
+      : node.type === "function" ? [(node as FunctionNode).procedure, ...(node as FunctionNode).arguments]
+      : [(node as ConditionNode).condition, (node as ConditionNode).then, (node as ConditionNode).else].filter((value): value is AstNode => Boolean(value));
+    const assignments = expressions.flatMap((expression, index) => {
+      const effects = [
+        ...collectConstructorAssignments(expression),
+        ...(expression.type === "bind" ? [expression as BindNode] : []),
+      ];
+      return node.type === "condition" && index > 0 ? effects.map((assignment): BindNode => ({
+        ...assignment,
+        rhs: {
+          type: "condition", position: assignment.position,
+          condition: { type: "value", value: true, position: assignment.position },
+          then: assignment.rhs, else: { ...assignment.lhs },
+        },
+      })) : effects;
+    });
     constructorAssignments.set(node, assignments);
     return assignments;
   }
