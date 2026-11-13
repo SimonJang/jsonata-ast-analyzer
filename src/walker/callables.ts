@@ -1098,6 +1098,11 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const path = node as PathNode;
       const method = resolveStoredMethodPath(path, scope);
       if (method) return resolveCallableValues(method.node, method.scope);
+      const chained = runtime.aliases.chainedPathContext(path, scope);
+      if (chained) {
+        const values = resolveCallableValues(chained.tail, chained.scope);
+        if (values.length > 0) return values;
+      }
       const groupedValues = groupedPathCallableValues(path, scope);
       if (groupedValues.length > 0) return groupedValues;
       const projectionValues = pathProjectionCallableValues(path, scope);
@@ -1449,6 +1454,11 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const path = node as PathNode;
       const method = resolveStoredMethodPath(path, scope);
       if (method) return resolveBuiltinCallableNames(method.node, method.scope);
+      const chained = runtime.aliases.chainedPathContext(path, scope);
+      if (chained) {
+        const names = resolveBuiltinCallableNames(chained.tail, chained.scope);
+        if (names.length > 0) return names;
+      }
       const groupedNames = groupedPathBuiltinCallableNames(path, scope);
       if (groupedNames.length > 0) return groupedNames;
       const projectionNames = pathProjectionBuiltinCallableNames(path, scope);

@@ -12,6 +12,25 @@ const input = {
 };
 
 describe("sorting named callable containers", () => {
+  it.each([
+    "function(){$$.items.details}",
+    "(function($ignored){$$.items.details})(?)",
+  ])("retains captured reads when invoking %s after a parenthesized focus sort", async (procedure) => {
+    const source = `(({"fn":${procedure},"copy":record})@$v^($v.copy.details.amount).$v).fn().amount`;
+    expect(Array.from(await jsonata(source).evaluate(input))).toEqual([10, 20]);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "items.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("retains builtin semantics after a parenthesized focus sort", async () => {
+    const source = '(({"fn":$eval,"copy":record})@$v^($v.copy.details.amount).$v).fn("$$.items.details.amount")';
+    expect(Array.from(await jsonata(source).evaluate(input))).toEqual([10, 20]);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "items.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
   for (const capture of [false, true]) {
     for (const data of [false, true]) {
       for (const dynamic of [false, true]) {
