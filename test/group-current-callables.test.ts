@@ -13,6 +13,27 @@ const callables = [
 ];
 
 describe("callable entries in the current grouped value", () => {
+  it.each([
+    ["function(){$$.record.details}", ".fn().amount"],
+    ["(function($ignored){$$.record.details})(?)", ".fn().amount"],
+    ["$eval", '.fn("$$.record.details.amount")'],
+    ['|$|{"tag":true}|', ".fn($$.record).details.amount"],
+  ])("preserves %s inside a grouped block's current value", async (procedure, call) => {
+    const source = `({"fn":${procedure},"copy":items}){"holder":$}.holder${call}`;
+    expect(await jsonata(source).evaluate(input)).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("does not invoke the stored callable when counting the grouped object", async () => {
+    const source = '$count(({"fn":function(){$$.record.details},"copy":items}){"holder":$}.holder)';
+    expect(await jsonata(source).evaluate(input)).toBe(1);
+    expect(analyzeExpression(source).accesses).toEqual([
+      { path: "items", confidence: "static", coverage: "exact" },
+    ]);
+  });
+
   for (const [kind, callable, call] of callables) {
     for (const dataAlias of [false, true]) {
       const mapped = `$map($input,function($row){{"fn":${callable}${dataAlias ? ',"data":{"copy":$row}' : ''}}})`;

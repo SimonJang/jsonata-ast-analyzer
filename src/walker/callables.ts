@@ -463,7 +463,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     scope: ScopeTracker,
     depth = 0,
   ): { readonly node: AstNode; readonly scope: ScopeTracker } {
-    if (depth >= 16) return { node, scope };
+    if (depth >= 16 || callableGroup(node)?.entries.length) return { node, scope };
     if (node.type === "lambda" && (node as LambdaNode).thunk) {
       return unwrapCallableContainerNode((node as LambdaNode).body, scope, depth + 1);
     }
