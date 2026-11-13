@@ -100,7 +100,7 @@ describe("object truthiness dependencies", () => {
     const expression = '$boolean(record)';
     expect(await jsonata(expression).evaluate(input, { boolean: () => false })).toBe(false);
     expect(analyzeExpression(expression, { opaqueFunctions: ["boolean"] }).accesses)
-      .toEqual([exact("record")]);
+      .toEqual([exact("record"), exact("record.**")]);
   });
 
   it.each([

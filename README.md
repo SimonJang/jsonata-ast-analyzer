@@ -85,12 +85,15 @@ analyzeExpression("$eval(payload).x", {
 });
 // {
 //   accesses: [
-//     { path: "payload", confidence: "static", coverage: "exact" }
+//     { path: "payload", confidence: "static", coverage: "exact" },
+//     { path: "payload.**", confidence: "static", coverage: "exact" }
 //   ]
 // }
 ```
 
-This is useful when a host replaces a built-in with different semantics. Arguments are still analyzed as consumed values, but built-in result and callback semantics are skipped. A JSONata-local lambda, partial, transform, or stored callable with the same name takes precedence. Options are immutable and scoped to the individual call.
+This is useful when a host replaces a built-in with different semantics. Arguments receive conservative descendant dependencies, but built-in result and callback semantics are skipped. A JSONata-local lambda, partial, transform, or stored callable with the same name takes precedence. Options are immutable and scoped to the individual call.
+
+Unknown function names are treated as registered host functions. For example, `$custom(record)` reports `record` and `record.**`, because JavaScript registered with JSONata's `registerFunction()` can inspect any descendant of the argument. No registration information is needed for these conservative argument dependencies.
 
 With no options, removing `coverage` from `analyzeExpression(expression).accesses` produces exactly the same paths, confidence, and order as `extractPaths(expression)`.
 
@@ -331,7 +334,7 @@ The analyzer is designed to over-approximate: it reports a superset of the paths
 
 **Transform writes** -- Transform locations and update/delete expressions are analyzed for reads, but write targets are not exposed as a separate public API. Literal delete targets such as `["password"]` do not create input reads.
 
-**External function contracts** -- `opaqueFunctions` can suppress recognized built-in semantics, but this release does not model argument or return contracts for arbitrary host functions.
+**External function contracts** -- Host-function arguments receive conservative descendant dependencies. The analyzer cannot inspect registered JavaScript, infer host signatures or context defaults, or discover reads of external state. `opaqueFunctions` must identify host replacements of built-in names. Precise callback and return contracts for arbitrary host functions are not modeled.
 
 **Internal benchmark helper** -- `__benchmarkExpression()` is exported only so the repository benchmark can measure raw and deduped path counts. Treat it as internal; `extractPaths()` and `analyzeExpression()` are the supported APIs.
 

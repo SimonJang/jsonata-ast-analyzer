@@ -14,10 +14,17 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     keepBarePathsRootRelative = false,
     preserveCurrentContext = false,
   ): string[] {
-    const localPaths = runtime.core.walkNode(expr, childScope(createScope()));
+    const variables = collectVariableNames(expr);
+    let localScope = childScope(createScope());
+    // Keep known local procedures distinct from host functions in the relative-path probe.
+    for (const name of variables) {
+      if (name && name !== "$" && (resolveValue(scope, name) || resolveVariable(scope, name) !== null)) {
+        localScope = bindVariable(localScope, name, []);
+      }
+    }
+    const localPaths = runtime.core.walkNode(expr, localScope);
     const localSet = new Set(localPaths);
   
-    const variables = collectVariableNames(expr);
     const usesCurrentContext =
       variables.has("") ||
       containsContextDefaultLambda(expr) ||
@@ -1535,8 +1542,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
             ),
           );
         }
-        for (const expr of blockStep.expressions) {
-          if (hasBindings && expr.type === "bind") continue;
+        for (const expr of hasBindings ? [] : blockStep.expressions) {
           paths.push(
             ...walkContextExpression(
               expr,

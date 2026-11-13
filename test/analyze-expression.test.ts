@@ -46,6 +46,7 @@ describe("analyzeExpression", () => {
     ).toEqual({
       accesses: [
         { path: "payload", confidence: "static", coverage: "exact" },
+        { path: "payload.**", confidence: "static", coverage: "exact" },
       ],
     });
   });
@@ -149,6 +150,7 @@ describe("analyzeExpression", () => {
       expect(analyzeExpression(expression, { opaqueFunctions })).toEqual({
         accesses: [
           { path: "payload", confidence: "static", coverage: "exact" },
+          { path: "payload.**", confidence: "static", coverage: "exact" },
         ],
       });
     }
@@ -180,6 +182,7 @@ describe("analyzeExpression", () => {
     ).toEqual({
       accesses: [
         { path: "items", confidence: "static", coverage: "exact" },
+        { path: "items.**", confidence: "static", coverage: "exact" },
       ],
     });
   });

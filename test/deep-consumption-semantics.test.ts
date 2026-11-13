@@ -91,9 +91,10 @@ describe("deep consumption dependencies", () => {
     });
   });
 
-  it("ignores deep built-in semantics for opaque replacements", () => {
+  it("uses conservative argument reads for opaque replacements", () => {
     expect(analyzeExpression('$string(record)', { opaqueFunctions: ["string"] }).accesses).toEqual([
       { path: "record", confidence: "static", coverage: "exact" },
+      { path: "record.**", confidence: "static", coverage: "exact" },
     ]);
   });
 

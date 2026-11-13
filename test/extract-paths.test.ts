@@ -307,7 +307,10 @@ describe("extractPaths", () => {
     });
 
     it('extracts argument paths from unknown function: "$unknownFunc(a.b)"', () => {
-      expect(extractPaths("$unknownFunc(a.b)")).toEqual([{ path: "a.b", confidence: "static" }]);
+      expect(extractPaths("$unknownFunc(a.b)")).toEqual([
+        { path: "a.b", confidence: "static" },
+        { path: "a.b.**", confidence: "static" },
+      ]);
     });
 
     it('extracts arguments from multiple function calls: "$sum(items.price) + $count(orders)"', () => {
@@ -475,6 +478,8 @@ describe("extractPaths", () => {
       expect(extractPaths("$unknownFunc(a.b, c.d)")).toEqual([
         { path: "a.b", confidence: "static" },
         { path: "c.d", confidence: "static" },
+        { path: "a.b.**", confidence: "static" },
+        { path: "c.d.**", confidence: "static" },
       ]);
     });
   });

@@ -804,7 +804,9 @@ export function createFunctionOperations(
 
     if (!node.internalTruthiness && options.opaqueFunctions.has(funcName)) {
       return withFunctionStages(
-        args.flatMap((argument) => runtime.core.walkNode(argument, scope)),
+        args.flatMap((argument) => [
+          ...runtime.core.walkNode(argument, scope), ...deepValueReadPaths(argument, scope),
+        ]),
       );
     }
 
@@ -927,8 +929,22 @@ export function createFunctionOperations(
     if (funcName === "lookup") {
       paths.push(...runtime.results.getLookupResultBasePaths(args, scope));
     }
+    if (isUnknownHostProcedure(node.procedure, scope)) {
+      paths.push(...args.flatMap((arg) => deepValueReadPaths(arg, scope)));
+    }
   
     return withFunctionStages(paths);
+  }
+
+  function isUnknownHostProcedure(node: AstNode, scope: ScopeTracker, visited = new Set<AstNode>()): boolean {
+    if (node.type !== "variable" || visited.has(node)) return false;
+    const name = (node as VariableNode).value;
+    if (BUILTIN_FUNCTIONS.has(name)) return false;
+    const binding = resolveValue(scope, name);
+    if (binding) {
+      return isUnknownHostProcedure(binding.node, binding.scope, new Set([...visited, node]));
+    }
+    return name !== "" && name !== "$" && resolveVariable(scope, name) === null;
   }
 
   function walkMatcherContinuations(initialCall: FunctionNode, scope: ScopeTracker): string[] {

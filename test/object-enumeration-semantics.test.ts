@@ -60,6 +60,7 @@ describe("object enumeration dependencies", () => {
     for (const name of ["keys", "spread", "boolean", "not", "merge"]) {
       expect(analyzeExpression(`$${name}(record)`, { opaqueFunctions: [name] }).accesses).toEqual([
         { path: "record", confidence: "static", coverage: "exact" },
+        { path: "record.**", confidence: "static", coverage: "exact" },
       ]);
     }
   });
