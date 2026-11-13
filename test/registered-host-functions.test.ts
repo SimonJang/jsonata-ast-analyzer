@@ -4,6 +4,23 @@ import { analyzeExpression, extractPaths } from "../src/index.js";
 
 describe("registered host function dependencies", () => {
   it.each([
+    '($fs:=[$custom];$fs.{"run":$}.run)',
+    '[$custom].{"run":$}.run',
+    '($fs:=[$custom];$fs.($v:=$;{"run":$v}).run)',
+    '($fs:=[$custom];$fs.[{"run":$}].run)',
+    '($fs:=[$custom];$fs.[$].{"run":$}.run)',
+    '($fs:=[$custom];$fs@$item.{"run":$item}.run)',
+  ])("preserves registered callables projected from current values in %s", async (producer) => {
+    const source = `($f:=${producer};$count($f(record)))`;
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(1);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
     '$custom ~> $count',
     '(function($x){$x}) ~> $custom',
     '($custom ~> function($x){$x}) ~> $count',

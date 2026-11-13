@@ -993,7 +993,14 @@ export function createFunctionOperations(
         if (["object", "array", "block", "lambda"].includes(steps[index].type)) projection = index;
       }
       if (projection > 0) {
-        return isUnknownHostProcedure(steps[projection], scope, nextVisited, [...steps.slice(projection + 1), ...selectors]);
+        const prefix: AstNode = projection === 1 ? steps[0]
+          : { type: "path", steps: steps.slice(0, projection) } as PathNode;
+        let projectionScope = runtime.aliases.groupResultScope(prefix, scope);
+        if (!(steps[projection - 1] as AstNode & { focusBinding?: unknown }).focusBinding) {
+          projectionScope = bindValue(projectionScope, "", prefix, scope);
+        }
+        return isUnknownHostProcedure(steps[projection], projectionScope,
+          nextVisited, [...steps.slice(projection + 1), ...selectors]);
       }
       const [first, ...suffix] = steps;
       return Boolean(first && isUnknownHostProcedure(first, scope, nextVisited, [...suffix, ...selectors]));
