@@ -543,56 +543,20 @@ export function createFunctionOperations(
           path.steps.some((step) => step.type === "sort")) {
         return runtime.paths.walkPath(path, scope);
       }
-      const [first, ...suffixSteps] = path.steps;
+      const first = path.steps[0];
       const producedByProjection =
         runtime.callables.pathProjectionCallableValues(path, scope).length > 0 ||
         runtime.callables.pathProjectionBuiltinCallableNames(path, scope).length > 0;
       const producedByGroup =
         runtime.callables.groupedPathCallableValues(path, scope).length > 0 ||
         runtime.callables.groupedPathBuiltinCallableNames(path, scope).length > 0;
-      const producedByTransform =
-        first?.type === "function" &&
-        (runtime.transforms.transformUpdateCallableValues(
-          first as FunctionNode,
-          suffixSteps,
-          scope,
-        ).length > 0 ||
-          runtime.transforms.transformUpdateBuiltinCallableNames(
-            first as FunctionNode,
-            suffixSteps,
-            scope,
-          ).length > 0);
-      const producedByHigherOrder =
-        first?.type === "function" &&
-        (runtime.callables.higherOrderResultCallableValues(
-          first as FunctionNode,
-          scope,
-          suffixSteps,
-        ).length > 0 ||
-          runtime.callables.higherOrderResultBuiltinCallableNames(
-            first as FunctionNode,
-            scope,
-            suffixSteps,
-          ).length > 0);
-      const producedByCustomFunction =
-        first?.type === "function" &&
-        (runtime.callables.customFunctionResultCallableValues(
-          first as FunctionNode,
-          scope,
-          suffixSteps,
-        ).length > 0 ||
-          runtime.callables.customFunctionResultBuiltinCallableNames(
-            first as FunctionNode,
-            scope,
-            suffixSteps,
-          ).length > 0);
       const groupSource = { ...path, group: undefined } as PathNode;
       const groupedCallableSource =
         producedByGroup &&
         (runtime.callables.resolveCallableValues(groupSource, scope).length > 0 ||
           runtime.callables.resolveBuiltinCallableNames(groupSource, scope).length > 0);
       const producerPaths =
-        producedByTransform || producedByHigherOrder || producedByCustomFunction
+        first?.type === "function"
           ? walkFunction(first as FunctionNode, scope)
           : [];
       const projectionPaths = producedByProjection ||
