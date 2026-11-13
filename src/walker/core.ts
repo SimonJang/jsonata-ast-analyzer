@@ -1,5 +1,5 @@
 import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
-import { type ScopeTracker, childScope, bindVariable, bindValue, resolveValue, resolveVariable } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, bindValue, bindObjectAlias, bindDynamicObjectAlias, bindSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, resolveValue, resolveVariable } from "../scope.js";
 import { appendPath, collectVariableNames } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
@@ -130,7 +130,9 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     const cached = evaluationCache.get(evaluationScope);
     if (cached) return cached;
     const choices = new Map<string, AstNode>();
+    const writeCounts = new Map<string, number>();
     for (const assignment of assignments) {
+      writeCounts.set(assignment.lhs.value, (writeCounts.get(assignment.lhs.value) ?? 0) + 1);
       const previous = choices.get(assignment.lhs.value);
       // Concurrent writes can finish in either order. Retain both values using
       // the existing branch alias and callable merging semantics.
@@ -143,9 +145,11 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     const bindCaptured = (target: ScopeTracker, name: string, value: AstNode, source: ScopeTracker): ScopeTracker =>
       bindValue(runtime.higherOrder.bindArgumentParameter(
         target, { type: "variable", value: name, position: 0 },
-        runtime.aliases.bindingAliasPaths(value, source), value, source,
+        [...new Set(runtime.aliases.bindingAliasPaths(value, source))], value, source,
       ), name, value, source);
-    if (choices.size === 1) {
+    const selfReads = new Set([...choices].filter(([name, value]) =>
+      writeCounts.get(name)! > 1 && collectVariableNames(value).has(name)).map(([name]) => name));
+    if (choices.size === 1 && selfReads.size === 0) {
       const [name, value] = choices.entries().next().value!;
       const result = bindCaptured(scope, name, value, evaluationScope);
       evaluationCache.set(evaluationScope, result);
@@ -187,6 +191,39 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
           condition: { type: "value", value: true, position: 0 },
           then: reference(before), else: reference(after),
         }, valueScope);
+      }
+      if (selfReads.has(name)) {
+        const original = reference(name);
+        const originalPaths = runtime.aliases.bindingAliasPaths(original, evaluationScope);
+        const originalSuffix = runtime.aliases.groupResultSuffixBasePaths(original, evaluationScope);
+        const callable = runtime.callables.resolveCallableValues(value, valueScope).length > 0 ||
+          runtime.callables.resolveBuiltinCallableNames(value, valueScope).length > 0;
+        const before = `\0assignment-self-before-${name}`;
+        if (callable) valueScope = bindCaptured(valueScope, before, original, evaluationScope);
+        for (let index = 1; index < writeCounts.get(name)!; index++) {
+          if (callable) {
+            const after = `\0assignment-self-after-${name}-${index}`;
+            valueScope = bindCaptured(valueScope, after, value, valueScope);
+            valueScope = bindCaptured(valueScope, name, {
+              type: "condition", position: 0,
+              condition: { type: "value", value: true, position: 0 },
+              then: reference(before), else: reference(after),
+            }, valueScope);
+            continue;
+          }
+          const paths = runtime.aliases.bindingAliasPaths(value, valueScope);
+          const suffix = runtime.aliases.groupResultSuffixBasePaths(value, valueScope);
+          const object = runtime.aliases.mergeObjectAliases([
+            resolveObjectAlias(evaluationScope, name), runtime.aliases.groupResultObjectAliasForNode(value, valueScope),
+          ]);
+          const dynamic = runtime.aliases.mergeDynamicObjectAliases([
+            resolveDynamicObjectAlias(evaluationScope, name), runtime.aliases.groupResultDynamicObjectAliasForNode(value, valueScope),
+          ]);
+          valueScope = bindVariable(valueScope, name, [...new Set([...originalPaths, ...paths])]);
+          if (object) valueScope = bindObjectAlias(valueScope, name, object);
+          if (dynamic) valueScope = bindDynamicObjectAlias(valueScope, name, dynamic);
+          valueScope = bindSuffixBasePaths(valueScope, name, [...new Set([...originalSuffix, ...suffix])]);
+        }
       }
       const result = bindCaptured(evaluationScope, name, value, valueScope);
       resolved.set(name, result);

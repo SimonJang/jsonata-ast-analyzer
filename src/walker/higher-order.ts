@@ -81,7 +81,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
   
         const resolved = resolveVariable(scope, varStep.value);
         if (resolved && resolved.length > 0) {
-          const basePaths = filterToBasePaths([...resolved]);
+          const suffixBases = resolveSuffixBasePaths(scope, varStep.value);
+          const basePaths = suffixBases?.length ? [...suffixBases] : filterToBasePaths([...resolved]);
           const suffixSteps = pathNode.steps.slice(varStepIndex + 1);
           const suffix = buildPathString(suffixSteps);
           return basePaths.map((p) => (suffix ? `${p}.${suffix}` : p));
@@ -106,7 +107,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
       const resolved = resolveVariable(scope, varNode.value);
       if (resolved && resolved.length > 0) {
         // Filter to only root paths -- strip predicate-derived suffix paths
-        return filterToBasePaths([...resolved]);
+        const suffixBases = resolveSuffixBasePaths(scope, varNode.value);
+        return suffixBases?.length ? [...suffixBases] : filterToBasePaths([...resolved]);
       }
       return [];
     }

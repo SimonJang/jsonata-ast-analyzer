@@ -4,6 +4,22 @@ import { analyzeExpression } from "../src/index.js";
 
 describe("chained assignment origins", () => {
   it.each([
+    '($x:=other;[$x:=record,$x:=$append([],$x.details)];$x.amount)',
+    '($x:=other;{"a":$x:=record,"b":$x:=$append([],$x.details)};$x.amount)',
+    '($x:=other;$append($x:=record,$x:=$x.details);$x.amount)',
+    '($x:={"copy":other};[$x:={"copy":record},$x:=$append($reverse($reverse($reverse($reverse([])))),$x.copy.details)];$x.amount)',
+    '($x:={(key):other};[$x:={(key):record},$x:=$append($reverse($reverse($reverse($reverse([])))),$x.copy.details)];$x.amount)',
+    '($f:=function(){other.details};[$f:=function(){record.details},$f:=$append([],$f())];$f.amount)',
+    '($f:=function(){other.details};{"a":$f:=function(){record.details},"b":$f:=$append([],$f())};$f.amount)',
+  ])("retains sources through repeated writes to the same variable in %s", async (source) => {
+    let reads = 0;
+    const record = { details: { get amount() { reads++; return 10; } } };
+    expect(await jsonata(source).evaluate({ record, other: { details: { amount: 20 } }, key: "copy" })).toBe(10);
+    expect(reads).toBeGreaterThan(0);
+    expect(analyzeExpression(source).accesses.map(({ path }) => path)).toContain("record.details.amount");
+  });
+
+  it.each([
     '($x:=other;[$x:=record,$y:=$append([],$x)];$clone($y))',
     '($x:=other;{"a":$x:=record,"b":$y:=$append([],$x)};$clone($y))',
     '($x:=other;$append($x:=record,$y:=$x);$clone($y))',
