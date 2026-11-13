@@ -1206,6 +1206,7 @@ export function createFunctionOperations(
   function getStaticEvalScope(
     args: AstNode[],
     scope: ScopeTracker,
+    preserveValues = false,
   ): ScopeTracker {
     if (!args[1] && !hasCapturedEvalContext(scope)) return scope;
     const contextArg = args[1] ?? { type: "variable", value: "", position: 0 } as VariableNode;
@@ -1214,10 +1215,13 @@ export function createFunctionOperations(
       childScope(scope), { type: "variable", value: "", position: 0 },
       paths, contextArg, scope,
     );
-    return runtime.higherOrder.bindArgumentParameter(
+    const evalScope = runtime.higherOrder.bindArgumentParameter(
       currentScope, { type: "variable", value: EVAL_CONTEXT, position: 0 },
       paths, contextArg, scope,
     );
+    return preserveValues
+      ? bindValue(bindValue(evalScope, "", contextArg, scope), EVAL_CONTEXT, contextArg, scope)
+      : evalScope;
   }
 
   function getStaticEvalResultObjectAlias(

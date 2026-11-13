@@ -158,7 +158,7 @@ export interface FunctionOperations {
   getStaticEvalResultBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalResultSuffixBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalExpression(args: AstNode[], scope?: ScopeTracker): AstNode | null;
-  getStaticEvalScope(args: AstNode[], scope: ScopeTracker): ScopeTracker;
+  getStaticEvalScope(args: AstNode[], scope: ScopeTracker, preserveValues?: boolean): ScopeTracker;
   getStaticEvalResultObjectAlias(args: AstNode[], scope: ScopeTracker): ObjectAlias | null;
   getStaticEvalResultDynamicObjectAlias(args: AstNode[], scope: ScopeTracker): DynamicObjectAlias | null;
   walkApply(node: ApplyNode, scope: ScopeTracker): string[];

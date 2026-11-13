@@ -591,6 +591,12 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
             return staticTransformPatternAlternatives(lambda.body, lambdaScope, new Set([...active, lambda]));
           });
         });
+        if (names.includes("eval")) {
+          const expression = runtime.functions.getStaticEvalExpression(call.arguments, scope);
+          return [...custom, ...(expression ? staticTransformPatternAlternatives(
+            expression, runtime.functions.getStaticEvalScope(call.arguments, scope, true), active,
+          ) : [])];
+        }
         if (names.includes("map") && call.arguments[0] && call.arguments[1]) {
           const callback: FunctionNode = {
             type: "function", value: "(", position: call.position,
@@ -638,6 +644,32 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
       return result ? staticTransformPatternAlternatives(result, blockScope, active) : [];
     }
     if (node.type === "path") {
+      const steps = (node as PathNode).steps;
+      let source = steps[0];
+      let sourceScope = scope;
+      const visited = new Set<AstNode>();
+      while (source?.type === "variable" && !isRootReference(source) && !visited.has(source)) {
+        visited.add(source);
+        const value = resolveValue(sourceScope, (source as VariableNode).value);
+        if (!value) break;
+        source = value.node;
+        sourceScope = value.scope;
+      }
+      const [selector, ...rest] = steps.slice(1);
+      if (source?.type === "object" && (selector?.type === "name" || selector?.type === "wildcard")) {
+        return (source as ObjectNode).entries.flatMap(([key, value]) => {
+          const name = runtime.aliases.staticObjectKey(key);
+          if (selector.type === "name" && name !== null && name !== (selector as NameNode).value) return [];
+          return staticTransformPatternAlternatives(
+            rest.length ? { type: "path", steps: [value, ...rest] } as PathNode : value, sourceScope, active,
+          );
+        });
+      }
+      if (source?.type === "array" && selector) {
+        return (source as ArrayNode).expressions.flatMap((value) => staticTransformPatternAlternatives(
+          { type: "path", steps: [value, ...steps.slice(1)] } as PathNode, sourceScope, active,
+        ));
+      }
       let alternatives: string[][] = [[]];
       for (const step of (node as PathNode).steps) {
         const stepAlternatives = staticTransformPatternAlternatives(step, scope, active);

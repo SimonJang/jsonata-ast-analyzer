@@ -6,6 +6,20 @@ describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
   it.each([
+    { pattern: '$eval("a")', record: { a: {} }, selected: "a" },
+    { pattern: '$eval("a",$)', record: { a: {} }, selected: "a" },
+    { pattern: '$eval("a",$.nodes)', record: { nodes: { a: {} } }, selected: "nodes.a" },
+    { pattern: '$eval("picked",{"picked":$.a})', record: { a: {} }, selected: "a" },
+    { pattern: '$eval("picked",[{"picked":$.a}])', record: { a: {} }, selected: "a" },
+  ])("retains update sources through static eval target $pattern", async ({ pattern, record, selected }) => {
+    const source = `($v:=record ~> |${pattern}|{"copy":$$.other}|;$v.${selected}.copy.details.amount)`;
+    expect(await jsonata(source).evaluate({ ...input, record })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it.each([
     '$ ~> $lookup("a")',
     '$ ~> function($x){$x.a}',
     '$ ~> $lookup(?,"a")',
