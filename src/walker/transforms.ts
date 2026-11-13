@@ -738,10 +738,20 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   ): DynamicObjectAlias | null {
     const updates = staticTransformPatternSequences(binding.transform.pattern).map((pattern) => {
       const scope = transformMatchScope(binding, input, pattern, callScope);
-      const alias = runtime.aliases.groupResultDynamicObjectAliasForNode(binding.transform.update, scope);
+      let update = binding.transform.update;
+      const wildcard = pattern.includes("*");
+      if (wildcard) {
+        for (const name of [...pattern].reverse()) {
+          const key: AstNode = name === "*"
+            ? { type: "variable", value: "\0transform-target", position: 0 }
+            : { type: "string", value: name, position: 0 };
+          update = { type: "object", entries: [[key, update]], position: 0 } as ObjectNode;
+        }
+      }
+      const alias = runtime.aliases.groupResultDynamicObjectAliasForNode(update, scope);
       const variants = alias?.variants.filter((variant) =>
         variant.node.entries.some(([key]) => runtime.aliases.staticObjectKey(key) === null),
-      ).map((variant) => ({ ...variant, prefixSteps: [...pattern, ...(variant.prefixSteps ?? [])] })) ?? [];
+      ).map((variant) => ({ ...variant, prefixSteps: [...(wildcard ? [] : pattern), ...(variant.prefixSteps ?? [])] })) ?? [];
       return variants.length ? { variants } : null;
     });
     return runtime.aliases.mergeDynamicObjectAliases([

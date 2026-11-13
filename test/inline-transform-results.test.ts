@@ -5,6 +5,25 @@ import { analyzeExpression } from "../src/index.js";
 describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
+  it.each([
+    '($t:=|*|{"copy":$$.other}|;$v:=$t(record);$v.a.copy.details.amount)',
+    '($v:=record ~> |*|{"copy":$$.other}|;$v.a.copy.details.amount)',
+  ])("retains inserted field sources below wildcard transform targets: %s", async (source) => {
+    expect(await jsonata(source).evaluate({ ...input, record: { a: {}, b: {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("retains known ancestors around wildcard transform targets", async () => {
+    const source = '($v:=record ~> |nodes.*|{"copy":$$.other}|;$lookup($v.nodes,"a").copy.details.amount)';
+    const data = { ...input, record: { nodes: { a: {}, b: {} } } };
+    expect(await jsonata(source).evaluate(data)).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
   it("keeps cached transform origins separate for distinct captured scopes", async () => {
     const source = '($make:=function($x){|$|{"copy":$x}|};$string($map([$make(record),$make(other)],function($t){$t({})})))';
     const data = { record: { amount: 10 }, other: { amount: 20 } };
