@@ -12,6 +12,34 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
     const cached = constructorAssignments.get(node);
     if (cached) return cached;
+    if (node.type === "path") {
+      const steps = (node as PathNode).steps;
+      if (steps.some((step) => {
+        const tuple = step as AstNode & { tuple?: boolean; focusBinding?: unknown; indexBinding?: unknown };
+        return tuple.tuple || tuple.focusBinding || tuple.indexBinding;
+      })) return [];
+      const assignments = steps.flatMap((step, index) => collectConstructorAssignments(step).map((assignment): BindNode => {
+        if (index === 0) return assignment;
+        const key = "\0assignment-value";
+        const projection: AstNode[] = assignment.rhs.type === "object" ? [assignment.rhs] : [
+          { type: "object", position: assignment.position, entries: [[
+            { type: "string", value: key, position: assignment.position }, assignment.rhs,
+          ]] } as ObjectNode,
+          { type: "name", value: key, position: assignment.position },
+        ];
+        return {
+          ...assignment,
+          rhs: {
+            type: "path", steps: [
+              ...steps.slice(0, index),
+              ...projection,
+            ],
+          },
+        };
+      }));
+      constructorAssignments.set(node, assignments);
+      return assignments;
+    }
     let expressions: AstNode[];
     switch (node.type) {
       case "array": expressions = (node as ArrayNode).expressions; break;
