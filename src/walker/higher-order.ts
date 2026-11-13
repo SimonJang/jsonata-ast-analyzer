@@ -1635,6 +1635,11 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     }
     if (node.type === "function") {
       const call = node as FunctionNode;
+      if (runtime.callables.resolveBuiltinCallableNames(call.procedure, scope).includes("eval")) {
+        const expression = runtime.functions.getStaticEvalExpression(call.arguments, scope);
+        if (expression && hasOpaqueCallableValue(expression,
+          runtime.functions.getStaticEvalScope(call.arguments, scope), next)) return true;
+      }
       return runtime.functions.isUnknownHostProcedure(call.procedure, scope) ||
         call.arguments.some((arg) => hasOpaqueCallableValue(arg, scope, next)) ||
         runtime.transforms.resolveTransformFunctionCalls(call, scope, false).some(({ binding }) =>
