@@ -1961,6 +1961,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (isTransparentPathBlock(step)) {
         return hasVariableProjectionSource(((step as BlockNode).expressions[0] as PathNode).steps[0], projection);
       }
+      if (step.type === "array") return true;
       if (step.type === "sort" && resolveValue(scope, "")) {
         const current: VariableNode = { type: "variable", value: "", position: 0 };
         return runtime.callables.resolveCallableValues(current, scope).length > 0 ||
