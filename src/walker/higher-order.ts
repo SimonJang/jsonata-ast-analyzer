@@ -1636,6 +1636,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     }
     if (node.type === "function") {
       const call = node as FunctionNode;
+      if (runtime.callables.partialBuiltinResultCalls(call, scope, true).some((result) =>
+        hasOpaqueCallableValue(result.node, result.scope, next))) return true;
       if (runtime.callables.resolveBuiltinCallableNames(call.procedure, scope).includes("eval")) {
         const expression = runtime.functions.getStaticEvalExpression(call.arguments, scope);
         if (expression && hasOpaqueCallableValue(expression,

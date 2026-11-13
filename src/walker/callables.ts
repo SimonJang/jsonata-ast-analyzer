@@ -556,8 +556,9 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
   function partialBuiltinResultCalls(
     node: FunctionNode,
     scope: ScopeTracker,
+    preserveValues = false,
   ): Array<{ node: FunctionNode; scope: ScopeTracker }> {
-    return partialResultTargets(node, scope).flatMap((target) => target.builtins.map((name) => ({
+    return partialResultTargets(node, scope, preserveValues).flatMap((target) => target.builtins.map((name) => ({
       node: {
         ...node,
         procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
@@ -1798,6 +1799,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     callableContainerProducerInputs,
     higherOrderCallableResultBodies,
     partialResultTargets,
+    partialBuiltinResultCalls,
     customFunctionResultBuiltinCallableNames,
     higherOrderResultCallableValues,
     higherOrderResultBuiltinCallableNames,

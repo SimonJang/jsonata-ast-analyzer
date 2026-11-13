@@ -125,6 +125,7 @@ export interface CallableOperations {
   callableContainerProducerInputs(node: FunctionNode, scope: ScopeTracker): AstNode[];
   higherOrderCallableResultBodies(node: FunctionNode, scope: ScopeTracker): Array<{ node: AstNode; scope: ScopeTracker }>;
   partialResultTargets(node: FunctionNode, scope: ScopeTracker, preserveValues?: boolean): Array<{ callables: ResolvedCallable[]; builtins: string[]; arguments: AstNode[]; scope: ScopeTracker }>;
+  partialBuiltinResultCalls(node: FunctionNode, scope: ScopeTracker, preserveValues?: boolean): Array<{ node: FunctionNode; scope: ScopeTracker }>;
   customFunctionResultBuiltinCallableNames(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): string[];
   higherOrderResultCallableValues(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): ResolvedCallable[];
   higherOrderResultBuiltinCallableNames(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): string[];

@@ -1004,6 +1004,8 @@ export function createFunctionOperations(
     }
     if (node.type === "function") {
       const procedure = (node as FunctionNode).procedure;
+      if (runtime.callables.partialBuiltinResultCalls(node as FunctionNode, scope, true).some((call) =>
+        isUnknownHostProcedure(call.node, call.scope, nextVisited, selectors))) return true;
       if (runtime.callables.resolveBuiltinCallableNames(procedure, scope).some((name) => options.opaqueFunctions.has(name)) ||
           isUnknownHostProcedure(procedure, scope, nextVisited)) return true;
       if (runtime.callables.customFunctionResultBodies(node as FunctionNode, scope).some((body) =>

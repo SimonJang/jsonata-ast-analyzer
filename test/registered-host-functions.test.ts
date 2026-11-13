@@ -4,6 +4,24 @@ import { analyzeExpression, extractPaths } from "../src/index.js";
 
 describe("registered host function dependencies", () => {
   it.each([
+    '($p:=$append(?,[]);$p([$custom])[0])',
+    '($p:=$map(?,function(){$custom});$p([1])[0])',
+    '($p:=$lookup(?,"run");$p({"run":$custom}))',
+  ])("preserves registered callable results from partial builtin %s", async (producer) => {
+    for (const source of [
+      `($f:=${producer};$count($f(record)))`,
+      `($apply:=function($f,$x){$f($x)};$count($apply((${producer}),record)))`,
+    ]) {
+      const expression = jsonata(source);
+      expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+      expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(1);
+      expect(analyzeExpression(source).accesses).toContainEqual({
+        path: "record.**", confidence: "static", coverage: "exact",
+      });
+    }
+  });
+
+  it.each([
     '$reverse([$custom])[0]',
     '$append([],$custom)[0]',
     '$single([$custom])',
