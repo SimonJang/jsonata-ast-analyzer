@@ -1978,13 +1978,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       return paths.length > 0 && projectsDataPath(projection);
     };
     const projectsVariable = (step: AstNode, prefixSteps: AstNode[]): boolean => {
-      if (step.type !== "variable") return false;
-      const name = (step as VariableNode).value;
-      if (name && name !== "$") {
+      const names = [...collectVariableNames(step)].filter((name) => name && name !== "$");
+      if (names.length > 0) {
         const prefix: PathNode = { type: "path", steps: prefixSteps };
         const afterPrefix = runtime.core.bindArrayAssignmentEffects(prefix, scope);
-        if (resolveValue(afterPrefix, name) !== resolveValue(scope, name)) return true;
+        if (names.some((name) => resolveValue(afterPrefix, name) !== resolveValue(scope, name))) return true;
       }
+      if (step.type !== "variable") return false;
+      const name = (step as VariableNode).value;
       if (name === "" && prefixSteps.some(isResultAliasStep)) {
         const prefix: PathNode = { type: "path", steps: prefixSteps };
         if (runtime.callables.resolveCallableValues(prefix, scope).length > 0 ||

@@ -8,6 +8,7 @@
 - Cover data origins carried through input-dependent projection updates with conservative descendant summaries.
 - Follow cycles between projected variable assignments when summarizing repeated updates.
 - Preserve sort key assignments in later keys and post-sort predicates, including constructed aliases and captured callbacks.
+- Carry earlier path assignments into subsequent constructors, computed projections, and registered-function arguments.
 - Preserve sources and descendant dependencies for values inserted into transform results.
 - Cover inserted value descendants conservatively when transform target placement is unresolved, including registered selectors.
 - Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.
