@@ -112,10 +112,12 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       if (field === null) continue;
       const key = aliasKeySegment(field);
   
-      const aliases = valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
+      const nestedAlias = objectAliasForNode(valueNode, scope);
+      const aliases = nestedAlias
+        ? groupResultSuffixBasePaths(valueNode, scope)
+        : valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
       if (aliases.length > 0) fields.set(key, aliases);
   
-      const nestedAlias = objectAliasForNode(valueNode, scope);
       if (nestedAlias) {
         for (const [nestedKey, nestedAliases] of nestedAlias) {
           fields.set(`${key}.${nestedKey}`, nestedAliases);

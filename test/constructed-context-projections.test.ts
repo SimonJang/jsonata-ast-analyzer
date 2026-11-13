@@ -17,6 +17,17 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
   .sort((a, b) => a.path.localeCompare(b.path));
 
 describe("data projections from constructed contexts", () => {
+  it("keeps predicates on nested constructed values relative to their input sources", async () => {
+    const source = '($map(items,function($r){{"out":[$$.enabled?{"copy":$r.other}:{"copy":$r.details}]}}).{"wrapper":$}.wrapper).out.copy[active].amount';
+    const data = { enabled: true, items: [
+      { other: { amount: 10, active: true }, details: { amount: 20, active: false } },
+    ] };
+    expect(await jsonata(source).evaluate(data)).toBe(10);
+    for (const path of ["items.other.active", "items.details.active"]) {
+      expect(accesses(source)).toContainEqual(exact(path));
+    }
+  });
+
   it.each([
     '$append([{"copy":other}],[])',
     '$merge([{"copy":other}])',
