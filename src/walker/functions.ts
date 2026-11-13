@@ -669,6 +669,9 @@ export function createFunctionOperations(
         ),
       );
     }
+    if (isUnknownHostProcedure(producer, scope)) {
+      paths.push(...walkHostArguments(node.arguments, scope, node.position));
+    }
     return paths;
   }
 
@@ -960,25 +963,74 @@ export function createFunctionOperations(
     return [...paths, ...descendants];
   }
 
-  function isUnknownHostProcedure(node: AstNode, scope: ScopeTracker, visited = new Set<AstNode>()): boolean {
+  function isUnknownHostProcedure(
+    node: AstNode, scope: ScopeTracker, visited = new Set<AstNode>(), selectors: AstNode[] = [],
+  ): boolean {
     if (visited.has(node)) return false;
+    const nextVisited = new Set([...visited, node]);
+    if (node.type === "block") {
+      const expressions = (node as BlockNode).expressions;
+      let blockScope = childScope(scope);
+      for (const [index, expression] of expressions.entries()) {
+        if (index === expressions.length - 1) {
+          return isUnknownHostProcedure(expression, blockScope, nextVisited, selectors);
+        }
+        const expressionScope = blockScope;
+        if (expression.type === "bind") {
+          blockScope = runtime.callables.bindCallableBlockValue(blockScope, expression as BindNode);
+        }
+        blockScope = runtime.core.bindArrayAssignmentEffects(expression, blockScope, expressionScope);
+      }
+      return false;
+    }
+    if (node.type === "bind") return isUnknownHostProcedure((node as BindNode).rhs, scope, nextVisited, selectors);
+    if (node.type === "lambda" && (node as LambdaNode).thunk) {
+      return isUnknownHostProcedure((node as LambdaNode).body, scope, nextVisited, selectors);
+    }
+    if (node.type === "path") {
+      const [first, ...suffix] = (node as PathNode).steps;
+      return Boolean(first && isUnknownHostProcedure(first, scope, nextVisited, [...suffix, ...selectors]));
+    }
+    if (node.type === "function") {
+      const procedure = (node as FunctionNode).procedure;
+      if (runtime.callables.resolveBuiltinCallableNames(procedure, scope).some((name) => options.opaqueFunctions.has(name)) ||
+          isUnknownHostProcedure(procedure, scope, nextVisited)) return true;
+    }
+    if (node.type === "function" &&
+        runtime.callables.resolveBuiltinCallableNames((node as FunctionNode).procedure, scope).includes("lookup")) {
+      const call = node as FunctionNode;
+      const [object, key] = call.arguments;
+      const selector: AstNode = key?.type === "string"
+        ? { type: "name", value: String(key.value), position: call.position }
+        : { type: "wildcard", value: "*", position: call.position };
+      return Boolean(object && isUnknownHostProcedure(object, scope, nextVisited, [selector, ...selectors]));
+    }
+    if (node.type === "object" && selectors.length > 0) {
+      const [first, ...suffix] = selectors;
+      const key = first.type === "name" ? String(first.value) : null;
+      return (node as ObjectNode).entries.some(([entryKey, value]) =>
+        (key === null || runtime.aliases.staticObjectKey(entryKey) === null || runtime.aliases.staticObjectKey(entryKey) === key) &&
+        isUnknownHostProcedure(value, scope, nextVisited, suffix));
+    }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
       return [condition.then, condition.else].some((branch) => branch &&
-        isUnknownHostProcedure(branch, scope, new Set([...visited, node])));
+        isUnknownHostProcedure(branch, scope, nextVisited, selectors));
     }
     if (node.type === "array") {
       return (node as ArrayNode).expressions.some((item) =>
-        isUnknownHostProcedure(item, scope, new Set([...visited, node])));
+        isUnknownHostProcedure(item, scope, nextVisited, selectors));
     }
     if (node.type !== "variable") return false;
     const name = (node as VariableNode).value;
     if ((node as VariableNode).resolvedBuiltin) return false;
     const binding = resolveValue(scope, name);
     if (binding) {
-      return isUnknownHostProcedure(binding.node, binding.scope, new Set([...visited, node]));
+      return isUnknownHostProcedure(binding.node, binding.scope, nextVisited, selectors);
     }
-    return name !== "" && name !== "$" && !BUILTIN_FUNCTIONS.has(name) && resolveVariable(scope, name) === null;
+    return selectors.length === 0 && !resolveLambda(scope, name) && !resolvePartial(scope, name) && !resolveTransform(scope, name) &&
+      name !== "" && name !== "$" &&
+      !BUILTIN_FUNCTIONS.has(name) && resolveVariable(scope, name) === null;
   }
 
   function walkMatcherContinuations(initialCall: FunctionNode, scope: ScopeTracker): string[] {

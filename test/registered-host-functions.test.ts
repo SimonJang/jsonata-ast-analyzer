@@ -203,4 +203,42 @@ describe("registered host function dependencies", () => {
       path, confidence: "static", coverage: "exact",
     });
   });
+
+  it.each([
+    '$lookup($f,"run")(record)',
+    '($f.run)(record)',
+    '$lookup($f,selected)(record)',
+    '($fn := $lookup($f,"run"); $fn(record))',
+    '$sum($map([record],$lookup($f,"run")))',
+  ])("retains a registered branch selected from a mixed object field: %s", async (call) => {
+    const source = `($f := {"run":enabled ? $custom : function($r){$count($r)}}; ${call})`;
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    for (const enabled of [true, false]) {
+      expect(await expression.evaluate({ enabled, selected: "run", record: { details: { amount: 10 } } })).toBe(enabled ? 10 : 1);
+    }
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("keeps a selected local callable precise when another field contains a host function", async () => {
+    const source = '($f := {"run":function($r){$count($r)},"unused":$custom}; ($f.run)(record))';
+    const expression = jsonata(source);
+    expression.registerFunction("custom", () => 10);
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(1);
+    expect(analyzeExpression(source).accesses).toEqual([
+      { path: "record", confidence: "static", coverage: "exact" },
+    ]);
+  });
+
+  it("treats a callable returned by an opaque replacement conservatively", async () => {
+    const source = '$lookup({"run":function($r){$count($r)}},"run")(record)';
+    const expression = jsonata(source);
+    expression.registerFunction("lookup", () => (record: { details: { amount: number } }) => record.details.amount);
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source, { opaqueFunctions: ["lookup"] }).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
 });
