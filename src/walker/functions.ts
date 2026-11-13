@@ -573,11 +573,16 @@ export function createFunctionOperations(
           return walkCallableSelection(step, scope);
         }
         if (step.type === "sort") {
-          return runtime.paths.walkSortTerms(
-            step as SortNode,
-            buildPathString(path.steps.slice(0, index)) ?? "",
-            scope,
+          const prefixSteps = path.steps.slice(0, index);
+          if (prefixSteps.length === 0) return runtime.paths.walkSortTerms(step as SortNode, "", scope);
+          const prefix: AstNode = prefixSteps.length === 1 ? prefixSteps[0]
+            : { ...path, steps: prefixSteps, group: undefined };
+          const sortScope = runtime.higherOrder.bindArgumentParameter(
+            childScope(scope), { type: "variable", value: "", position: 0 },
+            runtime.aliases.bindingAliasPaths(prefix, scope), prefix, scope,
           );
+          return (step as SortNode).terms.flatMap((term) =>
+            runtime.core.walkNode(explicitContextExpression(term.expression, ""), sortScope));
         }
         return runtime.paths.walkSourceLessFilterStages(
           (step as AstNode & { predicate?: AstNode[] }).predicate ?? [],

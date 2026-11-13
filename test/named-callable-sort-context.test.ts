@@ -31,6 +31,19 @@ describe("sorting named callable containers", () => {
     });
   });
 
+  it.each(["key.rank", "$.key.rank"])("traces constructed callable sort keys through %s", async (key) => {
+    const source = `$map(rows,function($r){{"fn":function(){$r.details},"key":$r.key}})^(${key}).fn().amount`;
+    let rankReads = 0;
+    expect(Array.from(await jsonata(source).evaluate({ rows: [
+      { details: { amount: 10 }, key: { get rank() { rankReads++; return 2; } } },
+      { details: { amount: 20 }, key: { get rank() { rankReads++; return 1; } } },
+    ] }))).toEqual([20, 10]);
+    expect(rankReads).toBeGreaterThan(0);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "rows.key.rank", confidence: "static", coverage: "exact",
+    });
+  });
+
   for (const capture of [false, true]) {
     for (const data of [false, true]) {
       for (const dynamic of [false, true]) {
