@@ -890,6 +890,22 @@ export function createFunctionOperations(
             );
           }
         }
+        if (argIndex === 1 && funcName !== "contains") {
+          // Iterating matchers invoke the returned continuation after each match.
+          paths.push(...walkFunction({
+            type: "function",
+            value: "(",
+            position: node.position,
+            procedure: {
+              type: "path",
+              steps: [
+                { type: "function", value: "(", position: node.position, procedure: arg, arguments: [generatedArgument] },
+                { type: "name", value: "next", position: node.position },
+              ],
+            },
+            arguments: [],
+          }, scope));
+        }
         continue;
       }
       if (arg.type === "lambda") {
