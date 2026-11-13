@@ -125,4 +125,35 @@ describe("registered host function dependencies", () => {
       path: "record.**", confidence: "static", coverage: "exact",
     });
   });
+
+  it("keeps conservative arguments when selecting a registered function from an object", async () => {
+    const source = '($f := {"run":$custom}; $lookup($f,"run")(record))';
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("keeps conservative arguments when selecting a registered function from an array", async () => {
+    const source = "($f := [$custom]; $f[0](record))";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    expect(await expression.evaluate({ record: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("retains host possibilities in a mixed callable collection", async () => {
+    const source = "($f := [$custom,function($r){$count($r)}]; $f[$$.index](record))";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    expect(await expression.evaluate({ index: 0, record: { details: { amount: 10 } } })).toBe(10);
+    expect(await expression.evaluate({ index: 1, record: { details: { amount: 10 } } })).toBe(1);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
 });

@@ -642,7 +642,7 @@ export function createFunctionOperations(
     const callables = runtime.callables.resolveCallableValues(producer, scope);
     const builtinNames = runtime.callables.resolveBuiltinCallableNames(producer, scope);
     if (callables.length === 0 && builtinNames.length === 0) {
-      return [...paths, ...node.arguments.flatMap((arg) => runtime.core.walkNode(arg, scope))];
+      return [...paths, ...walkHostArguments(node.arguments, scope, node.position)];
     }
     for (const callable of callables) {
       if (callable.kind === "transform") {
@@ -799,7 +799,11 @@ export function createFunctionOperations(
     }
 
     if (storedCallables.length > 0 || storedBuiltinNames.length > 0) {
-      return withFunctionStages(walkStoredCallablePaths());
+      return withFunctionStages([
+        ...walkStoredCallablePaths(),
+        ...(isUnknownHostProcedure(node.procedure, scope)
+          ? walkHostArguments(node.arguments, scope, node.position) : []),
+      ]);
     }
 
     if ((!node.internalTruthiness && options.opaqueFunctions.has(funcName)) ||
@@ -956,7 +960,12 @@ export function createFunctionOperations(
   }
 
   function isUnknownHostProcedure(node: AstNode, scope: ScopeTracker, visited = new Set<AstNode>()): boolean {
-    if (node.type !== "variable" || visited.has(node)) return false;
+    if (visited.has(node)) return false;
+    if (node.type === "array") {
+      return (node as ArrayNode).expressions.some((item) =>
+        isUnknownHostProcedure(item, scope, new Set([...visited, node])));
+    }
+    if (node.type !== "variable") return false;
     const name = (node as VariableNode).value;
     if ((node as VariableNode).resolvedBuiltin) return false;
     const binding = resolveValue(scope, name);
