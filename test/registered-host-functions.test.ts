@@ -156,4 +156,51 @@ describe("registered host function dependencies", () => {
       path: "record.**", confidence: "static", coverage: "exact",
     });
   });
+
+  it("covers nested reads when a registered function is used as a map callback", async () => {
+    const source = "$sum($map(items,$custom))";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    expect(await expression.evaluate({ items: [{ details: { amount: 10 } }] })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "items.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("retains a registered callback alongside a local callback branch", async () => {
+    const source = "$sum($map(items, enabled ? $custom : function($r){$count($r)}))";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    for (const enabled of [true, false]) {
+      expect(await expression.evaluate({ enabled, items: [{ details: { amount: 10 } }] })).toBe(enabled ? 10 : 1);
+    }
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "items.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
+    ["$count($filter(items,$custom))", 1],
+    ["$count($single(items,$custom))", 1],
+    ["$count($sort($append(items,items),$custom))", 2],
+    ["$sum($each(dict,$custom))", 10],
+    ["$count($sift(dict,$custom))", 1],
+  ])("covers unknown callback argument descendants in %s", async (source, expected) => {
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount);
+    expect(await expression.evaluate({ items: [{ details: { amount: 10 } }], dict: { first: { details: { amount: 10 } } } })).toBe(expected);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: source.includes("dict") ? "dict.**" : "items.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("covers both the collection and the seed passed to a host reducer", async () => {
+    const source = "$reduce(items,$custom,seed).total";
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (acc: { total: number }, record: { details: { amount: number } }) => ({ total: acc.total + record.details.amount }), "<oo:o>");
+    expect(await expression.evaluate({ items: [{ details: { amount: 10 } }], seed: { total: 2 } })).toBe(12);
+    for (const path of ["items.**", "seed.**"]) expect(analyzeExpression(source).accesses).toContainEqual({
+      path, confidence: "static", coverage: "exact",
+    });
+  });
 });

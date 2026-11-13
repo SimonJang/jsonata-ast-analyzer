@@ -150,6 +150,7 @@ export interface FunctionOperations {
   walkCallableSelection(node: AstNode, scope: ScopeTracker): string[];
   conditionalProcedureCalls(node: FunctionNode): FunctionNode[];
   walkFunction(node: FunctionNode, scope: ScopeTracker): string[];
+  isUnknownHostProcedure(node: AstNode, scope: ScopeTracker): boolean;
   getMatchResultNodes(args: AstNode[], scope: ScopeTracker): AstNode[];
   getStaticEvalResultBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalResultSuffixBasePaths(args: AstNode[], scope: ScopeTracker): string[];

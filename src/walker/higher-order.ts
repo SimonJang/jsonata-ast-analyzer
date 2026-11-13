@@ -174,6 +174,13 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         paths.push(...runtime.core.walkNode(arg, scope));
       }
     }
+    if (args[0] && args[1] && ((!callback && !transformCallback) ||
+        runtime.functions.isUnknownHostProcedure(args[1], scope))) {
+      paths.push(...runtime.functions.deepValueReadPaths(args[0], scope));
+      if (funcName === "reduce" && args[2]) {
+        paths.push(...runtime.functions.deepValueReadPaths(args[2], scope));
+      }
+    }
   
     if (callback) {
       // Get the data argument (first non-lambda arg) BASE paths for binding

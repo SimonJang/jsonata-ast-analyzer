@@ -961,6 +961,11 @@ export function createFunctionOperations(
 
   function isUnknownHostProcedure(node: AstNode, scope: ScopeTracker, visited = new Set<AstNode>()): boolean {
     if (visited.has(node)) return false;
+    if (node.type === "condition") {
+      const condition = node as ConditionNode;
+      return [condition.then, condition.else].some((branch) => branch &&
+        isUnknownHostProcedure(branch, scope, new Set([...visited, node])));
+    }
     if (node.type === "array") {
       return (node as ArrayNode).expressions.some((item) =>
         isUnknownHostProcedure(item, scope, new Set([...visited, node])));
@@ -1354,6 +1359,7 @@ export function createFunctionOperations(
     walkCallableSelection,
     conditionalProcedureCalls,
     walkFunction,
+    isUnknownHostProcedure,
     getMatchResultNodes,
     getStaticEvalResultBasePaths,
     getStaticEvalResultSuffixBasePaths,
