@@ -18,6 +18,17 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
 
 describe("data projections from constructed contexts", () => {
   it.each([
+    '{"out":{($$.enabled?"copy":"copy"):record.details}}',
+    '{($$.enabled?"out":"out"):{"copy":record.details}}',
+    '({} ~> |$|{($$.enabled?"out":"out"):{"copy":$$.record.details}}|)',
+  ])("preserves computed field boundaries through a current-value wrapper: %s", async (producer) => {
+    const source = `((${producer}).{"wrapper":$}.wrapper).out.copy[active].amount`;
+    const data = { enabled: true, record: { details: { amount: 10, active: true } } };
+    expect(await jsonata(source).evaluate(data)).toBe(10);
+    expect(accesses(source)).toContainEqual(exact("record.details.active"));
+  });
+
+  it.each([
     '{"out":{($$.enabled?"copy":"copy"):other}}',
     '{"fixed":details,"out":{($$.enabled?"copy":"copy"):other}}',
   ])("tracks all dynamic projection fields consumed by cloning: %s", async (projection) => {

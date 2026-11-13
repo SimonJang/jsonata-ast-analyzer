@@ -113,7 +113,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const key = aliasKeySegment(field);
   
       const nestedAlias = groupResultObjectAliasForNode(valueNode, scope);
-      const aliases = nestedAlias
+      const dynamicAlias = groupResultDynamicObjectAliasForNode(valueNode, scope);
+      const aliases = nestedAlias || dynamicAlias
         ? groupResultSuffixBasePaths(valueNode, scope)
         : valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, scope);
       if (aliases.length > 0) fields.set(key, aliases);
