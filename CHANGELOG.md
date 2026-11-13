@@ -20,6 +20,7 @@
 - Preserve captured field origins when a constructor is represented as a single-step projection path.
 - Cover input-dependent reducer accumulator descent and wrapping with conservative descendant summaries while retaining precise stable layouts.
 - Preserve reducer result and repeated-update origins when the callback is selected directly from an array.
+- Normalize directly invoked array-selected procedures without losing captured input reads.
 - Preserve sources and descendant dependencies for values inserted into transform results.
 - Cover inserted value descendants conservatively when transform target placement is unresolved, including registered selectors.
 - Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.

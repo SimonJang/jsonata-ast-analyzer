@@ -84,6 +84,9 @@ function normalizeVariable(node: RawAstNode): VariableNode {
 }
 
 function normalizeFunctionProcedure(node: RawAstNode): FunctionProcedureNode {
+  if (node.type === "unary" && node.value === "[") {
+    return { type: "path", steps: [normalizeAst(node)] };
+  }
   if (["lambda", "transform", "function", "partial"].includes(String(node.type))) {
     return normalizeAst(node) as FunctionProcedureNode;
   }
