@@ -5,6 +5,7 @@
 ### Fixed
 
 - Preserve sources and descendant dependencies for values inserted into transform results.
+- Cover inserted value descendants conservatively when transform target placement is unresolved, including registered selectors.
 - Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.
 - Include `$formatNumber` option-property reads and preserve explicit argument positions inside path steps.
 - Include conservative argument-descendant dependencies for registered host functions and opaque replacements of built-ins.

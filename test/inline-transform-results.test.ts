@@ -5,6 +5,16 @@ import { analyzeExpression } from "../src/index.js";
 describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
+  it("keeps inserted values shallow when counting a result with known targets", async () => {
+    const source = '$count(record ~> |a|{"copy":$$.other}|)';
+    let reads = 0;
+    expect(await jsonata(source).evaluate({ record: { a: {} }, other: { get amount() { reads++; return 10; } } })).toBe(1);
+    expect(reads).toBe(0);
+    expect(analyzeExpression(source).accesses).not.toContainEqual({
+      path: "other.**", confidence: "static", coverage: "exact",
+    });
+  });
+
   it.each([
     { pattern: '$eval("a")', record: { a: {} }, selected: "a" },
     { pattern: '$eval("a",$)', record: { a: {} }, selected: "a" },

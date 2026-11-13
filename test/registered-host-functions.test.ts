@@ -4,6 +4,39 @@ import { analyzeExpression, extractPaths } from "../src/index.js";
 
 describe("registered host function dependencies", () => {
   it.each([
+    '$pick($)',
+    '$ ~> $pick()',
+    '$pick(?)($)',
+    '($select:=$$.enabled?function($x){$x.b}:$pick;$select($))',
+  ])("retains inserted data through registered transform selector %s", async (pattern) => {
+    const source = `($t:=|(${pattern})|{"copy":$$.other}|;$v:=$t(record);$v.a.copy.details.amount)`;
+    const expression = jsonata(source);
+    expression.registerFunction("pick", (record: { a: object }) => record.a, "<o:o>");
+    expect(await expression.evaluate({ enabled: false, record: { a: {}, b: {} }, other: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({ path: "other.**", confidence: "static", coverage: "exact" });
+  });
+
+  it("covers inserted descendants when a registered selector replaces a builtin", async () => {
+    const source = '($t:=|$lookup($,"a")|{"copy":$$.other}|;$v:=$t(record);$v.b.copy.details.amount)';
+    const expression = jsonata(source);
+    expression.registerFunction("lookup", (record: { b: object }) => record.b, "<os:o>");
+    expect(await expression.evaluate({ record: { a: {}, b: {} }, other: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source, { opaqueFunctions: ["lookup"] }).accesses).toContainEqual({
+      path: "other.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("retains argument reads from a method inserted at an opaque target", async () => {
+    const source = '($t:=|$pick($)|{"run":function($x){$x.details}}|;$v:=$t(record);$v.a.run($$.other).amount)';
+    const expression = jsonata(source);
+    expression.registerFunction("pick", (record: { a: object }) => record.a, "<o:o>");
+    expect(await expression.evaluate({ record: { a: {} }, other: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
     "$custom(record)",
     "record ~> $custom()",
     "($f := $custom(?); $f(record))",
