@@ -1725,6 +1725,41 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     return scopes;
   }
 
+  type ScopedFunctionCall = { node: FunctionNode; scope: ScopeTracker; evaluations?: Array<{ node: AstNode; scope: ScopeTracker }> };
+  const scopedFunctionCalls = new WeakMap<FunctionNode, WeakMap<ScopeTracker, ScopedFunctionCall>>();
+
+  function scopeFunctionArguments(node: FunctionNode, scope: ScopeTracker): ScopedFunctionCall {
+    let scopeCache = scopedFunctionCalls.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      scopedFunctionCalls.set(node, scopeCache);
+    }
+    const cached = scopeCache.get(scope);
+    if (cached) return cached;
+    let currentScope = runtime.core.bindArrayAssignmentEffects(node.procedure, scope);
+    const argumentScopes = node.arguments.map((argument) => {
+      const evaluationScope = currentScope;
+      if (argument.type === "bind") currentScope = runtime.callables.bindCallableBlockValue(currentScope, argument as BindNode);
+      currentScope = runtime.core.bindArrayAssignmentEffects(argument, currentScope, evaluationScope);
+      return evaluationScope;
+    });
+    if (currentScope === scope) {
+      const result = { node, scope };
+      scopeCache.set(scope, result);
+      return result;
+    }
+    const procedureName = `\0argument-procedure-${node.position}`;
+    const procedureScope = runtime.functions.bindCallableValue(childScope(currentScope), procedureName, node.procedure, scope);
+    const scoped = scopePartialArguments(node.arguments, argumentScopes, procedureScope, true);
+    const result = {
+      node: { ...node, procedure: { type: "variable", value: procedureName, position: node.position }, arguments: scoped.arguments } as FunctionNode,
+      scope: scoped.scope,
+      evaluations: [{ node: node.procedure, scope }, ...node.arguments.map((node, index) => ({ node, scope: argumentScopes[index] }))],
+    };
+    scopeCache.set(scope, result);
+    return result;
+  }
+
   function scopePartialArguments(
     args: AstNode[],
     argumentScopes: ScopeTracker[],
@@ -1866,6 +1901,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     applyPartialArguments,
     applyPartialArgumentScopes,
     scopePartialArguments,
+    scopeFunctionArguments,
     walkPartialCall,
   };
 }

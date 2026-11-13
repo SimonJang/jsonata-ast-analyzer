@@ -19,6 +19,8 @@ export function createResultOperations(
     node: FunctionNode,
     scope: ScopeTracker,
   ): ObjectAlias | null {
+    const scoped = runtime.higherOrder.scopeFunctionArguments(node, scope);
+    if (scoped.node !== node) return getFunctionResultObjectAlias(scoped.node, scoped.scope);
     if (node.procedure.type === "lambda") {
       return getCustomFunctionResultObjectAlias(
         { lambda: node.procedure, scope },
@@ -197,6 +199,8 @@ export function createResultOperations(
     node: FunctionNode,
     scope: ScopeTracker,
   ): DynamicObjectAlias | null {
+    const scoped = runtime.higherOrder.scopeFunctionArguments(node, scope);
+    if (scoped.node !== node) return getFunctionResultDynamicObjectAlias(scoped.node, scoped.scope);
     if (node.procedure.type === "lambda") {
       return getCustomFunctionResultDynamicObjectAlias(
         { lambda: node.procedure, scope },
@@ -938,6 +942,8 @@ export function createResultOperations(
     node: FunctionNode,
     scope: ScopeTracker,
   ): string[] {
+    const scoped = runtime.higherOrder.scopeFunctionArguments(node, scope);
+    if (scoped.node !== node) return getFunctionResultBasePaths(scoped.node, scoped.scope);
     if (node.procedure.type === "lambda") {
       return getCustomFunctionResultBasePaths(
         { lambda: node.procedure, scope },
@@ -1428,6 +1434,9 @@ export function createResultOperations(
     scope: ScopeTracker,
   ): string[] {
     if (node.type !== "function") return [];
+
+    const scoped = runtime.higherOrder.scopeFunctionArguments(node as FunctionNode, scope);
+    if (scoped.node !== node) return getFunctionResultSuffixBasePaths(scoped.node, scoped.scope);
   
     const func = node as FunctionNode;
     if (func.procedure.type === "lambda") {

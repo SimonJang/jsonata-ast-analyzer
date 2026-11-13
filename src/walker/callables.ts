@@ -1006,6 +1006,10 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): ResolvedCallable[] {
+    if (node.type === "function") {
+      const scoped = runtime.higherOrder.scopeFunctionArguments(node as FunctionNode, scope);
+      if (scoped.node !== node) return resolveCallableValues(scoped.node, scoped.scope);
+    }
     const focusResult = terminalFocusResultNode(node);
     if (focusResult) return resolveCallableValues(focusResult, scope);
     if ((node.type === "name" || node.type === "path" &&
@@ -1389,6 +1393,10 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {
+    if (node.type === "function") {
+      const scoped = runtime.higherOrder.scopeFunctionArguments(node as FunctionNode, scope);
+      if (scoped.node !== node) return resolveBuiltinCallableNames(scoped.node, scoped.scope);
+    }
     if (node.type === "lambda" && (node as LambdaNode).thunk) {
       return resolveBuiltinCallableNames((node as LambdaNode).body, scope);
     }

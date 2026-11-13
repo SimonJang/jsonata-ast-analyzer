@@ -664,6 +664,11 @@ export function createFunctionOperations(
    * 3. Non-higher-order / unknown function -- pass-through all arguments
    */
   function walkFunction(node: FunctionNode, scope: ScopeTracker): string[] {
+    const scoped = runtime.higherOrder.scopeFunctionArguments(node, scope);
+    if (scoped.node !== node) return [
+      ...(scoped.evaluations ?? []).flatMap(({ node, scope }) => runtime.core.walkNode(node, scope)),
+      ...walkFunction(scoped.node, scoped.scope),
+    ];
     const withFunctionStages = (readPaths: string[]) => [
       ...readPaths,
       ...walkFunctionPredicates(node, scope),

@@ -214,6 +214,7 @@ export interface HigherOrderOperations {
       arguments: AstNode[];
       scope: ScopeTracker;
   };
+  scopeFunctionArguments(node: FunctionNode, scope: ScopeTracker): { node: FunctionNode; scope: ScopeTracker; evaluations?: Array<{ node: AstNode; scope: ScopeTracker }> };
   walkPartialCall(binding: PartialBinding, callArgs: AstNode[], callScope: ScopeTracker): string[];
 }
 
