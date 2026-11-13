@@ -7,6 +7,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   const constructorAssignments = new WeakMap<AstNode, readonly BindNode[]>();
   const assignmentScopes = new WeakMap<AstNode, WeakMap<ScopeTracker, WeakMap<ScopeTracker, ScopeTracker>>>();
   const assignmentReads = new WeakMap<AstNode, boolean>();
+  const projectedValues = new WeakMap<AstNode, { value: AstNode; prefix: AstNode[] }>();
 
   function collectConstructorAssignments(node: AstNode): readonly BindNode[] {
     if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
@@ -17,27 +18,14 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       if (steps.some((step) => {
         const tuple = step as AstNode & { tuple?: boolean; focusBinding?: unknown; indexBinding?: unknown };
         return tuple.tuple || tuple.focusBinding || tuple.indexBinding;
-      })) return [];
-      const assignments = steps.flatMap((step, index) => collectConstructorAssignments(step).map((assignment): BindNode => {
-        if (index === 0) return assignment;
-        const key = "\0assignment-value";
-        const projection: AstNode[] = assignment.rhs.type === "object" ? [assignment.rhs] : [
-          { type: "object", position: assignment.position, entries: [[
-            { type: "string", value: key, position: assignment.position }, assignment.rhs,
-          ]] } as ObjectNode,
-          { type: "name", value: key, position: assignment.position },
-        ];
-        // No matching items leave the caller's binding unchanged.
-        return {
-          ...assignment,
-          rhs: {
-            type: "condition", position: assignment.position,
-            condition: { type: "value", value: true, position: assignment.position },
-            then: { type: "path", steps: [...steps.slice(0, index), ...projection] },
-            else: { ...assignment.lhs },
-          },
-        };
-      }));
+      })) {
+        const assignments = steps[0]?.type === "array" ? collectConstructorAssignments(steps[0]) : [];
+        constructorAssignments.set(node, assignments);
+        return assignments;
+      }
+      const assignments = steps.flatMap((step, index) => collectConstructorAssignments(step).map((assignment) =>
+        projectAssignment(assignment, steps.slice(0, index))));
+      appendStageAssignments(node, assignments);
       constructorAssignments.set(node, assignments);
       return assignments;
     }
@@ -51,7 +39,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       case "binary": expressions = [(node as BinaryNode).lhs, (node as BinaryNode).rhs]; break;
       case "apply": expressions = [(node as ApplyNode).lhs, (node as ApplyNode).rhs]; break;
       case "negate": expressions = (node as NegateNode).expression ? [(node as NegateNode).expression!] : []; break;
-      default: return [];
+      default: expressions = [];
     }
     const assignments = expressions.flatMap((expression, index) => {
       const effects = [
@@ -69,8 +57,57 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         },
       })) : effects;
     });
+    appendStageAssignments(node, assignments);
     constructorAssignments.set(node, assignments);
     return assignments;
+  }
+
+  function projectAssignment(assignment: BindNode, prefix: AstNode[]): BindNode {
+    if (prefix.length === 0) return assignment;
+    const key = "__assignment_value";
+    const previous = projectedValues.get(assignment.rhs);
+    const rhs = previous?.value ?? assignment.rhs;
+    prefix = [...prefix, ...(previous?.prefix ?? [])];
+    const dataPath = rhs.type === "path" && !(rhs as PathNode).group &&
+      (rhs as PathNode).steps.every((step) => ["name", "variable", "wildcard", "descendant", "parent"].includes(step.type)) &&
+      (rhs as PathNode).steps[0]?.type !== "variable";
+    const direct = ["object", "array", "block", "name", "wildcard", "descendant", "parent"].includes(rhs.type);
+    const projection: AstNode[] = dataPath ? (rhs as PathNode).steps : direct ? [rhs] : [
+      { type: "object", position: assignment.position, entries: [[
+        { type: "string", value: key, position: assignment.position }, rhs,
+      ]] } as ObjectNode,
+      { type: "name", value: key, position: assignment.position },
+    ];
+    // No matching items leave the caller's binding unchanged.
+    const value: ConditionNode = {
+      type: "condition", position: assignment.position,
+      condition: { type: "value", value: true, position: assignment.position },
+      then: { type: "path", steps: [...prefix, ...projection] }, else: { ...assignment.lhs },
+    };
+    projectedValues.set(value, { value: rhs, prefix });
+    return { ...assignment, rhs: value };
+  }
+
+  function appendStageAssignments(node: AstNode, assignments: BindNode[]): void {
+    const staged = node as AstNode & { stages?: AstNode[]; predicate?: AstNode[]; group?: GroupByNode; tuple?: boolean; focusBinding?: unknown; indexBinding?: unknown };
+    if (staged.tuple || staged.focusBinding || staged.indexBinding) return;
+    const stages = staged.stages ?? staged.predicate ?? [];
+    if (!staged.group && !stages.some((stage) => stage.type === "filter")) return;
+    const source = { ...node, stages: undefined, predicate: undefined, group: undefined } as AstNode;
+    const prefix = source.type === "path" ? (source as PathNode).steps : [source];
+    for (const stage of stages) {
+      if (stage.type !== "filter") continue;
+      const expression = (stage as unknown as FilterStage).expr;
+      const effects = [
+        ...collectConstructorAssignments(expression),
+        ...(expression.type === "bind" ? [expression as BindNode] : []),
+      ];
+      assignments.push(...effects.map((assignment) => projectAssignment(assignment, prefix)));
+    }
+    if (staged.group) {
+      const object: ObjectNode = { type: "object", position: 0, entries: staged.group.entries };
+      assignments.push(...collectConstructorAssignments(object).map((assignment) => projectAssignment(assignment, prefix)));
+    }
   }
 
   function bindArrayAssignmentEffects(
