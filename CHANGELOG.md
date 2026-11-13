@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.
 - Include `$formatNumber` option-property reads and preserve explicit argument positions inside path steps.
 - Include conservative argument-descendant dependencies for registered host functions and opaque replacements of built-ins.
 - Retain captured input reads and returned-value descendants for callbacks passed to host functions.

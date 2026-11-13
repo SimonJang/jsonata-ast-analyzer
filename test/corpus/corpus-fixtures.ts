@@ -211,6 +211,7 @@ for (let i = 0; i < 15; i++) {
     `payload${i} ~> |Account${i}|{"order": |Order${i}|{"total": Price${i} * Qty${i}}|}|`,
     [
       path(`payload${i}`),
+      path(`payload${i}.**`),
       path(`payload${i}.Account${i}`),
     ],
   );

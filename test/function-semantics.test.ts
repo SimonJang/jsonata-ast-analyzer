@@ -813,7 +813,7 @@ describe("function semantics", () => {
         "($fn := function($x){$x.old.name}; " +
           "$apply := function(){$fn(record).children.seen}; " +
           '$fn := |children|{"seen":name}|; $apply())',
-        ["record", "record.children", "record.children.name"],
+        ["record", "record.**", "record.children", "record.children.name"],
       ],
     ] as const) {
       expect(sortPaths(extractPaths(expression))).toEqual(
@@ -2324,7 +2324,7 @@ describe("function semantics", () => {
       [
         '($op := (|children|{"seen":name}|)' +
           "[$$.config.enabled]; $op(detail).children.seen)",
-        ["detail", "detail.children", "detail.children.name"],
+        ["detail", "detail.**", "detail.children", "detail.children.name"],
       ],
     ] as const) {
       expect(sortPaths(extractPaths(expression))).toEqual(
@@ -2383,6 +2383,7 @@ describe("function semantics", () => {
       sortPaths([
         { path: "config.rank", confidence: "static" },
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
       ]),
@@ -4337,6 +4338,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -4354,6 +4356,7 @@ describe("function semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },

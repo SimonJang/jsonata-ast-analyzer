@@ -91,6 +91,7 @@ describe("analyzeExpression", () => {
     ).toEqual({
       accesses: [
         { path: "payload", confidence: "static", coverage: "subtree" },
+        { path: "payload.**", confidence: "static", coverage: "exact" },
         { path: "payload.Account", confidence: "static", coverage: "exact" },
         {
           path: "payload.Account.name",

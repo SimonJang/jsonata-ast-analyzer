@@ -128,7 +128,7 @@ describe("transform output contracts", () => {
   it("retains alias context when invoking a transform on a constructed input", () => {
     const scope = createScope();
     const node = transform(name("copy"));
-    expect([...new Set(walkerRuntime().transforms.walkTransformCall({ transform: node, scope }, [parse('{"copy":source}')], scope))]).toEqual(["source", "source.price"]);
+    expect([...new Set(walkerRuntime().transforms.walkTransformCall({ transform: node, scope }, [parse('{"copy":source}')], scope))]).toEqual(["source", "source.**", "source.price"]);
   });
 
   it("reads projection updates and deletes through the selected alias context", () => {

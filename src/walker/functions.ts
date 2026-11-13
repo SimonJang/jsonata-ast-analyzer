@@ -1400,7 +1400,7 @@ export function createFunctionOperations(
       const transformNode = node.rhs as TransformNode;
       const transformPaths = runtime.transforms.walkTransform(transformNode, scope);
       const transformBasePaths = runtime.higherOrder.extractBasePaths(node.lhs, scope);
-      if (transformBasePaths.includes(ROOT_PATH)) paths.push("**");
+      paths.push(...deepValueReadPaths(node.lhs, scope));
       const aliasContextPaths = runtime.transforms.transformApplyAliasContextPaths(
         transformNode,
         transformPaths,

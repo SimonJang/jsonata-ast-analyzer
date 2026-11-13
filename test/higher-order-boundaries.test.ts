@@ -64,7 +64,7 @@ describe("higher-order fallback boundaries", () => {
   });
 
   it.each(["each", "sift"])("walks an implicit-root transform callback supplied to $%s", (name) => {
-    expect([...new Set(walkerRuntime().higherOrder.walkHigherOrderCall(fn(`$${name}(|$|{"copy":price}|)`), { 0: "value" }, createScope()))]).toEqual(["*", "*.price"]);
+    expect([...new Set(walkerRuntime().higherOrder.walkHigherOrderCall(fn(`$${name}(|$|{"copy":price}|)`), { 0: "value" }, createScope()))]).toEqual(["*", "*.**", "*.price"]);
   });
 
   it("preserves closure reads from an implicit-root partial each callback", () => {

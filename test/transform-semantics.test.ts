@@ -21,6 +21,7 @@ describe("transform semantics", () => {
       ).toEqual(
         sortPaths([
           { path: "record", confidence: "static" },
+          { path: "record.**", confidence: "static" },
           { path: "record.node", confidence: "static" },
           { path: "detail", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
@@ -40,6 +41,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.node", confidence: "static" },
         { path: "config.operation", confidence: "static" },
         { path: "detail", confidence: "static" },
@@ -60,6 +62,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.node", confidence: "static" },
         { path: "record.node.name", confidence: "static" },
         { path: "record.node.name.**", confidence: "static" },
@@ -81,6 +84,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.node", confidence: "static" },
         { path: "detail", confidence: "static" },
         { path: "detail.**", confidence: "static" },
@@ -114,6 +118,7 @@ describe("transform semantics", () => {
       ).toEqual(
         sortPaths([
           { path: "payload", confidence: "static" },
+          { path: "payload.**", confidence: "static" },
           ...expectedLocations.map((path) => ({
             path,
             confidence: "static" as const,
@@ -156,6 +161,7 @@ describe("transform semantics", () => {
               ]
             : []),
           { path: "payload", confidence: "static" },
+          { path: "payload.**", confidence: "static" },
           ...expectedLocations.map((path) => ({
             path,
             confidence: "static" as const,
@@ -180,6 +186,7 @@ describe("transform semantics", () => {
         { path: "detail", confidence: "static" },
         { path: "detail.name", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.children", confidence: "static" },
       ]),
     );
@@ -198,6 +205,7 @@ describe("transform semantics", () => {
         { path: "detail.children", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.children", confidence: "static" },
       ]),
     );
@@ -228,6 +236,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.Account.Order.Product", confidence: "static" },
         { path: "payload.Account.Order.Product.Price", confidence: "static" },
       ]),
@@ -258,6 +267,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -282,6 +292,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "account", confidence: "static" },
+        { path: "account.**", confidence: "static" },
         { path: "account.first", confidence: "static" },
         { path: "account.first.name", confidence: "static" },
       ]),
@@ -296,6 +307,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
         { path: "record.second.name", confidence: "static" },
@@ -314,6 +326,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "config.suffix", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
       ]),
     );
@@ -329,6 +342,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -346,6 +360,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
       ]),
@@ -360,6 +375,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -376,6 +392,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -392,6 +409,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -407,6 +425,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -423,6 +442,7 @@ describe("transform semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "record", confidence: "static" },
+          { path: "record.**", confidence: "static" },
           { path: "record.first", confidence: "static" },
           { path: "record.first.name", confidence: "static" },
         ]),
@@ -442,6 +462,7 @@ describe("transform semantics", () => {
         { path: "config.enabled", confidence: "static" },
         { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
@@ -461,6 +482,7 @@ describe("transform semantics", () => {
         { path: "config.enabled", confidence: "static" },
         { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
@@ -478,6 +500,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -493,6 +516,7 @@ describe("transform semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "record", confidence: "static" },
+          { path: "record.**", confidence: "static" },
           { path: "record.first", confidence: "static" },
           { path: "record.first.name", confidence: "static" },
         ]),
@@ -508,6 +532,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -521,6 +546,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -533,6 +559,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -548,6 +575,7 @@ describe("transform semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "detail", confidence: "static" },
+          { path: "detail.**", confidence: "static" },
           { path: "detail.children.name", confidence: "static" },
         ]),
       );
@@ -558,11 +586,11 @@ describe("transform semantics", () => {
     for (const [expression, expected] of [
       [
         'payload ~> |Account|{"seen": $$.config.suffix}|',
-        ["payload", "payload.Account", "config.suffix"],
+        ["payload", "payload.**", "payload.Account", "config.suffix"],
       ],
       [
         '($t := |first|{"seen": $$.config.suffix}|; $t(record))',
-        ["record", "record.first", "config.suffix"],
+        ["record", "record.**", "record.first", "config.suffix"],
       ],
       [
         '($later := fallback; $t := |$|{"seen": children.name & $later.name & $$.config.suffix}|; $t(detail))',
@@ -573,6 +601,7 @@ describe("transform semantics", () => {
           "config.suffix",
           "config.suffix.**",
           "detail",
+          "detail.**",
           "detail.children.name",
           "detail.children.name.**",
         ],
@@ -597,6 +626,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "config.rank", confidence: "static" },
         { path: "detail", confidence: "static" },
+        { path: "detail.**", confidence: "static" },
         { path: "detail.children.name", confidence: "static" },
       ]),
     );
@@ -613,6 +643,7 @@ describe("transform semantics", () => {
           { path: "config.suffix.**", confidence: "static" },
           { path: "detail", confidence: "static" },
           { path: "record", confidence: "static" },
+          { path: "record.**", confidence: "static" },
           { path: "record.children.name", confidence: "static" },
           { path: "record.children.name.**", confidence: "static" },
         ]),
@@ -638,6 +669,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -652,6 +684,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -668,6 +701,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -686,6 +720,7 @@ describe("transform semantics", () => {
         { path: "config.enabled", confidence: "static" },
         { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -704,6 +739,7 @@ describe("transform semantics", () => {
         { path: "config.enabled", confidence: "static" },
         { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.detail", confidence: "static" },
         { path: "record.first.detail.rank", confidence: "static" },
@@ -725,6 +761,7 @@ describe("transform semantics", () => {
         { path: "config.enabled", confidence: "static" },
         { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -755,6 +792,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -769,6 +807,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -787,6 +826,7 @@ describe("transform semantics", () => {
         { path: "config.enabled", confidence: "static" },
         { path: "config.enabled.*", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -822,6 +862,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -840,6 +881,7 @@ describe("transform semantics", () => {
         { path: "config.index", confidence: "static" },
         { path: "config.index.*", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -854,6 +896,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -870,6 +913,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -886,6 +930,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -903,6 +948,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "config.operation", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -918,6 +964,7 @@ describe("transform semantics", () => {
       expect(sortPaths(extractPaths(expression))).toEqual(
         sortPaths([
           { path: "record", confidence: "static" },
+          { path: "record.**", confidence: "static" },
           { path: "record.first", confidence: "static" },
           { path: "record.first.name", confidence: "static" },
         ]),
@@ -936,6 +983,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "config.operation", confidence: "static" },
         { path: "record", confidence: "static" },
+        { path: "record.**", confidence: "static" },
         { path: "record.first", confidence: "static" },
         { path: "record.first.name", confidence: "static" },
       ]),
@@ -984,6 +1032,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
         { path: "payload.Account.active", confidence: "static" },
         { path: "payload.Account.active.*", confidence: "static" },
@@ -1013,6 +1062,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
         { path: "payload.Account.active", confidence: "static" },
         { path: "payload.Account.active.*", confidence: "static" },
@@ -1029,6 +1079,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.orders.items.price", confidence: "static" },
         { path: "payload.orders.items.price.name", confidence: "static" },
       ]),
@@ -1046,6 +1097,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.orders.items.price", confidence: "static" },
         { path: "payload.orders.items.price.name", confidence: "static" },
       ]),
@@ -1063,6 +1115,7 @@ describe("transform semantics", () => {
       sortPaths([
         { path: "orders.items.price", confidence: "static" },
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.orders.items.price", confidence: "static" },
         { path: "payload.orders.items.price.name", confidence: "static" },
       ]),
@@ -1079,11 +1132,13 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "fallback", confidence: "static" },
+        { path: "fallback.**", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
         { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
+        { path: "primary.**", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -1099,12 +1154,14 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "fallback", confidence: "static" },
+        { path: "fallback.**", confidence: "static" },
         { path: "fallback.rank", confidence: "static" },
         { path: "fallback.x", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "flag", confidence: "static" },
         { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
+        { path: "primary.**", confidence: "static" },
         { path: "primary.name", confidence: "static" },
       ]),
     );
@@ -1120,12 +1177,14 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "fallback", confidence: "static" },
+        { path: "fallback.**", confidence: "static" },
         { path: "fallback.x.name", confidence: "static" },
         { path: "fallback.x.node", confidence: "static" },
         { path: "fallback.x.node.name", confidence: "static" },
         { path: "flag", confidence: "static" },
         { path: "flag.*", confidence: "static" },
         { path: "primary", confidence: "static" },
+        { path: "primary.**", confidence: "static" },
         { path: "primary.name", confidence: "static" },
         { path: "primary.node", confidence: "static" },
         { path: "primary.node.name", confidence: "static" },
@@ -1139,6 +1198,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
         { path: "payload.Account.rootId", confidence: "static" },
       ]),
@@ -1149,6 +1209,7 @@ describe("transform semantics", () => {
     expect(sortPaths(extractPaths('payload ~> |Account|{"copy": $}|'))).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
       ]),
     );
@@ -1160,6 +1221,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
         { path: "payload.Account.oldFields.password", confidence: "static" },
       ]),
@@ -1180,6 +1242,7 @@ describe("transform semantics", () => {
     ).toEqual(
       sortPaths([
         { path: "payload", confidence: "static" },
+        { path: "payload.**", confidence: "static" },
         { path: "payload.Account", confidence: "static" },
       ]),
     );

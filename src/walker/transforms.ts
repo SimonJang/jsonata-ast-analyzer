@@ -712,7 +712,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     const inputPaths =
       runtime.functions.identityReferencePaths(input, callScope) ?? runtime.core.walkNode(input, callScope);
     const transformBasePaths = runtime.higherOrder.extractBasePaths(input, callScope);
-    if (transformBasePaths.includes(ROOT_PATH)) paths.push("**");
+    paths.push(...runtime.functions.deepValueReadPaths(input, callScope));
   
     const aliasContextPaths = transformApplyAliasContextPaths(
       binding.transform,

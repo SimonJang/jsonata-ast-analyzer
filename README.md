@@ -336,7 +336,7 @@ The analyzer is designed to over-approximate: it reports a superset of the paths
 
 **Descendant summaries** -- Descendant paths such as `**.price` are preserved as broad static summaries. The analyzer does not enumerate every possible concrete path under `**`.
 
-**Transform writes** -- Transform locations and update/delete expressions are analyzed for reads, but write targets are not exposed as a separate public API. Literal delete targets such as `["password"]` do not create input reads.
+**Transform writes** -- Transform locations and update/delete expressions are analyzed for reads, but write targets are not exposed as a separate public API. Transform inputs also receive descendant dependencies because JSONata clones them before applying updates, even when the caller only counts or selects a field from the result. Literal delete targets such as `["password"]` do not create input reads.
 
 **External function contracts** -- Host-function arguments receive conservative descendant dependencies. The analyzer cannot inspect registered JavaScript, infer host signatures or context defaults, or discover reads of external state. `opaqueFunctions` must identify host replacements of built-in names. Precise callback and return contracts for arbitrary host functions are not modeled.
 
