@@ -152,6 +152,9 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: PathNode,
     scope: ScopeTracker,
   ): ObjectAlias | null {
+    if (node.steps.length === 1 && node.steps[0].type === "object" && !node.group) {
+      return objectAliasFromObject(node.steps[0] as ObjectNode, scope);
+    }
     const selected = selectedPathAliasContext(node, scope);
     if (selected) return selected.objectAlias;
     const chained = chainedPathContext(node, scope);

@@ -17,6 +17,7 @@
 - Preserve assignments exposed to the outer scope by multi-item tuple-sort predicates, subsequent sort keys, and grouping.
 - Retain external data and callback reads when selecting suffix projections from constructed aliases.
 - Resolve registered-function argument descendants and local assignment reads against constructed current-context aliases.
+- Preserve captured field origins when a constructor is represented as a single-step projection path.
 - Preserve sources and descendant dependencies for values inserted into transform results.
 - Cover inserted value descendants conservatively when transform target placement is unresolved, including registered selectors.
 - Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.

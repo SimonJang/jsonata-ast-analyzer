@@ -9,6 +9,7 @@ describe("assignments over constructed projection contexts", () => {
     '($f:=function(){other.amount};rows.{"copy":details}^($count($f:=function(){copy.amount}));$f())',
     '($f:=function(){other.amount};$r:=rows;$r.{"copy":details}^($count($f:=function(){copy.amount}));$f())',
     '($f:=function(){other.amount};rows.{"copy":details}^($count($f:=function(){copy.amount})).{"out":$f()})',
+    '($f:=function(){other.amount};$r:=rows;$r.{"copy":details}^($count($f:=function(){copy.amount})).{"out":$f()})',
     '($x:=other;rows.{"copy":details}^($count($x:={"copy":copy}));$x.copy.amount)',
     '($x:=other;$r:=rows;$r.{"copy":details}^($count($x:={"copy":copy}));$x.copy.amount)',
     '($x:=other;rows.{"copy":details}^($count($x:={($$.key):copy}));$x.copy.amount)',
