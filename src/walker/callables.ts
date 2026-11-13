@@ -1356,6 +1356,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         resolveCallableValues(value, objectScope),
       );
     }
+    const transformResults = runtime.transforms.transformUpdateCallableValues(functionNode, [], scope);
+    if (transformResults.length > 0) return transformResults;
     const higherOrderResults = higherOrderResultCallableValues(
       functionNode,
       scope,
@@ -1741,6 +1743,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
         );
       }
   
+      const transformResults = runtime.transforms.transformUpdateBuiltinCallableNames(functionNode, [], scope);
+      if (transformResults.length > 0) return transformResults;
       const higherOrderResults = higherOrderResultBuiltinCallableNames(
         functionNode,
         scope,
