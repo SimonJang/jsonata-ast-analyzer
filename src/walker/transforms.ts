@@ -1,6 +1,6 @@
-import type { ArrayNode, AstNode, BlockNode, ConditionNode, FunctionNode, NameNode, ObjectNode, PathNode, TransformNode, VariableNode } from "../types.js";
+import type { ArrayNode, AstNode, BindNode, BlockNode, ConditionNode, FunctionNode, NameNode, ObjectNode, PathNode, TransformNode, VariableNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, createScope, childScope, bindVariable, bindValue, resolvePartial, resolveTransform, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias, type TransformBinding } from "../scope.js";
+import { type ScopeTracker, createScope, childScope, bindVariable, bindValue, resolveValue, resolvePartial, resolveTransform, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias, type TransformBinding } from "../scope.js";
 import { ROOT_PATH, TRANSFORM_CURRENT_PATH } from "./constants.js";
 import { prefixPaths, appendPath, prefixTransformContextPaths, resolveParentPathSegments, isRootReference, markAbsolute } from "./path-utils.js";
 import type { TransformOperations, WalkerRuntime, ResolvedCallable, ResolvedTransformCall } from "./runtime.js";
@@ -550,6 +550,10 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
 
   function staticTransformPatternAlternatives(node: AstNode, scope: ScopeTracker): string[][] {
     if (isRootReference(node)) return [[]];
+    if (node.type === "variable") {
+      const value = resolveValue(scope, (node as VariableNode).value);
+      return value ? staticTransformPatternAlternatives(value.node, value.scope) : [];
+    }
     if (node.type === "function") {
       const call = node as FunctionNode;
       const names = runtime.callables.resolveBuiltinCallableNames(call.procedure, scope);
@@ -573,8 +577,16 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     }
     if (node.type === "block") {
       const expressions = (node as BlockNode).expressions;
+      let blockScope = childScope(scope);
+      for (const expression of expressions.slice(0, -1)) {
+        const previous = blockScope;
+        if (expression.type === "bind") {
+          blockScope = runtime.callables.bindCallableBlockValue(blockScope, expression as BindNode);
+        }
+        blockScope = runtime.core.bindArrayAssignmentEffects(expression, blockScope, previous);
+      }
       const result = expressions[expressions.length - 1];
-      return result ? staticTransformPatternAlternatives(result, scope) : [];
+      return result ? staticTransformPatternAlternatives(result, blockScope) : [];
     }
     if (node.type === "path") {
       let alternatives: string[][] = [[]];

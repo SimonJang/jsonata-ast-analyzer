@@ -17,6 +17,18 @@ describe("inline transform result dependencies", () => {
     });
   });
 
+  it.each([
+    '($l:=$lookup;$l($,$$.selected))',
+    '($target:=$lookup($,$$.selected);$target)',
+    '($target:=$.a;$target)',
+  ])("retains bindings local to a transform pattern block: %s", async (pattern) => {
+    const source = `($v:=record ~> |${pattern}|{"copy":$$.other}|;$v.a.copy.details.amount)`;
+    expect(await jsonata(source).evaluate({ ...input, selected: "a", record: { a: {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
   it("resolves captured lookup aliases in transform patterns", async () => {
     const source = '($l:=$lookup;$t:=|$l($,$$.selected)|{"copy":$$.other}|;$v:=$t(record);$v.a.copy.details.amount)';
     expect(await jsonata(source).evaluate({ ...input, selected: "a", record: { a: {} } })).toBe(10);
