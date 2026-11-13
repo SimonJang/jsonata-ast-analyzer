@@ -898,7 +898,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   ): string[] {
     const paths: string[] = [];
   
-    for (const term of sortNode.terms) {
+    for (const term of runtime.core.sortEvaluationTerms(sortNode)) {
       if (collectVariableNames(term.expression).size > 0) {
         paths.push(
           ...selectAliasExpressionPaths(
@@ -1127,7 +1127,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         );
         continue;
       }
-      for (const term of (step as SortNode).terms) {
+      for (const term of runtime.core.sortEvaluationTerms(step as SortNode)) {
         paths.push(
           ...walkAliasSuffixContextExpression(
             term.expression,

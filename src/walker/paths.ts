@@ -1841,7 +1841,7 @@ export function createPathOperations(runtime: WalkerRuntime): PathOperations {
     aliasStep?: AstNode,
   ): string[] {
     const paths: string[] = [];
-    for (const term of sortNode.terms) {
+    for (const term of runtime.core.sortEvaluationTerms(sortNode)) {
       const aliasPaths =
         aliasStep
           ? term.expression.type === "path"

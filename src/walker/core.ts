@@ -1,4 +1,4 @@
-import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, SortNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
+import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, SortNode, SortTerm, TransformNode, VariableNode, WildcardNode } from "../types.js";
 import { type ScopeTracker, childScope, bindVariable, bindValue, bindObjectAlias, bindDynamicObjectAlias, bindSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, resolveValue, resolveVariable } from "../scope.js";
 import { appendPath, collectVariableNames, markAbsolute } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
@@ -110,6 +110,21 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       const object: ObjectNode = { type: "object", position: 0, entries: staged.group.entries };
       assignments.push(...collectConstructorAssignments(object).map((assignment) => projectAssignment(assignment, prefix)));
     }
+  }
+
+  function sortEvaluationTerms(node: SortNode): SortTerm[] {
+    if (collectConstructorAssignments(node).length === 0) return node.terms;
+    // Later keys and post-sort predicates can observe writes from earlier keys.
+    const expressions = [
+      ...node.terms.map((term) => term.expression),
+      ...(node.predicate ?? []).filter((stage) => stage.type === "filter")
+        .map((stage) => runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr)),
+    ];
+    if (expressions.length < 2) return node.terms;
+    return [...node.terms, {
+      descending: false,
+      expression: { type: "block", position: node.position ?? 0, expressions },
+    }];
   }
 
   function bindArrayAssignmentEffects(
@@ -906,6 +921,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     bindBroadStepScope,
     walkArray,
     bindArrayAssignmentEffects,
+    sortEvaluationTerms,
     constructorEvaluationScopes,
     walkObject,
   };

@@ -1,4 +1,4 @@
-import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, DescendantNode, FunctionNode, GroupByNode, LambdaNode, ObjectNode, PartialNode, PathNode, SortNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
+import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, DescendantNode, FunctionNode, GroupByNode, LambdaNode, ObjectNode, PartialNode, PathNode, SortNode, SortTerm, TransformNode, VariableNode, WildcardNode } from "../types.js";
 import type { DynamicObjectAlias, LambdaBinding, ObjectAlias, PartialBinding, ScopeTracker, TransformBinding } from "../scope.js";
 
 export interface ResolvedTransformCall {
@@ -29,6 +29,7 @@ export interface ResolvedHigherOrderLambdaCallbacks {
 }
 
 export interface CoreOperations {
+  sortEvaluationTerms(node: SortNode): SortTerm[];
   constructorEvaluationScopes(node: AstNode, scope: ScopeTracker): ScopeTracker[];
   walkNode(node: AstNode, scope: ScopeTracker): string[];
   bindBroadStepScope(node: WildcardNode | DescendantNode, basePath: string, scope: ScopeTracker): {
