@@ -1,12 +1,17 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, LambdaNode, ObjectNode, PartialNode, PathNode, SortNode, TransformNode, VariableNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
 import { parse } from "../parser.js";
-import { type ScopeTracker, childScope, bindVariable, bindLambda, bindPartial, bindTransform, bindValue, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, bindLambda, bindLambdaReference, bindPartial, bindTransform, bindValue, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias } from "../scope.js";
 import { BUILTIN_FUNCTIONS, HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, IMPLICIT_ROOT_SHALLOW_FUNCTIONS, IMPLICIT_ROOT_DEEP_FUNCTIONS, MATCHER_CALLBACK_FUNCTIONS, CONTEXT_DEFAULT_BUILTINS } from "./constants.js";
 import { prefixPaths, appendPath, isRootReference, markAbsolute, isNumericIndex } from "./path-utils.js";
 import type { FunctionOperations, WalkerOptions, WalkerRuntime } from "./runtime.js";
 import { createSelectionOperations } from "./selection.js";
+
+interface ScopedMatcherCall {
+  node: FunctionNode;
+  scope: ScopeTracker;
+}
 
 const DEFAULT_OPTIONS: WalkerOptions = { opaqueFunctions: new Set() };
 const EVAL_CONTEXT = "\0eval-context";
@@ -871,30 +876,22 @@ export function createFunctionOperations(
         paths.push(...walkCallableSelection(arg, scope));
         const matchInputs = argIndex === 2 && funcName === "replace"
           ? getMatcherCallNodes(args, scope) : [];
-        const generatedArgument: AstNode = matchInputs.length > 0 ? {
-          type: "array", expressions: matchInputs, position: node.position,
-        } : {
+        const generatedArgument: AstNode = {
           type: "value",
           value: null,
           position: node.position,
         };
         for (const callable of callableArguments) {
-          if (callable.kind === "lambda") {
-            paths.push(
-              ...runtime.higherOrder.walkCustomFunctionCall(
-                callable.binding,
-                [generatedArgument],
-                scope,
-              ),
-            );
-          } else if (callable.kind === "partial") {
-            paths.push(
-              ...runtime.higherOrder.walkPartialCall(
-                callable.binding,
-                [generatedArgument],
-                scope,
-              ),
-            );
+          const inputs = matchInputs.length > 0 ? matchInputs : [{ node: generatedArgument, scope }];
+          for (const input of inputs) {
+            if (callable.kind === "lambda") {
+              paths.push(...runtime.higherOrder.walkCustomFunctionCall(
+                callable.binding, [input.node], scope, false, [input.scope],
+              ));
+            } else if (callable.kind === "partial") {
+              const scoped = runtime.higherOrder.scopePartialArguments([input.node], [input.scope], scope);
+              paths.push(...runtime.higherOrder.walkPartialCall(callable.binding, scoped.arguments, scoped.scope));
+            }
           }
         }
         if (argIndex === 1 && MATCHER_CALLBACK_FUNCTIONS.has(funcName) && funcName !== "contains") {
@@ -985,36 +982,44 @@ export function createFunctionOperations(
   }
 
   function walkMatcherContinuations(initialCall: FunctionNode, scope: ScopeTracker): string[] {
-    return matcherCalls(initialCall, scope).slice(1).flatMap((call) => walkFunction(call, scope));
+    return matcherCalls(initialCall, scope).slice(1).flatMap((call) => walkFunction(call.node, call.scope));
   }
 
-  function matcherCalls(initialCall: FunctionNode, scope: ScopeTracker): FunctionNode[] {
-    const calls = [initialCall];
-    const visited = new Set<AstNode>();
-    let call = initialCall;
-    while (true) {
-      const nextCall: FunctionNode = {
-        type: "function", value: "(", position: call.position,
-        procedure: {
-          type: "path",
-          steps: [call, { type: "name", value: "next", position: call.position }],
-        },
-        arguments: [],
+  function matcherCalls(initialCall: FunctionNode, scope: ScopeTracker): ScopedMatcherCall[] {
+    const calls = [{ node: initialCall, scope, visited: new Set<AstNode>() }];
+    // Resolve each closure directly rather than nesting all preceding calls into its selector.
+    for (let index = 0; index < calls.length; index++) {
+      const call = calls[index];
+      const next: PathNode = {
+        type: "path",
+        steps: [call.node, { type: "name", value: "next", position: call.node.position }],
       };
-      const continuations = runtime.callables.resolveCallableValues(nextCall.procedure, scope);
-      const nodes = continuations.map((callable) => callable.kind === "lambda"
-        ? callable.binding.lambda
-        : callable.kind === "partial" ? callable.binding.partial : callable.binding.transform);
-      // Recursive continuations must be analyzed once, without unrolling forever.
-      if (!nodes.some((node) => !visited.has(node))) break;
-      nodes.forEach((node) => visited.add(node));
-      calls.push(nextCall);
-      call = nextCall;
+      for (const callable of runtime.callables.resolveCallableValues(next, call.scope)) {
+        const source = callable.kind === "lambda" ? callable.binding.lambda
+          : callable.kind === "partial" ? callable.binding.partial : callable.binding.transform;
+        if (call.visited.has(source)) continue;
+        const name = "\0matcher-continuation";
+        let nextScope = childScope(callable.binding.scope);
+        if (callable.kind === "lambda") {
+          nextScope = bindLambdaReference(nextScope, name, callable.binding, callable.binding.forwardScope ?? call.scope);
+        } else if (callable.kind === "partial") {
+          nextScope = bindPartial(nextScope, name, callable.binding.partial, callable.binding.scope);
+        } else {
+          nextScope = bindTransform(nextScope, name, callable.binding.transform, callable.binding.scope);
+        }
+        calls.push({
+          node: {
+            type: "function", value: "(", position: call.node.position,
+            procedure: { type: "variable", value: name, position: call.node.position }, arguments: [],
+          },
+          scope: nextScope, visited: new Set([...call.visited, source]),
+        });
+      }
     }
     return calls;
   }
 
-  function getMatcherCallNodes(args: AstNode[], scope: ScopeTracker): FunctionNode[] {
+  function getMatcherCallNodes(args: AstNode[], scope: ScopeTracker): ScopedMatcherCall[] {
     if (!args[0] || !args[1] || !runtime.callables.isFunctionProcedureNode(args[1])) return [];
     const initialCall: FunctionNode = {
       type: "function", value: "(", position: 0,
@@ -1023,14 +1028,24 @@ export function createFunctionOperations(
     return matcherCalls(initialCall, scope);
   }
 
-  function getMatchResultNodes(args: AstNode[], scope: ScopeTracker): AstNode[] {
-    return getMatcherCallNodes(args, scope).map((call): ObjectNode => ({
+  function matchResultNode(call: FunctionNode): ObjectNode {
+    return {
       type: "object", position: call.position,
       entries: [["match", "match"], ["index", "start"], ["groups", "groups"]].map(([key, source]) => [
         { type: "string", value: key, position: call.position },
         { type: "path", steps: [call, { type: "name", value: source, position: call.position }] },
       ]),
-    }));
+    };
+  }
+
+  function getMatchResultObjectAlias(args: AstNode[], scope: ScopeTracker): ObjectAlias | null {
+    return runtime.aliases.mergeObjectAliases(getMatcherCallNodes(args, scope).map((call) =>
+      runtime.aliases.groupResultObjectAliasForNode(matchResultNode(call.node), call.scope)));
+  }
+
+  function getMatchResultBasePaths(args: AstNode[], scope: ScopeTracker): string[] {
+    return getMatcherCallNodes(args, scope).flatMap((call) =>
+      selection.getSelectedResultPaths(matchResultNode(call.node), call.scope));
   }
 
   function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
@@ -1368,7 +1383,8 @@ export function createFunctionOperations(
     conditionalProcedureCalls,
     walkFunction,
     isUnknownHostProcedure,
-    getMatchResultNodes,
+    getMatchResultObjectAlias,
+    getMatchResultBasePaths,
     getStaticEvalResultBasePaths,
     getStaticEvalResultSuffixBasePaths,
     getStaticEvalExpression,

@@ -8,6 +8,7 @@
 - Retain captured input reads and returned-value descendants for callbacks passed to host functions.
 - Include data and reducer-seed descendants when built-ins invoke registered host callbacks, including mixed callback branches.
 - Follow custom matcher continuations and preserve source paths selected from custom match groups.
+- Avoid repeatedly expanding preceding matcher calls when analyzing continuation chains, while preserving each continuation's captured scope.
 - Include object-property enumeration reads for explicit `$keys`, `$spread`, `$boolean`, `$not`, and `$merge` inputs while preserving constructed-object boundaries.
 - Resolve static `$eval` result paths with their actual context bindings, including forwarded constructed objects.
 - Trace descendant dependencies for deep equality, `$distinct`, and object values serialized by concatenation, including alias and transform contexts.

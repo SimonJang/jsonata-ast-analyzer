@@ -109,4 +109,17 @@ describe("custom matcher continuations", () => {
       });
     }
   });
+
+  it("preserves local values captured by produced continuations", async () => {
+    const expression = '($make := function($groups){function(){{"match":"x","start":1,"end":2,"groups":$groups,"next":function(){$nothing}}}}; $matcher := function($text){{"match":"x","start":0,"end":1,"groups":config.first,"next":enabled ? $make(config.second) : $make(config.other)}}; $replace(text,$matcher,function($m){$m.groups.label}))';
+    for (const enabled of [true, false]) {
+      expect(await jsonata(expression).evaluate({
+        enabled, text: "xx", config: { first: [{ label: "a" }], second: [{ label: "b" }], other: [{ label: "c" }] },
+      })).toBe(enabled ? "ab" : "ac");
+    }
+    const accesses = analyzeExpression(expression).accesses;
+    for (const path of ["config.first.label", "config.second.label", "config.other.label"]) {
+      expect(accesses).toContainEqual({ path, confidence: "static", coverage: "exact" });
+    }
+  });
 });

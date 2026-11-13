@@ -164,8 +164,7 @@ export function createResultOperations(
       return runtime.functions.getStaticEvalResultObjectAlias(args, argScope);
     }
     if (funcName === "match") {
-      return runtime.aliases.mergeObjectAliases(runtime.functions.getMatchResultNodes(args, argScope)
-        .map((result) => runtime.aliases.groupResultObjectAliasForNode(result, argScope)));
+      return runtime.functions.getMatchResultObjectAlias(args, argScope);
     }
   
     if (funcName === "map" || funcName === "each") {
@@ -1066,8 +1065,7 @@ export function createResultOperations(
       return runtime.functions.getStaticEvalResultBasePaths(args, argScope);
     }
     if (funcName === "match") {
-      return runtime.functions.getMatchResultNodes(args, argScope)
-        .flatMap((result) => selection.getSelectedResultPaths(result, argScope));
+      return runtime.functions.getMatchResultBasePaths(args, argScope);
     }
   
     if (funcName === "map" || funcName === "each") {

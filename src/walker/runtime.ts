@@ -151,7 +151,8 @@ export interface FunctionOperations {
   conditionalProcedureCalls(node: FunctionNode): FunctionNode[];
   walkFunction(node: FunctionNode, scope: ScopeTracker): string[];
   isUnknownHostProcedure(node: AstNode, scope: ScopeTracker): boolean;
-  getMatchResultNodes(args: AstNode[], scope: ScopeTracker): AstNode[];
+  getMatchResultObjectAlias(args: AstNode[], scope: ScopeTracker): ObjectAlias | null;
+  getMatchResultBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalResultBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalResultSuffixBasePaths(args: AstNode[], scope: ScopeTracker): string[];
   getStaticEvalExpression(args: AstNode[], scope?: ScopeTracker): AstNode | null;
