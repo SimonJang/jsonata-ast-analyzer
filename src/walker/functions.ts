@@ -867,6 +867,12 @@ export function createFunctionOperations(
       );
     }
   
+    if (funcName === "replace" && args[2] && isUnknownHostProcedure(args[2], scope)) {
+      for (const input of getMatcherCallNodes(args, scope)) {
+        paths.push(...deepValueReadPaths(input.node, input.scope));
+      }
+    }
+
     // Step 3: Non-higher-order built-in or unknown function -- pass-through all args
     for (const [argIndex, arg] of args.entries()) {
       const invokesCallableArgument =

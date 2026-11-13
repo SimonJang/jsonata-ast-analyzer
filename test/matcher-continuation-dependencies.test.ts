@@ -122,4 +122,14 @@ describe("custom matcher continuations", () => {
       expect(accesses).toContainEqual({ path, confidence: "static", coverage: "exact" });
     }
   });
+
+  it("covers custom match data consumed by a registered replacement function", async () => {
+    const source = '($matcher := function($text){{"match":"x","start":0,"end":1,"groups":config.groups,"next":function(){$nothing}}}; $replace(text,$matcher,$render))';
+    const expression = jsonata(source);
+    expression.registerFunction("render", (match: { groups: { label: string }[] }) => match.groups[0].label, "<o:s>");
+    expect(await expression.evaluate({ text: "x", config: { groups: [{ label: "chosen" }] } })).toBe("chosen");
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "config.groups.**", confidence: "static", coverage: "exact",
+    });
+  });
 });
