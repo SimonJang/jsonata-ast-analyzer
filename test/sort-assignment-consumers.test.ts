@@ -4,6 +4,23 @@ import { analyzeExpression } from "../src/index.js";
 
 describe("consumers of sort key assignments", () => {
   it.each([
+    '($x:=other.details;$r:=rows;$r^($count($x:=details))[$x.amount>0].name)',
+    '($x:=other.details;$map(rows,function($v){$v})^($count($x:=details))[$x.amount>0].name)',
+    '($f:=function(){other.details.amount};$reverse(rows)^($count($f:=function(){details.amount}))[$f()>0].name)',
+  ])("retains the old binding when sorting one row in %s", async (source) => {
+    let oldReads = 0;
+    let newReads = 0;
+    const input = {
+      other: { details: { get amount() { oldReads++; return 20; } } },
+      rows: [{ name: "row", details: { get amount() { newReads++; return 10; } } }],
+    };
+    expect(await jsonata(source).evaluate(input)).toBe("row");
+    expect(oldReads).toBeGreaterThan(0);
+    expect(newReads).toBe(0);
+    expect(analyzeExpression(source).accesses.map(({ path }) => path)).toContain("other.details.amount");
+  });
+
+  it.each([
     '($x:=other;rows^($count($x:=details),$x.amount).name)',
     '($x:=other;rows^($count($x:=details))[$x.amount>0].name)',
     '($x:=other;$r:=rows;$r^($count($x:=details),$x.amount).name)',

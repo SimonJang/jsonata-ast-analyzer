@@ -115,13 +115,15 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   function sortEvaluationTerms(node: SortNode): SortTerm[] {
     if (collectConstructorAssignments(node).length === 0) return node.terms;
     // Later keys and post-sort predicates can observe writes from earlier keys.
+    const predicates = (node.predicate ?? []).filter((stage) => stage.type === "filter")
+      .map((stage) => runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr));
     const expressions = [
       ...node.terms.map((term) => term.expression),
-      ...(node.predicate ?? []).filter((stage) => stage.type === "filter")
-        .map((stage) => runtime.functions.asBooleanExpression((stage as unknown as FilterStage).expr)),
+      ...predicates,
     ];
     if (expressions.length < 2) return node.terms;
-    return [...node.terms, {
+    // Sorting zero or one item skips key evaluation, retaining the old bindings.
+    return [...node.terms, ...predicates.map((expression) => ({ descending: false, expression })), {
       descending: false,
       expression: { type: "block", position: node.position ?? 0, expressions },
     }];
