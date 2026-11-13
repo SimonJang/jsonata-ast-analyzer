@@ -20,7 +20,46 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         const tuple = step as AstNode & { tuple?: boolean; focusBinding?: unknown; indexBinding?: unknown };
         return tuple.tuple || tuple.focusBinding || tuple.indexBinding;
       })) {
-        const assignments = steps[0]?.type === "array" ? collectConstructorAssignments(steps[0]) : [];
+        const assignments = [...(steps[0]?.type === "array" ? collectConstructorAssignments(steps[0]) : [])];
+        const sources = new Map<string, AstNode>();
+        let hasTuples = false;
+        let previousSort = false;
+        let tuple: ObjectNode | undefined;
+        const appendEffects = (expression: AstNode): void => {
+          const source = tuple;
+          if (!source) return;
+          assignments.push(...[
+            ...collectConstructorAssignments(expression),
+            ...(expression.type === "bind" ? [expression as BindNode] : []),
+          ].map((assignment) => projectAssignment(assignment, [source])));
+        };
+        for (const [index, step] of steps.entries()) {
+          const staged = step as NameNode & { predicate?: AstNode[] };
+          if (index === 0 && step.type === "array" && (step as ArrayNode).initialPathPredicate) continue;
+          if (step.type === "sort" && hasTuples) {
+            if (!previousSort) {
+              const prefix = steps.slice(0, index);
+              tuple = { type: "object", position: 0, entries: ["@", ...sources.keys()].map((name) => [
+                { type: "string", value: name, position: 0 },
+                name === "@" ? { type: "path", steps: prefix } : sources.get(name)!,
+              ]) };
+            }
+            // Multi-item sorts expose raw tuples to their predicates and a following sort.
+            if (previousSort) for (const term of (step as SortNode).terms) appendEffects(term.expression);
+            for (const stage of staged.predicate ?? []) if (stage.type === "filter") appendEffects((stage as unknown as FilterStage).expr);
+          }
+          previousSort = step.type === "sort" && hasTuples;
+          if (staged.focusBinding) sources.set(staged.focusBinding.name, {
+            type: "path", steps: [...steps.slice(0, index), { ...step, focusBinding: undefined, indexBinding: undefined } as AstNode],
+          });
+          if (staged.indexBinding) sources.set(staged.indexBinding.name, { type: "variable", value: "\0tuple-index", position: 0 });
+          const stages = staged.stages ?? staged.predicate ?? [];
+          for (const stage of stages) if (stage.type === "position-binding") sources.set((stage as AstNode & { name: string }).name, { type: "variable", value: "\0tuple-index", position: 0 });
+          hasTuples ||= Boolean(staged.tuple || staged.focusBinding || staged.indexBinding || stages.some((stage) => stage.type === "position-binding"));
+        }
+        if (previousSort && (node as PathNode).group) {
+          appendEffects({ type: "object", position: 0, entries: (node as PathNode).group!.entries });
+        }
         constructorAssignments.set(node, assignments);
         return assignments;
       }

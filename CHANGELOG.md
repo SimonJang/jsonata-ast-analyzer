@@ -14,6 +14,7 @@
 - Follow source data through object projections over explicit arrays, including nested and computed fields.
 - Resolve reconstructed assignment values against their preceding constructed-object context.
 - Retain constructed current-context aliases when resolving and invoking projected callbacks.
+- Preserve assignments exposed to the outer scope by multi-item tuple-sort predicates, subsequent sort keys, and grouping.
 - Preserve sources and descendant dependencies for values inserted into transform results.
 - Cover inserted value descendants conservatively when transform target placement is unresolved, including registered selectors.
 - Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.
