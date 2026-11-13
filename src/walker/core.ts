@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
 import { type ScopeTracker, childScope, bindVariable, bindValue, bindObjectAlias, bindDynamicObjectAlias, bindSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, resolveValue, resolveVariable } from "../scope.js";
-import { appendPath, collectVariableNames } from "./path-utils.js";
+import { appendPath, collectVariableNames, markAbsolute } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
 export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
@@ -8,6 +8,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   const assignmentScopes = new WeakMap<AstNode, WeakMap<ScopeTracker, WeakMap<ScopeTracker, ScopeTracker>>>();
   const assignmentReads = new WeakMap<AstNode, boolean>();
   const projectedValues = new WeakMap<AstNode, { value: AstNode; prefix: AstNode[] }>();
+  const iteratedReadCache = new WeakMap<AstNode, WeakMap<ScopeTracker, string[]>>();
 
   function collectConstructorAssignments(node: AstNode): readonly BindNode[] {
     if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
@@ -266,7 +267,50 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
    * Threads an immutable scope for variable resolution.
    * Unknown node types return empty array (skip silently).
    */
-  function walkNode(
+  function walkNode(node: AstNode, scope: ScopeTracker): string[] {
+    const paths = walkNodeReads(node, scope);
+    const assignments = collectConstructorAssignments(node);
+    if (assignments.length === 0) return paths;
+    let scopeCache = iteratedReadCache.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      iteratedReadCache.set(node, scopeCache);
+    }
+    const cached = scopeCache.get(scope);
+    if (cached) return [...paths, ...cached];
+    scopeCache.set(scope, []);
+    const descendants: string[] = [];
+    for (const assignment of assignments) {
+      const projected = projectedValues.get(assignment.rhs);
+      if (!projected) continue;
+      if (projected.value.type === "transform" || projected.value.type === "lambda" && !(projected.value as LambdaNode).thunk) continue;
+      const pending = [{ node: projected.value, scope }];
+      const visited = new Set<AstNode>();
+      let readsBinding = false;
+      for (const entry of pending) {
+        if (visited.has(entry.node)) continue;
+        visited.add(entry.node);
+        const names = collectVariableNames(entry.node);
+        if (names.has(assignment.lhs.value)) {
+          readsBinding = true;
+          break;
+        }
+        for (const name of names) {
+          const captured = resolveValue(entry.scope, name);
+          if (captured) pending.push(captured);
+        }
+      }
+      if (readsBinding) descendants.push(
+        ...runtime.functions.deepValueReadPaths(assignment.lhs, scope),
+        ...runtime.functions.deepValueReadPaths(assignment.rhs, scope),
+      );
+    }
+    const dependencies = markAbsolute([...new Set(descendants)]);
+    scopeCache.set(scope, dependencies);
+    return [...paths, ...dependencies];
+  }
+
+  function walkNodeReads(
     node: AstNode,
     scope: ScopeTracker,
   ): string[] {

@@ -203,6 +203,8 @@ const paths = extractPaths(
 // ]
 ```
 
+Assignments exposed to the surrounding JSONata scope are retained through constructors, function arguments, operators, projections, filters, and grouping. Block and tuple-local assignments stay local. If a projection repeatedly updates a variable from its previous value, the number of updates depends on the input, so descendant summaries (`**`) conservatively cover the possible value origins.
+
 ### Filter predicates
 
 Paths hidden inside filter conditions are extracted alongside the output path.

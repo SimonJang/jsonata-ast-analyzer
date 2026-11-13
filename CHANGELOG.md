@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Retain assignment effects through constructors, function arguments, operators, projections, filters, and grouping, including dependent and repeated writes.
+- Cover data origins carried through input-dependent projection updates with conservative descendant summaries.
 - Preserve sources and descendant dependencies for values inserted into transform results.
 - Cover inserted value descendants conservatively when transform target placement is unresolved, including registered selectors.
 - Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.
