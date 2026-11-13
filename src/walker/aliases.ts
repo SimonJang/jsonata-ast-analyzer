@@ -900,6 +900,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
   
     for (const term of runtime.core.sortEvaluationTerms(sortNode)) {
       if (collectVariableNames(term.expression).size > 0) {
+        // Captured values already name their source; only local alias reads need projection prefixes.
+        const localPaths = new Set(runtime.core.walkNode(term.expression, childScope(createScope())));
+        const scopedPaths = new Set(runtime.core.walkNode(term.expression, scope)
+          .filter((path) => !localPaths.has(path)));
         paths.push(
           ...selectAliasExpressionPaths(
             objectAlias,
@@ -907,7 +911,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
             term.expression,
             scope,
             suffixBasePaths,
-          ),
+          ).flatMap((path) => scopedPaths.has(path) ? markAbsolute([path]) : [path]),
         );
         continue;
       }
