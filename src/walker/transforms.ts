@@ -1,4 +1,4 @@
-import type { ArrayNode, AstNode, BindNode, BlockNode, ConditionNode, FunctionNode, NameNode, ObjectNode, PathNode, TransformNode, VariableNode } from "../types.js";
+import type { ArrayNode, AstNode, BindNode, BlockNode, ConditionNode, FunctionNode, LambdaNode, NameNode, ObjectNode, PathNode, TransformNode, VariableNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
 import { type ScopeTracker, createScope, childScope, bindVariable, bindValue, resolveValue, resolvePartial, resolveTransform, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias, type TransformBinding } from "../scope.js";
 import { ROOT_PATH, TRANSFORM_CURRENT_PATH } from "./constants.js";
@@ -548,38 +548,60 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     return paths;
   }
 
-  function staticTransformPatternAlternatives(node: AstNode, scope: ScopeTracker): string[][] {
+  function staticTransformPatternAlternatives(node: AstNode, scope: ScopeTracker, active = new Set<LambdaNode>()): string[][] {
     if (isRootReference(node)) return [[]];
+    if (node.type === "lambda") {
+      const lambda = node as LambdaNode;
+      return lambda.thunk ? staticTransformPatternAlternatives(lambda.body, scope, active) : [];
+    }
     if (node.type === "variable") {
       const value = resolveValue(scope, (node as VariableNode).value);
-      return value ? staticTransformPatternAlternatives(value.node, value.scope) : [];
+      return value ? staticTransformPatternAlternatives(value.node, value.scope, active) : [];
     }
     if (node.type === "function") {
       const call = node as FunctionNode;
       const names = runtime.callables.resolveBuiltinCallableNames(call.procedure, scope);
-      if (runtime.callables.resolveCallableValues(call.procedure, scope).length) return [];
+      const custom = runtime.callables.resolveCallableValues(call.procedure, scope).flatMap((callable) => {
+        if (callable.kind !== "lambda" || active.has(callable.binding.lambda)) return [];
+        const { lambda } = callable.binding;
+        return runtime.higherOrder.lambdaContextDefaultArgumentVariants(lambda, call.arguments).flatMap((args) => {
+          let lambdaScope = runtime.callables.lambdaCallScope(callable.binding, args, scope);
+          for (const [index, parameter] of lambda.arguments.entries()) {
+            if (args[index]) lambdaScope = bindValue(lambdaScope, parameter.value, args[index], scope);
+          }
+          return staticTransformPatternAlternatives(lambda.body, lambdaScope, new Set([...active, lambda]));
+        });
+      });
+      if (names.includes("map") && call.arguments[0] && call.arguments[1]) {
+        const callback: FunctionNode = {
+          type: "function", value: "(", position: call.position,
+          procedure: call.arguments[1] as FunctionNode["procedure"],
+          arguments: [call.arguments[0], { type: "variable", value: "\0transform-index", position: 0 }, call.arguments[0]],
+        };
+        return [...custom, ...staticTransformPatternAlternatives(callback, scope, active)];
+      }
       if (names.includes("append")) {
-        return call.arguments.flatMap((argument) => staticTransformPatternAlternatives(argument, scope));
+        return [...custom, ...call.arguments.flatMap((argument) => staticTransformPatternAlternatives(argument, scope, active))];
       }
       if (names.some((name) => ["filter", "single", "sort", "reverse", "shuffle", "distinct"].includes(name))) {
-        return call.arguments[0] ? staticTransformPatternAlternatives(call.arguments[0], scope) : [];
+        return [...custom, ...(call.arguments[0] ? staticTransformPatternAlternatives(call.arguments[0], scope, active) : [])];
       }
-      if (!names.includes("lookup")) return [];
+      if (!names.includes("lookup")) return custom;
       const args = runtime.functions.withImplicitRootFunctionArgument("lookup", call.arguments, call.position, scope);
-      if (!args[0] || !args[1]) return [];
+      if (!args[0] || !args[1]) return custom;
       const key = runtime.aliases.staticObjectKey(args[1]) ?? "*";
-      return staticTransformPatternAlternatives(args[0], scope).map((prefix) => [...prefix, key]);
+      return [...custom, ...staticTransformPatternAlternatives(args[0], scope, active).map((prefix) => [...prefix, key])];
     }
 
     if (node.type === "array") {
       return (node as ArrayNode).expressions.flatMap((expression) =>
-        staticTransformPatternAlternatives(expression, scope),
+        staticTransformPatternAlternatives(expression, scope, active),
       );
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
       return [condition.then, condition.else].flatMap((branch) =>
-        branch ? staticTransformPatternAlternatives(branch, scope) : [],
+        branch ? staticTransformPatternAlternatives(branch, scope, active) : [],
       );
     }
     if (node.type === "block") {
@@ -593,12 +615,12 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
         blockScope = runtime.core.bindArrayAssignmentEffects(expression, blockScope, previous);
       }
       const result = expressions[expressions.length - 1];
-      return result ? staticTransformPatternAlternatives(result, blockScope) : [];
+      return result ? staticTransformPatternAlternatives(result, blockScope, active) : [];
     }
     if (node.type === "path") {
       let alternatives: string[][] = [[]];
       for (const step of (node as PathNode).steps) {
-        const stepAlternatives = staticTransformPatternAlternatives(step, scope);
+        const stepAlternatives = staticTransformPatternAlternatives(step, scope, active);
         if (stepAlternatives.length === 0) return [];
         alternatives = alternatives.flatMap((prefix) =>
           stepAlternatives.map((suffix) => [...prefix, ...suffix]),

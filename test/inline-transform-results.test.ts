@@ -6,6 +6,43 @@ describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
   it.each([
+    '(function($x){$x.a})($)',
+    '(function($x){$lookup($x,"a")})($)',
+    '(function($x)<o-:o>{$x.a})()',
+    '$map([$.a,$.b],function($x){$x})',
+  ])("retains update sources through custom target selectors: %s", async (pattern) => {
+    const source = `($v:=record ~> |${pattern}|{"copy":$$.other}|;$v.a.copy.details.amount)`;
+    expect(await jsonata(source).evaluate({ ...input, record: { a: {}, b: {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("retains named custom selector bindings", async () => {
+    const source = '($pick:=function($x){$x.a};$v:=record ~> |$pick($)|{"copy":$$.other}|;$v.a.copy.details.amount)';
+    expect(await jsonata(source).evaluate({ ...input, record: { a: {} } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("retains callback return paths within selected target objects", async () => {
+    const source = '($v:=record ~> |$map([$.left,$.right],function($x){$x.target})|{"copy":$$.other}|;$v.left.target.copy.details.amount)';
+    expect(await jsonata(source).evaluate({ ...input, record: { left: { target: {} }, right: { target: {} } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("terminates recursive selector tracing while preserving its base-case target", async () => {
+    const source = '($pick:=function($x,$n){$n>0?$pick($x,$n-1):$x};$v:=record ~> |$pick($,3)|{"copy":$$.other}|;$v.copy.details.amount)';
+    expect(await jsonata(source).evaluate({ ...input, record: {} })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it.each([
     '$filter([$.a,$.b],function($x){true})',
     '$single([$.a],function($x){true})',
     '$reverse([$.a,$.b])',
