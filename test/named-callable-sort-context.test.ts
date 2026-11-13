@@ -13,6 +13,29 @@ const input = {
 
 describe("sorting named callable containers", () => {
   it.each([
+    '(items.{"run":function(){$.details},"data":other}).run().amount',
+    '($v:=items.{"run":function(){$.details},"data":{"copy":other}};$v.run().amount)',
+    '$map(items.{"run":function(){$.details},"data":other},function($v){$v.run().amount})',
+  ])("preserves the current value captured by projected methods: %s", async (source) => {
+    const data = { items: [
+      { details: { amount: 10 }, other: { amount: 30 } },
+      { details: { amount: 20 }, other: { amount: 40 } },
+    ] };
+    expect(Array.from(await jsonata(source).evaluate(data))).toEqual([10, 20]);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "items.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("retains deep consumption of a projected method's captured current value", async () => {
+    const source = '$string((items.{"run":function(){$.details},"data":name}).run())';
+    expect(await jsonata(source).evaluate(input)).toBe('[{"amount":10},{"amount":20}]');
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "items.details.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
     "function(){$$.items.details}",
     "(function($ignored){$$.items.details})(?)",
   ])("retains captured reads when invoking %s after a parenthesized focus sort", async (procedure) => {

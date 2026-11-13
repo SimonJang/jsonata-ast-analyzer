@@ -329,6 +329,8 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       ...collectVariableNames(lambda.body),
     ]);
     for (const name of referencedNames) {
+      // The current value belongs to the closure, not its caller's container.
+      if (name === "") continue;
       const referenceNode: VariableNode = {
         type: "variable",
         value: name,
