@@ -1420,9 +1420,16 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       return resolveDynamicObjectAlias(scope, "");
     }
     if (node.type === "path") {
+      const path = node as PathNode;
+      if (!path.group && path.steps.at(-1)?.type === "sort") {
+        const steps = [...path.steps];
+        while (steps.at(-1)?.type === "sort") steps.pop();
+        return groupResultDynamicObjectAliasForNode(
+          steps.length === 1 && steps[0].type !== "name" ? steps[0] : { ...path, steps }, scope,
+        );
+      }
       const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
       if (method) return dynamicObjectAliasForNode(method.node, method.scope);
-      const path = node as PathNode;
       const selected = selectedPathAliasContext(path, scope);
       if (selected) return selected.dynamicObjectAlias;
       const chained = chainedPathContext(node as PathNode, scope);
@@ -1432,6 +1439,18 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
             ? chained.tail.steps[0] : chained.tail,
           chained.scope,
         );
+      }
+      const projection = path.steps.at(-1);
+      if (path.steps.length > 1 && projection?.type === "object") {
+        const alias = dynamicObjectAliasFromObject(projection as ObjectNode, scope);
+        if (alias.variants.some((variant) => variant.node.entries.some(([key]) => staticObjectKey(key) === null))) {
+          const steps = path.steps.slice(0, -1);
+          const prefix: AstNode = steps.length === 1 && steps[0].type !== "name"
+            ? steps[0] : { type: "path", steps } as PathNode;
+          return dynamicObjectAliasFromObject(
+            projection as ObjectNode, groupResultScope(prefix, scope),
+          );
+        }
       }
     }
     const source = dynamicObjectSource(node, scope);

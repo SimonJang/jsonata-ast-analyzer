@@ -17,6 +17,23 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
   .sort((a, b) => a.path.localeCompare(b.path));
 
 describe("data projections from constructed contexts", () => {
+  it.each([
+    '$string((items.{($$.enabled?"out":"alt"):{"copy":other}}).out)',
+    '$string(([items.{($$.enabled?"out":"alt"):{"copy":other}}]^(1)).out)',
+  ])("retains dynamically named constructor fields: %s", async (source) => {
+    const data = { enabled: true, items: [{ other: { amount: 10 } }] };
+    expect(await jsonata(source).evaluate(data)).toBe('{"copy":{"amount":10}}');
+    expect(accesses(source)).toContainEqual(exact("items.other.**"));
+  });
+
+  it("preserves input and captured origins under a nested dynamic field", async () => {
+    const source = '($r:=record;$v:=items.{"wrap":{($$.enabled?"out":"alt"):{"local":other,"captured":$r}}};[$v.wrap.out.local.amount,$v.wrap.out.captured.details.amount])';
+    const data = { ...input, enabled: true, items: [{ other: { amount: 30 } }] };
+    expect(await jsonata(source).evaluate(data)).toEqual([30, 10]);
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+    expect(accesses(source)).toContainEqual(subtree("record.details.amount"));
+  });
+
   it.each(["$string", "$distinct"])("preserves nested data after sorting constructed values with %s", async (consumer) => {
     const source = `${consumer}(([items.{"out":{"copy":other}}]^($.out.copy.amount)).out)`;
     const data = { items: [
