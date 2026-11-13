@@ -177,19 +177,26 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         : [...(resolveVariable(scope, varStep.value) ?? [])];
     const fields = new Map<string, string[]>();
   
-    for (const [keyNode, valueNode] of (projectionStep as ObjectNode).entries) {
-      const field = staticObjectKey(keyNode);
-      if (field === null) continue;
-      const key = aliasKeySegment(field);
-  
-      const aliases =
-        objectAlias || dynamicObjectAlias
+    function addFields(object: ObjectNode, parentKey = ""): void {
+      for (const [keyNode, valueNode] of object.entries) {
+        const field = staticObjectKey(keyNode);
+        if (field === null) continue;
+        const key = parentKey
+          ? `${parentKey}.${aliasKeySegment(field)}`
+          : aliasKeySegment(field);
+        if (valueNode.type === "object") {
+          addFields(valueNode as ObjectNode, key);
+          continue;
+        }
+        const aliases = objectAlias || dynamicObjectAlias
           ? selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, valueNode, scope)
           : contextPrefixes.flatMap((prefix) =>
               runtime.paths.walkContextExpression(valueNode, prefix, scope),
             );
-      if (aliases.length > 0) fields.set(key, aliases);
+        if (aliases.length > 0) fields.set(key, aliases);
+      }
     }
+    addFields(projectionStep as ObjectNode);
   
     return fields.size > 0 ? fields : null;
   }

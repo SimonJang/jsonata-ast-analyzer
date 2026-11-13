@@ -18,6 +18,24 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
 
 describe("data projections from constructed contexts", () => {
   it.each([
+    'items.{"out":{"copy":other}}.out.copy.amount',
+    '($v:=items.{"out":{"copy":other}};$v.out.copy.amount)',
+  ])("preserves nested output fields in an item projection: %s", async (source) => {
+    const data = { items: [{ other: { amount: 10 } }, { other: { amount: 20 } }] };
+    expect(Array.from(await jsonata(source).evaluate(data))).toEqual([10, 20]);
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+    expect(accesses(source).some(({ path }) => path.includes("other.copy"))).toBe(false);
+  });
+
+  it("keeps root and captured variables outside the item context in nested projections", async () => {
+    const source = '($r:=record;$v:=items.{"out":{"local":other,"captured":$r,"root":$$.record}};[$v.out.local.amount,$v.out.captured.details.amount,$v.out.root.details.amount])';
+    const data = { ...input, items: [{ other: { amount: 30 } }] };
+    expect(await jsonata(source).evaluate(data)).toEqual([30, 10, 10]);
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+    expect(accesses(source)).toContainEqual(subtree("record.details.amount"));
+  });
+
+  it.each([
     '{"copy":record}.{"wrapper":$}.wrapper.copy.details.amount',
     '({"copy":record}).{"wrapper":$}.wrapper.copy.details.amount',
     '{"copy":record}.{"wrapper":$}.wrapper.{"next":$}.next.copy.details.amount',
