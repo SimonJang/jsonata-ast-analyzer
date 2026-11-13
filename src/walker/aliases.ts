@@ -1874,6 +1874,10 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       const names = collectVariableNames(step);
       return names.has("") || names.has("$");
     };
+    const hasConstructedResult = (step: AstNode): boolean =>
+      isTransparentPathBlock(step)
+        ? (((step as BlockNode).expressions[0] as PathNode).steps.some(hasConstructedResult))
+        : isResultAliasStep(step);
     // Mixed constructors and focused variables retain their dedicated suffix
     // handling; a plain block projection can consume all selected source paths.
     const hasVariableProjectionSource = (step: AstNode, projection: AstNode): boolean => {
@@ -1932,8 +1936,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       (node.steps.slice(0, index).some(isFunctionResultStep) ||
         node.steps.slice(0, index).some((prefixStep) => hasVariableProjectionSource(prefixStep, step)) ||
         ((projectsDataPath(step) || projectsContextObject(step)) &&
-          node.steps.slice(0, index).some((prefixStep) =>
-            isResultAliasStep(prefixStep) && !isTransparentPathBlock(prefixStep))) ||
+          node.steps.slice(0, index).some(hasConstructedResult)) ||
         step.type === "function" ||
         step.type === "block" && (["function", "apply"].includes(projectionResult(step)?.type ?? "") ||
           callsProjectionResult(step) && node.steps.slice(0, index).some(isResultAliasStep))) &&
