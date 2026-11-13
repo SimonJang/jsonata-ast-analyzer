@@ -234,6 +234,14 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       return resolveObjectAlias(scope, "");
     }
     if (node.type === "path") {
+      const path = node as PathNode;
+      if (!path.group && path.steps.at(-1)?.type === "sort") {
+        const steps = [...path.steps];
+        while (steps.at(-1)?.type === "sort") steps.pop();
+        return groupResultObjectAliasForNode(
+          steps.length === 1 && steps[0].type !== "name" ? steps[0] : { ...path, steps }, scope,
+        );
+      }
       const method = runtime.callables.resolveStoredMethodPath(node as PathNode, scope);
       return method ? objectAliasForNode(method.node, method.scope)
         : objectAliasFromPathProjection(node as PathNode, scope);

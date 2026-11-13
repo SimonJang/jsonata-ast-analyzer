@@ -1634,6 +1634,13 @@ export function createResultOperations(
     if (node.type === "path") {
       const pathNode = node as PathNode;
       if (pathNode.group) return [];
+      if (pathNode.steps.at(-1)?.type === "sort") {
+        const steps = [...pathNode.steps];
+        while (steps.at(-1)?.type === "sort") steps.pop();
+        return runtime.aliases.groupResultSuffixBasePaths(
+          steps.length === 1 && steps[0].type !== "name" ? steps[0] : { ...pathNode, steps }, scope,
+        );
+      }
       const method = runtime.callables.resolveStoredMethodPath(pathNode, scope);
       if (method) return getResultSuffixBasePaths(method.node, method.scope);
       const selectedContext = runtime.aliases.selectedPathAliasContext(pathNode, scope);

@@ -17,6 +17,27 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
   .sort((a, b) => a.path.localeCompare(b.path));
 
 describe("data projections from constructed contexts", () => {
+  it.each(["$string", "$distinct"])("preserves nested data after sorting constructed values with %s", async (consumer) => {
+    const source = `${consumer}(([items.{"out":{"copy":other}}]^($.out.copy.amount)).out)`;
+    const data = { items: [
+      { other: { amount: 20, active: true } },
+      { other: { amount: 10, active: false } },
+    ] };
+    const expected = [{ copy: { amount: 10, active: false } }, { copy: { amount: 20, active: true } }];
+    const actual = await jsonata(source).evaluate(data);
+    expect(consumer === "$string" ? JSON.parse(actual) : JSON.parse(JSON.stringify(actual))).toEqual(expected);
+    expect(accesses(source)).toContainEqual(exact("items.other.**"));
+  });
+
+  it("reads a selected nested object's predicate after sorting its output wrapper", async () => {
+    const source = '([items.{"out":{"copy":other}}]^($.out.copy.amount)).out.copy[active].amount';
+    const data = { items: [{ other: { amount: 10, active: true } }] };
+    expect(await jsonata(source).evaluate(data)).toBe(10);
+    expect(accesses(source)).toContainEqual(exact("items.other.active"));
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+  });
+
+
   it.each([
     '(items.{"out":[{"copy":other}]}).out.copy.amount',
     '($v:=items.{"out":[[{"copy":other}]]};$v.out.copy.amount)',
