@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BinaryNode, BindNode, BlockNode, ConditionNode, DescendantNode, FilterStage, FunctionNode, GroupByNode, LambdaNode, NameNode, NegateNode, ObjectNode, PartialNode, PathNode, TransformNode, VariableNode, WildcardNode } from "../types.js";
-import { type ScopeTracker, childScope, bindVariable, bindValue, resolveVariable } from "../scope.js";
-import { appendPath } from "./path-utils.js";
+import { type ScopeTracker, childScope, bindVariable, bindValue, resolveValue, resolveVariable } from "../scope.js";
+import { appendPath, collectVariableNames } from "./path-utils.js";
 import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
 export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
@@ -140,14 +140,61 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         then: previous, else: assignment.rhs,
       } : assignment.rhs);
     }
+    const bindCaptured = (target: ScopeTracker, name: string, value: AstNode, source: ScopeTracker): ScopeTracker =>
+      bindValue(runtime.higherOrder.bindArgumentParameter(
+        target, { type: "variable", value: name, position: 0 },
+        runtime.aliases.bindingAliasPaths(value, source), value, source,
+      ), name, value, source);
+    if (choices.size === 1) {
+      const [name, value] = choices.entries().next().value!;
+      const result = bindCaptured(scope, name, value, evaluationScope);
+      evaluationCache.set(evaluationScope, result);
+      return result;
+    }
+    const reference = (name: string): VariableNode => ({ type: "variable", value: name, position: 0 });
+    const resolved = new Map<string, ScopeTracker>();
+    const resolveAssignment = (name: string, active = new Set<string>()): ScopeTracker => {
+      if (active.has(name)) return evaluationScope;
+      const cached = resolved.get(name);
+      if (cached) return cached;
+      const value = choices.get(name)!;
+      const dependencies = new Set<string>();
+      const pending = [{ node: value, scope: evaluationScope }];
+      const visited = new Set<AstNode>();
+      // Previously declared callbacks can read variables assigned by a sibling.
+      for (const entry of pending) {
+        if (visited.has(entry.node)) continue;
+        visited.add(entry.node);
+        for (const variable of collectVariableNames(entry.node)) {
+          if (choices.has(variable)) {
+            if (variable !== name) dependencies.add(variable);
+          } else {
+            const captured = resolveValue(entry.scope, variable);
+            if (captured) pending.push(captured);
+          }
+        }
+      }
+      let valueScope = evaluationScope;
+      for (const dependency of dependencies) {
+        const assigned = resolveAssignment(dependency, new Set([...active, name]));
+        if (assigned === evaluationScope) continue;
+        const before = `\0assignment-before-${dependency}`;
+        const after = `\0assignment-after-${dependency}`;
+        valueScope = bindCaptured(valueScope, before, reference(dependency), evaluationScope);
+        valueScope = bindCaptured(valueScope, after, reference(dependency), assigned);
+        valueScope = bindCaptured(valueScope, dependency, {
+          type: "condition", position: 0,
+          condition: { type: "value", value: true, position: 0 },
+          then: reference(before), else: reference(after),
+        }, valueScope);
+      }
+      const result = bindCaptured(evaluationScope, name, value, valueScope);
+      resolved.set(name, result);
+      return result;
+    };
     let nextScope = scope;
-    for (const [name, value] of choices) {
-      nextScope = runtime.higherOrder.bindArgumentParameter(
-        nextScope, { type: "variable", value: name, position: 0 },
-        runtime.aliases.bindingAliasPaths(value, evaluationScope),
-        value, evaluationScope,
-      );
-      nextScope = bindValue(nextScope, name, value, evaluationScope);
+    for (const name of choices.keys()) {
+      nextScope = bindCaptured(nextScope, name, reference(name), resolveAssignment(name));
     }
     evaluationCache.set(evaluationScope, nextScope);
     return nextScope;
