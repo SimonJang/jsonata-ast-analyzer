@@ -6,6 +6,20 @@ const input = { record: { details: { amount: 10 } }, other: { details: { amount:
 
 describe("path assignment effects", () => {
   it.each([
+    '($x:=other;record.{"a":$x:=$};$x.details.amount)',
+    '($x:={"copy":other};record.{"a":$x:={"copy":$}};$x.copy.details.amount)',
+    '($f:=function(){other.details.amount};record.{"a":$f:=function(){details.amount}};$f())',
+    '($f:=$lookup(other,?);record.{"a":$f:=$lookup($,?)};$f("details").amount)',
+  ])("retains prior values when a projection visits no input in %s", async (source) => {
+    for (const record of [undefined, [], input.record]) {
+      expect(await jsonata(source).evaluate({ ...input, record })).toBe(record === input.record ? 10 : 20);
+    }
+    const paths = analyzeExpression(source).accesses.map(({ path }) => path);
+    expect(paths).toContain("record.details.amount");
+    expect(paths).toContain("other.details.amount");
+  });
+
+  it.each([
     'record.{"a":$x:=$}.($x.details.amount)',
     'record.{"a":$x:=$}.$x.details.amount',
     'record.[$x:=$].($x.details.amount)',

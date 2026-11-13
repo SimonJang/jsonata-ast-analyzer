@@ -27,13 +27,14 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
           ]] } as ObjectNode,
           { type: "name", value: key, position: assignment.position },
         ];
+        // No matching items leave the caller's binding unchanged.
         return {
           ...assignment,
           rhs: {
-            type: "path", steps: [
-              ...steps.slice(0, index),
-              ...projection,
-            ],
+            type: "condition", position: assignment.position,
+            condition: { type: "value", value: true, position: assignment.position },
+            then: { type: "path", steps: [...steps.slice(0, index), ...projection] },
+            else: { ...assignment.lhs },
           },
         };
       }));
