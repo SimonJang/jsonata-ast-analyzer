@@ -142,8 +142,7 @@ export function createSelectionOperations(
       case "array":
         return getArraySelectedResultPaths(node as ArrayNode, scope);
       case "object": {
-        const concurrentScope = runtime.core.bindArrayAssignmentEffects(node, scope);
-        const scopes = concurrentScope === scope ? [scope] : [scope, concurrentScope];
+        const scopes = runtime.core.constructorEvaluationScopes(node, scope);
         return scopes.flatMap((valueScope) => (node as ObjectNode).entries.flatMap(([, value]) =>
           getSelectedResultPaths(value, valueScope),
         ));

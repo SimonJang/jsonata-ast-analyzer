@@ -29,6 +29,7 @@ export interface ResolvedHigherOrderLambdaCallbacks {
 }
 
 export interface CoreOperations {
+  constructorEvaluationScopes(node: AstNode, scope: ScopeTracker): ScopeTracker[];
   walkNode(node: AstNode, scope: ScopeTracker): string[];
   bindBroadStepScope(node: WildcardNode | DescendantNode, basePath: string, scope: ScopeTracker): {
       stageScope: ScopeTracker;

@@ -106,8 +106,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
 
   function objectAliasFromObject(node: ObjectNode, scope: ScopeTracker): ObjectAlias | null {
     const fields = new Map<string, readonly string[]>();
-    const concurrentScope = runtime.core.bindArrayAssignmentEffects(node, scope);
-    const scopes = concurrentScope === scope ? [scope] : [scope, concurrentScope];
+    const scopes = runtime.core.constructorEvaluationScopes(node, scope);
 
     for (const valueScope of scopes) {
       for (const [keyNode, valueNode] of node.entries) {
@@ -120,12 +119,12 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         const aliases = nestedAlias || dynamicAlias
           ? groupResultSuffixBasePaths(valueNode, valueScope)
           : valueNode.type === "object" ? [] : bindingAliasPaths(valueNode, valueScope);
-        if (aliases.length > 0) fields.set(key, [...(fields.get(key) ?? []), ...aliases]);
+        if (aliases.length > 0) fields.set(key, [...new Set([...(fields.get(key) ?? []), ...aliases])]);
 
         if (nestedAlias) {
           for (const [nestedKey, nestedAliases] of nestedAlias) {
             const field = `${key}.${nestedKey}`;
-            fields.set(field, [...(fields.get(field) ?? []), ...nestedAliases]);
+            fields.set(field, [...new Set([...(fields.get(field) ?? []), ...nestedAliases])]);
           }
         }
       }
@@ -1357,8 +1356,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     node: ObjectNode,
     scope: ScopeTracker,
   ): DynamicObjectAlias {
-    const concurrentScope = runtime.core.bindArrayAssignmentEffects(node, scope);
-    const scopes = concurrentScope === scope ? [scope] : [scope, concurrentScope];
+    const scopes = runtime.core.constructorEvaluationScopes(node, scope);
     const variants: Array<DynamicObjectAlias["variants"][number]> = scopes.map((scope) => ({ node, scope }));
 
     for (const valueScope of scopes) {

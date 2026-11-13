@@ -24,6 +24,8 @@ describe("object assignment effects", () => {
   it.each([
     '($x:=second;$count({"a":$x:=first,"b":$count([])+$x.nested.total}))',
     '$count({"a":$f:=function(){first.nested.total},"b":$count([])+$f()})',
+    '($f:=function(){0};$count({"a":$f:=function(){first.nested.total},"b":$eval("$f()")}))',
+    '($f:=function(){0};$g:=function(){$f()};$count({"a":$f:=function(){first.nested.total},"b":$append([],$g())}))',
   ])("includes assignments observed by a concurrent entry in %s", async (source) => {
     let reads = 0;
     const first = { nested: { get total() { reads++; return 10; } } };

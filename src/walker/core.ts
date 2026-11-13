@@ -5,6 +5,8 @@ import type { CoreOperations, WalkerRuntime } from "./runtime.js";
 
 export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   const constructorAssignments = new WeakMap<AstNode, readonly BindNode[]>();
+  const assignmentScopes = new WeakMap<AstNode, WeakMap<ScopeTracker, WeakMap<ScopeTracker, ScopeTracker>>>();
+  const assignmentReads = new WeakMap<AstNode, boolean>();
 
   function collectConstructorAssignments(node: AstNode): readonly BindNode[] {
     if (node.type === "bind") return collectConstructorAssignments((node as BindNode).rhs);
@@ -28,6 +30,18 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
   ): ScopeTracker {
     const assignments = collectConstructorAssignments(node);
     if (assignments.length === 0) return scope;
+    let scopeCache = assignmentScopes.get(node);
+    if (!scopeCache) {
+      scopeCache = new WeakMap();
+      assignmentScopes.set(node, scopeCache);
+    }
+    let evaluationCache = scopeCache.get(scope);
+    if (!evaluationCache) {
+      evaluationCache = new WeakMap();
+      scopeCache.set(scope, evaluationCache);
+    }
+    const cached = evaluationCache.get(evaluationScope);
+    if (cached) return cached;
     const choices = new Map<string, AstNode>();
     for (const assignment of assignments) {
       const previous = choices.get(assignment.lhs.value);
@@ -47,7 +61,31 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
         value, evaluationScope,
       );
     }
+    evaluationCache.set(evaluationScope, nextScope);
     return nextScope;
+  }
+
+  function constructorEvaluationScopes(node: AstNode, scope: ScopeTracker): ScopeTracker[] {
+    const assignments = collectConstructorAssignments(node);
+    if (assignments.length === 0) return [scope];
+    let reads = assignmentReads.get(node);
+    if (reads === undefined) {
+      const names = new Set(assignments.map((assignment) => assignment.lhs.value));
+      const mayRead = (value: unknown): boolean => {
+        if (!value || typeof value !== "object") return false;
+        const expression = value as AstNode;
+        if (expression.type === "bind") return mayRead((expression as BindNode).rhs);
+        if (expression.type === "variable") return names.has((expression as VariableNode).value);
+        // Calls can observe captured variables or evaluate a program string.
+        if (expression.type === "function" || expression.type === "apply") return true;
+        return Object.entries(value).some(([key, child]) => key !== "source" && mayRead(child));
+      };
+      reads = mayRead(node);
+      assignmentReads.set(node, reads);
+    }
+    if (!reads) return [scope];
+    const concurrent = bindArrayAssignmentEffects(node, scope);
+    return concurrent === scope ? [scope] : [scope, concurrent];
   }
 
   /**
@@ -572,8 +610,8 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
       ...walkValueExpression(key, scope),
       ...walkValueExpression(val, scope),
     ]);
-    const concurrentScope = bindArrayAssignmentEffects(node, scope);
-    if (concurrentScope !== scope) {
+    const concurrentScope = constructorEvaluationScopes(node, scope)[1];
+    if (concurrentScope) {
       for (const [, value] of node.entries) paths.push(...walkValueExpression(value, concurrentScope));
     }
     if (node.predicate && node.predicate.length > 0) {
@@ -638,6 +676,7 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
     bindBroadStepScope,
     walkArray,
     bindArrayAssignmentEffects,
+    constructorEvaluationScopes,
     walkObject,
   };
 }
