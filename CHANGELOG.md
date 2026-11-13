@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Include `$formatNumber` option-property reads and preserve explicit argument positions inside path steps.
 - Include conservative argument-descendant dependencies for registered host functions and opaque replacements of built-ins.
 - Retain captured input reads and returned-value descendants for callbacks passed to host functions.
 - Include data and reducer-seed descendants when built-ins invoke registered host callbacks, including mixed callback branches.

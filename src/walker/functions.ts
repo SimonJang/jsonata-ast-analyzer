@@ -62,6 +62,7 @@ export function createFunctionOperations(
       case "pad":
         return args[0]?.type === "number";
       case "formatNumber":
+        return args.length < 3 && args[0]?.type !== "number";
       case "formatInteger":
       case "fromMillis":
         return args[0]?.type !== "number";
@@ -925,6 +926,9 @@ export function createFunctionOperations(
     }
     if (args[0] && ((!explicitContextPaths && IMPLICIT_ROOT_SHALLOW_FUNCTIONS.has(funcName)) || funcName === "merge")) {
       paths.push(...enumeratedObjectBasePaths(args[0], scope).map((path) => appendPath(path, "*")));
+    }
+    if (funcName === "formatNumber" && args[2]) {
+      paths.push(...enumeratedObjectBasePaths(args[2], scope).map((path) => appendPath(path, "*")));
     }
   
     if (funcName === "eval") {
