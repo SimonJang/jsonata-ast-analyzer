@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FunctionNode, LambdaNode, NameNode, ObjectNode, PathNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, resolveLambda, resolvePartial, resolveTransform, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias, type TransformBinding } from "../scope.js";
 import { HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH, PATH_PRESERVING_RESULT_FUNCTIONS } from "./constants.js";
 import { appendPath, resolveParentPathSegments, filterToBasePaths, markAbsolute } from "./path-utils.js";
@@ -206,7 +206,9 @@ export function createResultOperations(
     }
     if (node.procedure.type === "transform") {
       return node.arguments[0]
-        ? runtime.aliases.groupResultDynamicObjectAliasForNode(node.arguments[0], scope)
+        ? runtime.transforms.transformResultDynamicObjectAlias(
+            { transform: node.procedure, scope }, node.arguments[0], scope,
+          )
         : null;
     }
     if (node.procedure.type === "condition") {
@@ -238,7 +240,9 @@ export function createResultOperations(
             }
             if (callable.kind === "transform") {
               return node.arguments[0]
-                ? runtime.aliases.groupResultDynamicObjectAliasForNode(node.arguments[0], scope)
+                ? runtime.transforms.transformResultDynamicObjectAlias(
+                    callable.binding, node.arguments[0], scope,
+                  )
                 : null;
             }
             return getPartialFunctionResultDynamicObjectAlias(
@@ -916,6 +920,20 @@ export function createResultOperations(
     ]);
   }
 
+  function getTransformResultBasePaths(
+    binding: TransformBinding,
+    input: AstNode,
+    scope: ScopeTracker,
+  ): string[] {
+    const alias = runtime.transforms.transformResultObjectAlias(binding, input, scope);
+    const dynamic = runtime.transforms.transformResultDynamicObjectAlias(binding, input, scope);
+    return [
+      ...getResultBasePathsFromArg(input, scope),
+      ...(alias ? [...alias.values()].flatMap((paths) => [...paths]) : []),
+      ...(dynamic ? runtime.aliases.selectLookupDynamicObjectAliasPaths(dynamic, []) : []),
+    ];
+  }
+
   function getFunctionResultBasePaths(
     node: FunctionNode,
     scope: ScopeTracker,
@@ -930,13 +948,7 @@ export function createResultOperations(
     if (node.procedure.type === "transform") {
       const input = node.arguments[0];
       if (!input) return [];
-      const alias = runtime.transforms.transformResultObjectAlias(
-        { transform: node.procedure, scope }, input, scope,
-      );
-      return [
-        ...getResultBasePathsFromArg(input, scope),
-        ...(alias ? [...alias.values()].flatMap((paths) => [...paths]) : []),
-      ];
+      return getTransformResultBasePaths({ transform: node.procedure, scope }, input, scope);
     }
     if (node.procedure.type === "condition") {
       return runtime.functions.conditionalProcedureCalls(node).flatMap((call) =>
@@ -965,11 +977,7 @@ export function createResultOperations(
           if (callable.kind === "transform") {
             const input = node.arguments[0];
             if (!input) return [];
-            const alias = runtime.transforms.transformResultObjectAlias(callable.binding, input, scope);
-            return [
-              ...getResultBasePathsFromArg(input, scope),
-              ...(alias ? [...alias.values()].flatMap((paths) => [...paths]) : []),
-            ];
+            return getTransformResultBasePaths(callable.binding, input, scope);
           }
           return getPartialFunctionResultBasePaths(
             callable.binding,

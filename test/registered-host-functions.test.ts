@@ -48,6 +48,7 @@ describe("registered host function dependencies", () => {
     ['($r := record; $custom($r))', "record.**"],
     ['items.$custom(details)', "items.details.**"],
     ['$custom($lookup(dict, selected))', "dict[*].**"],
+    ['$custom({} ~> |$|{($$.selected):$$.record}|)', "record.**"],
   ])("resolves argument origins before adding descendant reads in %s", async (source, path) => {
     const expression = jsonata(source);
     expression.registerFunction("custom", (value: unknown) => JSON.stringify(value), "<x:s>");

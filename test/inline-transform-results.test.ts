@@ -62,6 +62,24 @@ describe("inline transform result dependencies", () => {
     });
   });
 
+  it("retains descendant reads through a dynamic transform update key", async () => {
+    const source = '$string({} ~> |$|{($$.enabled?"copy":"alt"):$$.other}|)';
+    expect(await jsonata(source).evaluate({ ...input, enabled: true })).toBe(JSON.stringify({ copy: input.other }));
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it.each([
+    '({"node":{}} ~> |node|{($$.enabled?"copy":"alt"):$$.other}|).node.copy.details.amount',
+    '($t:=|$|{($$.enabled?"copy":"alt"):$$.other}|;$v:=$t({});$v.copy.details.amount)',
+  ])("retains selections from dynamic inserted fields: %s", async (source) => {
+    expect(await jsonata(source).evaluate({ ...input, enabled: true })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
   it("marks inserted input objects as returned values", async () => {
     const source = '{} ~> |$|{"copy":$$.other}|';
     let reads = 0;

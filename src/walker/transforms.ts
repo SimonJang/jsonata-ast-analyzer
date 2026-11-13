@@ -709,6 +709,24 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     });
   }
 
+  function transformResultDynamicObjectAlias(
+    binding: TransformBinding,
+    input: AstNode,
+    callScope: ScopeTracker,
+  ): DynamicObjectAlias | null {
+    const updates = staticTransformPatternSequences(binding.transform.pattern).map((pattern) => {
+      const scope = transformMatchScope(binding, input, pattern, callScope);
+      const alias = runtime.aliases.groupResultDynamicObjectAliasForNode(binding.transform.update, scope);
+      const variants = alias?.variants.filter((variant) =>
+        variant.node.entries.some(([key]) => runtime.aliases.staticObjectKey(key) === null),
+      ).map((variant) => ({ ...variant, prefixSteps: [...pattern, ...(variant.prefixSteps ?? [])] })) ?? [];
+      return variants.length ? { variants } : null;
+    });
+    return runtime.aliases.mergeDynamicObjectAliases([
+      runtime.aliases.groupResultDynamicObjectAliasForNode(input, callScope), ...updates,
+    ]);
+  }
+
   function walkTransformCall(
     binding: TransformBinding,
     callArgs: AstNode[],
@@ -775,6 +793,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
 
   return {
     transformResultObjectAlias,
+    transformResultDynamicObjectAlias,
     resolveTransformFunctionCalls,
     transformWritesSuffix,
     transformOutputSelectionSourcePaths,
