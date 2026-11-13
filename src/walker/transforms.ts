@@ -1,11 +1,29 @@
 import type { ArrayNode, AstNode, BlockNode, ConditionNode, FunctionNode, NameNode, ObjectNode, PathNode, TransformNode, VariableNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, createScope, childScope, bindVariable, resolvePartial, resolveTransform, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias, type TransformBinding } from "../scope.js";
+import { type ScopeTracker, createScope, childScope, bindVariable, bindValue, resolvePartial, resolveTransform, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type ObjectAlias, type TransformBinding } from "../scope.js";
 import { ROOT_PATH, TRANSFORM_CURRENT_PATH } from "./constants.js";
 import { prefixPaths, appendPath, prefixTransformContextPaths, resolveParentPathSegments, isRootReference, markAbsolute } from "./path-utils.js";
 import type { TransformOperations, WalkerRuntime, ResolvedCallable, ResolvedTransformCall } from "./runtime.js";
 
 export function createTransformOperations(runtime: WalkerRuntime): TransformOperations {
+  function memoizeTransformResult<T>(
+    compute: (binding: TransformBinding, input: AstNode, scope: ScopeTracker) => T,
+  ): (binding: TransformBinding, input: AstNode, scope: ScopeTracker) => T {
+    const cache = new WeakMap<TransformNode, WeakMap<ScopeTracker, WeakMap<AstNode, WeakMap<ScopeTracker, T>>>>();
+    return (binding, input, scope) => {
+      let closures = cache.get(binding.transform);
+      if (!closures) cache.set(binding.transform, closures = new WeakMap());
+      let inputs = closures.get(binding.scope);
+      if (!inputs) closures.set(binding.scope, inputs = new WeakMap());
+      let calls = inputs.get(input);
+      if (!calls) inputs.set(input, calls = new WeakMap());
+      if (calls.has(scope)) return calls.get(scope)!;
+      const result = compute(binding, input, scope);
+      calls.set(scope, result);
+      return result;
+    };
+  }
+
   function walkTransformContextExpression(
     prefix: string,
     expr: AstNode,
@@ -637,10 +655,14 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
           ? { type: "wildcard", position: 0 } : { type: "name", value, position: 0 }),
       ],
     } as PathNode : input;
-    return runtime.higherOrder.bindArgumentParameter(
-      scope, { type: "variable", value: "", position: 0 },
-      runtime.aliases.bindingAliasPaths(selected, callScope), selected, callScope,
-    );
+    let result = bindVariable(scope, "", runtime.aliases.bindingAliasPaths(selected, callScope));
+    result = runtime.aliases.bindSuffixBasePathsIfPresent(result, "", selected, callScope);
+    result = runtime.aliases.bindObjectAliasIfPresent(result, "", selected, callScope);
+    result = runtime.aliases.bindDynamicObjectAliasIfPresent(result, "", selected, callScope);
+    // A transform matches objects; retain the value without eagerly searching
+    // every preceding transform for callable fields.
+    result = bindValue(result, "", selected, callScope);
+    return result;
   }
 
   function transformUpdateCallableValues(
@@ -792,8 +814,8 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   }
 
   return {
-    transformResultObjectAlias,
-    transformResultDynamicObjectAlias,
+    transformResultObjectAlias: memoizeTransformResult(transformResultObjectAlias),
+    transformResultDynamicObjectAlias: memoizeTransformResult(transformResultDynamicObjectAlias),
     resolveTransformFunctionCalls,
     transformWritesSuffix,
     transformOutputSelectionSourcePaths,

@@ -5,6 +5,15 @@ import { analyzeExpression } from "../src/index.js";
 describe("inline transform result dependencies", () => {
   const input = { other: { details: { amount: 10 } } };
 
+  it("keeps cached transform origins separate for distinct captured scopes", async () => {
+    const source = '($make:=function($x){|$|{"copy":$x}|};$string($map([$make(record),$make(other)],function($t){$t({})})))';
+    const data = { record: { amount: 10 }, other: { amount: 20 } };
+    expect(await jsonata(source).evaluate(data)).toBe('[{"copy":{"amount":10}},{"copy":{"amount":20}}]');
+    for (const path of ["record.**", "other.**"]) {
+      expect(analyzeExpression(source).accesses).toContainEqual({ path, confidence: "static", coverage: "exact" });
+    }
+  });
+
   it.each([
     '({} ~> |$|{"run":function($r){$r.details}}|)@$v.($f:=$v.run;$f($$.other).amount)',
     '({"node":{}} ~> |$.node|{"run":function($r){$r.details}}|)@$v.($f:=$v.node.run;$f($$.other).amount)',
