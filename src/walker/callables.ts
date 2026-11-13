@@ -1083,6 +1083,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [
         ...resolveCallableValues(condition.then, scope),
         ...(condition.else ? resolveCallableValues(condition.else, scope) : []),
@@ -1458,6 +1459,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [
         ...resolveBuiltinCallableNames(condition.then, scope),
         ...(condition.else

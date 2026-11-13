@@ -130,6 +130,7 @@ export function createSelectionOperations(
     switch (node.type) {
       case "condition": {
         const condition = node as ConditionNode;
+        scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
         return [
           ...getSelectedResultPaths(condition.then, scope),
           ...(condition.else

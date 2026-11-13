@@ -643,6 +643,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [condition.then, condition.else].flatMap((branch) =>
         branch ? staticTransformPatternAlternatives(branch, scope, active, unresolved) : [],
       );

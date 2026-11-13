@@ -323,10 +323,11 @@ export function createCoreOperations(runtime: WalkerRuntime): CoreOperations {
 
   /** Extract paths from condition, then-branch, and optional else-branch. */
   function walkCondition(node: ConditionNode, scope: ScopeTracker): string[] {
+    const branchScope = bindArrayAssignmentEffects(node.condition, scope);
     return [
       ...walkNode(runtime.functions.asBooleanExpression(node.condition), scope),
-      ...walkValueExpression(node.then, scope),
-      ...(node.else ? walkValueExpression(node.else, scope) : []),
+      ...walkValueExpression(node.then, branchScope),
+      ...(node.else ? walkValueExpression(node.else, branchScope) : []),
     ];
   }
 

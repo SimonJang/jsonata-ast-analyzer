@@ -105,6 +105,7 @@ export function createFunctionOperations(
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       const branches = [condition.then, condition.else].filter(
         (branch): branch is AstNode => Boolean(branch),
       );
@@ -196,6 +197,7 @@ export function createFunctionOperations(
     if (node.type === "object") return [];
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [condition.then, condition.else].flatMap((branch) => branch
         ? enumeratedObjectBasePaths(branch, scope) : []);
     }
@@ -507,8 +509,10 @@ export function createFunctionOperations(
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      const predicateScope = scope;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [
-        ...runtime.core.walkNode(asBooleanExpression(condition.condition), scope),
+        ...runtime.core.walkNode(asBooleanExpression(condition.condition), predicateScope),
         ...walkCallableSelection(condition.then, scope),
         ...(condition.else ? walkCallableSelection(condition.else, scope) : []),
       ];
@@ -1050,6 +1054,7 @@ export function createFunctionOperations(
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [condition.then, condition.else].some((branch) => branch &&
         isUnknownHostProcedure(branch, scope, nextVisited, selectors));
     }

@@ -1654,6 +1654,7 @@ export function createResultOperations(
   
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [
         ...runtime.aliases.groupResultSuffixBasePaths(condition.then, scope),
         ...(condition.else
@@ -2119,6 +2120,7 @@ export function createResultOperations(
   ): string[] {
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [
         ...lookupPathValueAliasBasePathsFromNode(condition.then, selectorSteps, scope),
         ...(condition.else

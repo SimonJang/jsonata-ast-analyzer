@@ -455,6 +455,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [condition.then, condition.else].some(
         (branch) =>
           !!branch &&
@@ -761,6 +762,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [condition.then, condition.else].flatMap((branch) =>
         branch
           ? pathContainerCandidates(branch, scope, resolvingVariables)
@@ -1621,6 +1623,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return [condition.then, condition.else].some((value) => value && hasOpaqueCallableValue(value, scope, next));
     }
     if (node.type === "block") {

@@ -81,6 +81,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
       }
       case "condition": {
         const condition = node as ConditionNode;
+        scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
         return [
           ...bindingAliasPaths(condition.then, scope),
           ...(condition.else ? bindingAliasPaths(condition.else, scope) : []),
@@ -277,6 +278,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return mergeObjectAliases([
         groupResultObjectAliasForNode(condition.then, scope),
         condition.else
@@ -1485,6 +1487,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     }
     if (node.type === "condition") {
       const condition = node as ConditionNode;
+      scope = runtime.core.bindArrayAssignmentEffects(condition.condition, scope);
       return mergeDynamicObjectAliases([
         groupResultDynamicObjectAliasForNode(condition.then, scope),
         condition.else
