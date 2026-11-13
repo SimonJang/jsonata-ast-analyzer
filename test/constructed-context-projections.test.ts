@@ -18,6 +18,24 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
 
 describe("data projections from constructed contexts", () => {
   it.each([
+    '(items.{"out":($v:=other;{"copy":$v})}).out.copy.amount',
+    '($rows:=items.{"out":($v:=other;{"copy":$v})};$rows.out.copy.amount)',
+  ])("preserves nested fields returned by a projection block: %s", async (source) => {
+    const data = { items: [{ other: { amount: 10 } }, { other: { amount: 20 } }] };
+    expect(Array.from(await jsonata(source).evaluate(data))).toEqual([10, 20]);
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+  });
+
+  it("preserves captured variables and raw alternatives in a projection block", async () => {
+    const source = '($r:=record;$v:=items.{"out":($x:=other;[$x,{"copy":$x,"captured":$r}])};[$v.out.amount,$v.out.copy.amount,$v.out.captured.details.amount])';
+    const data = { ...input, items: [{ other: { amount: 30 } }] };
+    expect(await jsonata(source).evaluate(data)).toEqual([30, 30, 10]);
+    for (const path of ["items.other.amount", "record.details.amount"]) {
+      expect(accesses(source)).toContainEqual(subtree(path));
+    }
+  });
+
+  it.each([
     '$string((items.{($$.enabled?"out":"alt"):{"copy":other}}).out)',
     '$string(([items.{($$.enabled?"out":"alt"):{"copy":other}}]^(1)).out)',
   ])("retains dynamically named constructor fields: %s", async (source) => {

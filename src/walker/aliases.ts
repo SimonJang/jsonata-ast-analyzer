@@ -184,6 +184,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         : [...(resolveVariable(scope, varStep.value) ?? [])];
     const fields = new Map<string, string[]>();
   
+    let projectionScope: ScopeTracker | undefined;
     function addValue(key: string, value: AstNode): void {
       if (value.type === "object" && !(value as ObjectNode).group) {
         addFields(value as ObjectNode, key);
@@ -203,6 +204,19 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
           (value as BlockNode).expressions.length === 1) {
         addValue(key, (value as BlockNode).expressions[0]);
         return;
+      }
+      if (value.type === "block") {
+        projectionScope ??= groupResultScope({ type: "path", steps: prefixSteps } as PathNode, scope);
+        const nested = groupResultObjectAliasForNode(value, projectionScope);
+        if (nested) {
+          for (const [field, sources] of nested) {
+            const nestedKey = `${key}.${field}`;
+            fields.set(nestedKey, [...(fields.get(nestedKey) ?? []), ...sources]);
+          }
+          const bases = groupResultSuffixBasePaths(value, projectionScope);
+          if (bases.length) fields.set(key, [...(fields.get(key) ?? []), ...bases]);
+          return;
+        }
       }
       const aliases = objectAlias || dynamicObjectAlias
         ? selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, value, scope)
