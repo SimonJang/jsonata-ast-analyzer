@@ -36,6 +36,23 @@ describe("data projections from constructed contexts", () => {
   });
 
   it.each([
+    '(items@$row.{"out":{"copy":$row.other}}).out.copy.amount',
+    '($v:=items@$row.{"out":{"copy":$row.other}};$v.out.copy.amount)',
+  ])("retains focus-bound sources in nested projections: %s", async (source) => {
+    const data = { items: [{ other: { amount: 10 } }, { other: { amount: 20 } }] };
+    expect(Array.from(await jsonata(source).evaluate(data))).toEqual([10, 20]);
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+  });
+
+  it("keeps a focus projection's current value at the focused item's parent", async () => {
+    const source = '($v:=orders.items@$row.{"out":{"item":$row.other,"parent":other}};[$v.out.item.amount,$v.out.parent.amount])';
+    const data = { orders: { items: [{ other: { amount: 10 } }], other: { amount: 20 } } };
+    expect(await jsonata(source).evaluate(data)).toEqual([10, 20]);
+    expect(accesses(source)).toContainEqual(subtree("orders.items.other.amount"));
+    expect(accesses(source)).toContainEqual(subtree("orders.other.amount"));
+  });
+
+  it.each([
     '{"copy":record}.{"wrapper":$}.wrapper.copy.details.amount',
     '({"copy":record}).{"wrapper":$}.wrapper.copy.details.amount',
     '{"copy":record}.{"wrapper":$}.wrapper.{"next":$}.next.copy.details.amount',
