@@ -171,7 +171,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
     if (projectionStep?.type !== "object") return null;
   
     const prefixSteps = node.steps.slice(0, -1);
-    if (prefixSteps.some((step) => (step as NameNode).focusBinding)) {
+    if (prefixSteps.some((step) => (step as NameNode).focusBinding || step.type === "object")) {
       const prefix: AstNode = prefixSteps.length === 1
         ? prefixSteps[0] : { type: "path", steps: prefixSteps } as PathNode;
       return objectAliasFromObject(

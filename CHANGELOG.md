@@ -12,6 +12,7 @@
 - Retain pre-sort bindings in predicates when a singleton input skips sort key evaluation.
 - Preserve absolute captured data origins in sort keys and predicates over constructed objects.
 - Follow source data through object projections over explicit arrays, including nested and computed fields.
+- Resolve reconstructed assignment values against their preceding constructed-object context.
 - Preserve sources and descendant dependencies for values inserted into transform results.
 - Cover inserted value descendants conservatively when transform target placement is unresolved, including registered selectors.
 - Include descendant reads from the input cloning performed by inline, stored, and higher-order transforms.
