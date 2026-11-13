@@ -811,7 +811,8 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     const symbolicScope = bindVariable(childScope(scope), marker, [marker]);
     const call: FunctionNode = {
       type: "function", value: "(", position,
-      procedure: args[1] as FunctionNode["procedure"],
+      procedure: runtime.callables.isFunctionProcedureNode(args[1])
+        ? args[1] : { type: "path", steps: [args[1]] },
       arguments: [
         { type: "variable", value: marker, position }, args[0],
         { type: "number", value: 0, position }, args[0],
@@ -898,7 +899,11 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     const variableIndex = args.findIndex((arg) => {
       return arg.type === "variable" && resolveLambda(scope, (arg as VariableNode).value);
     });
-    if (variableIndex < 0) return null;
+    if (variableIndex < 0) {
+      const selected = findResolvedHigherOrderLambdaCallbacks(args, scope, 1);
+      const binding = selected?.bindings.length === 1 ? selected.bindings[0] : null;
+      return binding ? { index: selected!.index, lambda: binding.lambda, scope: binding.scope } : null;
+    }
   
     const variable = args[variableIndex] as VariableNode;
     // The preceding search resolved this name in the same immutable scope.
@@ -918,7 +923,9 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
   } | null {
     for (const [index, arg] of args.entries()) {
       if (callbackIndex !== undefined && index !== callbackIndex) continue;
-      const callables = runtime.callables.resolveCallableValues(arg, scope);
+      const callables = runtime.callables.resolveCallableValues(
+        arg.type === "array" ? { type: "path", steps: [arg] } : arg, scope,
+      );
       const bindings = callables.flatMap((callable) =>
         callable.kind === "lambda" ? [callable.binding] : [],
       );

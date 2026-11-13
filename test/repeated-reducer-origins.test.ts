@@ -27,6 +27,8 @@ describe("repeated reducer value origins", () => {
     '($next:=function($v){$v.next};$reduce(rows,function($a,$r){$next($a)},seed).amount)',
     '($step:=function($p,$a,$r){$a.next};$f:=$step(0,?,?);$reduce(rows,$f,seed).amount)',
     '$reduce(rows,function($a,$r){$a.next ? $a.next : {"copy":fallback}},seed).amount',
+    '$reduce(rows,[function($a,$r){$a.next}][0],seed).amount',
+    '$reduce(rows,[function($a,$r){$a},function($a,$r){$a.next}][1],seed).amount',
   ]) {
     it.each([0, 1, 2, 8])(`covers every iteration of ${source} with %i rows`, async (count) => {
       let reads = 0;
@@ -73,5 +75,15 @@ describe("repeated reducer value origins", () => {
       '$reduce(rows,function($a,$r){$a+$r.amount},initial)',
       '$reduce(rows,function($a,$r){{"copy":$append($a.copy,$r.details)}},{"copy":seed}).copy.amount',
     ]) expect(analyzeExpression(source).accesses.some(({ path }) => path.includes("**"))).toBe(false);
+  });
+
+  it.each([
+    '$reduce(rows,[function($a,$r){$a}][0],seed).amount',
+    '$reduce(rows,[function($a,$r){$a.next},function($a,$r){$a}][1],seed).amount',
+  ])("retains selected identity callback results in %s", async (source) => {
+    let reads = 0;
+    expect(await jsonata(source).evaluate({ rows: [{}, {}], seed: { get amount() { reads++; return 10; } } })).toBe(10);
+    expect(reads).toBeGreaterThan(0);
+    expect(analyzeExpression(source).accesses.map(({ path }) => path)).toContain("seed.amount");
   });
 });
