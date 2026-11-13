@@ -882,7 +882,9 @@ export function createFunctionOperations(
         invokesCallableArgument
           ? runtime.callables.resolveCallableValues(arg, scope)
           : [];
-      if (callableArguments.length > 0) {
+      const builtinArguments = invokesCallableArgument
+        ? runtime.callables.resolveBuiltinCallableNames(arg, scope) : [];
+      if (callableArguments.length > 0 || builtinArguments.length > 0) {
         paths.push(...walkCallableSelection(arg, scope));
         const matchInputs = argIndex === 2 && funcName === "replace"
           ? getMatcherCallNodes(args, scope) : [];
@@ -891,8 +893,8 @@ export function createFunctionOperations(
           value: null,
           position: node.position,
         };
+        const inputs = matchInputs.length > 0 ? matchInputs : [{ node: generatedArgument, scope }];
         for (const callable of callableArguments) {
-          const inputs = matchInputs.length > 0 ? matchInputs : [{ node: generatedArgument, scope }];
           for (const input of inputs) {
             if (callable.kind === "lambda") {
               paths.push(...runtime.higherOrder.walkCustomFunctionCall(
@@ -902,6 +904,15 @@ export function createFunctionOperations(
               const scoped = runtime.higherOrder.scopePartialArguments([input.node], [input.scope], scope);
               paths.push(...runtime.higherOrder.walkPartialCall(callable.binding, scoped.arguments, scoped.scope));
             }
+          }
+        }
+        for (const name of builtinArguments) {
+          for (const input of inputs) {
+            paths.push(...walkFunction({
+              type: "function", value: "(", position: node.position,
+              procedure: { type: "variable", value: name, position: node.position, resolvedBuiltin: true },
+              arguments: [input.node],
+            }, input.scope));
           }
         }
         if (argIndex === 1 && MATCHER_CALLBACK_FUNCTIONS.has(funcName) && funcName !== "contains") {

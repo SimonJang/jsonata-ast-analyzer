@@ -132,4 +132,25 @@ describe("custom matcher continuations", () => {
       path: "config.groups.**", confidence: "static", coverage: "exact",
     });
   });
+
+  it.each(["$string", "($s := $string; $s)", '{"run":$string}.run'])("follows a builtin used as a replacement callback: %s", async (callback) => {
+    const source = `($matcher := function($text){{"match":"x","start":0,"end":1,"groups":config.groups,"next":function(){$nothing}}}; $replace(text,$matcher,${callback}))`;
+    const result = await jsonata(source).evaluate({ text: "x", config: { groups: [{ label: "chosen" }] } });
+    expect(JSON.parse(result)).toEqual({ match: "x", start: 0, end: 1, groups: [{ label: "chosen" }], next: "" });
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "config.groups.**", confidence: "static", coverage: "exact",
+    });
+  });
+
+  it("records dynamic eval dependencies when eval is used as a matcher", async () => {
+    const source = "$match(program,$eval).groups.label";
+    const input = {
+      program: '{"match":"x","start":0,"end":1,"groups":$$.config.groups,"next":function(){$nothing}}',
+      config: { groups: [{ label: "chosen" }] },
+    };
+    expect(await jsonata(source).evaluate(input)).toBe("chosen");
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "**", confidence: "static", coverage: "exact",
+    });
+  });
 });
