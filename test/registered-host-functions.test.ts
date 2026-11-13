@@ -257,4 +257,20 @@ describe("registered host function dependencies", () => {
       path: "record.**", confidence: "static", coverage: "exact",
     });
   });
+
+  it.each([
+    "($make := function($host){enabled ? $host : function($r){$count($r)}}; $make($custom)(record))",
+    "($make := function($ignored,$host){enabled ? $host : function($r){$count($r)}}; $partial := $make(0,?); $partial($custom)(record))",
+    '($make := function($host){{"run":enabled ? $host : function($r){$count($r)}}}; $lookup($make($custom),"run")(record))',
+    "($make := function($host){($fn := enabled ? $host : function($r){$count($r)}; $fn)}; $make($custom)(record))",
+  ])("retains a host callback returned alongside a local function from a factory: %s", async (source) => {
+    const expression = jsonata(source);
+    expression.registerFunction("custom", (record: { details: { amount: number } }) => record.details.amount, "<o:n>");
+    for (const enabled of [true, false]) {
+      expect(await expression.evaluate({ enabled, record: { details: { amount: 10 } } })).toBe(enabled ? 10 : 1);
+    }
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
 });

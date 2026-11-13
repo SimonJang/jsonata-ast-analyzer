@@ -1016,6 +1016,8 @@ export function createFunctionOperations(
       const procedure = (node as FunctionNode).procedure;
       if (runtime.callables.resolveBuiltinCallableNames(procedure, scope).some((name) => options.opaqueFunctions.has(name)) ||
           isUnknownHostProcedure(procedure, scope, nextVisited)) return true;
+      if (runtime.callables.customFunctionResultBodies(node as FunctionNode, scope).some((body) =>
+        isUnknownHostProcedure(body.node, body.scope, nextVisited, selectors))) return true;
     }
     if (node.type === "function" &&
         runtime.callables.resolveBuiltinCallableNames((node as FunctionNode).procedure, scope).includes("lookup")) {

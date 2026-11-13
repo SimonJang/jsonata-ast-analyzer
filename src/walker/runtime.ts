@@ -121,6 +121,7 @@ export interface CallableOperations {
   lambdaCallScope(binding: LambdaBinding, callArgs: AstNode[], callScope: ScopeTracker): ScopeTracker;
   compositionLambda(node: ApplyNode, scope: ScopeTracker): LambdaNode | null;
   customFunctionResultCallableValues(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): ResolvedCallable[];
+  customFunctionResultBodies(node: FunctionNode, scope: ScopeTracker): Array<{ node: AstNode; scope: ScopeTracker }>;
   customFunctionResultBuiltinCallableNames(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): string[];
   higherOrderResultCallableValues(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): ResolvedCallable[];
   higherOrderResultBuiltinCallableNames(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): string[];
