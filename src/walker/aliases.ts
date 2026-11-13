@@ -184,6 +184,33 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         : [...(resolveVariable(scope, varStep.value) ?? [])];
     const fields = new Map<string, string[]>();
   
+    function addValue(key: string, value: AstNode): void {
+      if (value.type === "object" && !(value as ObjectNode).group) {
+        addFields(value as ObjectNode, key);
+        return;
+      }
+      if (value.type === "array" && !(value as ArrayNode).group) {
+        for (const entry of (value as ArrayNode).expressions) addValue(key, entry);
+        return;
+      }
+      if (value.type === "condition") {
+        const condition = value as ConditionNode;
+        addValue(key, condition.then);
+        if (condition.else) addValue(key, condition.else);
+        return;
+      }
+      if (value.type === "block" && !(value as BlockNode).group &&
+          (value as BlockNode).expressions.length === 1) {
+        addValue(key, (value as BlockNode).expressions[0]);
+        return;
+      }
+      const aliases = objectAlias || dynamicObjectAlias
+        ? selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, value, scope)
+        : contextPrefixes.flatMap((prefix) =>
+            runtime.paths.walkContextExpression(value, prefix, scope),
+          );
+      if (aliases.length > 0) fields.set(key, [...(fields.get(key) ?? []), ...aliases]);
+    }
     function addFields(object: ObjectNode, parentKey = ""): void {
       for (const [keyNode, valueNode] of object.entries) {
         const field = staticObjectKey(keyNode);
@@ -191,16 +218,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         const key = parentKey
           ? `${parentKey}.${aliasKeySegment(field)}`
           : aliasKeySegment(field);
-        if (valueNode.type === "object") {
-          addFields(valueNode as ObjectNode, key);
-          continue;
-        }
-        const aliases = objectAlias || dynamicObjectAlias
-          ? selectAliasExpressionPaths(objectAlias, dynamicObjectAlias, valueNode, scope)
-          : contextPrefixes.flatMap((prefix) =>
-              runtime.paths.walkContextExpression(valueNode, prefix, scope),
-            );
-        if (aliases.length > 0) fields.set(key, aliases);
+        addValue(key, valueNode);
       }
     }
     addFields(projectionStep as ObjectNode);

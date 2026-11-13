@@ -18,6 +18,33 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
 
 describe("data projections from constructed contexts", () => {
   it.each([
+    '(items.{"out":[{"copy":other}]}).out.copy.amount',
+    '($v:=items.{"out":[[{"copy":other}]]};$v.out.copy.amount)',
+    '(items.{"out":($$.enabled?{"copy":other}:{"copy":details})}).out.copy.amount',
+  ])("preserves constructor branches inside projected fields: %s", async (source) => {
+    const data = { enabled: true, items: [
+      { other: { amount: 10 }, details: { amount: 30 } },
+      { other: { amount: 20 }, details: { amount: 40 } },
+    ] };
+    expect(Array.from(await jsonata(source).evaluate(data))).toEqual([10, 20]);
+    expect(accesses(source)).toContainEqual(subtree("items.other.amount"));
+  });
+
+  it.each([
+    '{"out":[{"copy":other},{"copy":details}]}',
+    '{"out":($$.enabled?{"copy":other}:{"copy":details})}',
+  ])("retains all possible nested constructor origins in %s", async (projection) => {
+    const source = `(items.${projection}).out.copy.amount`;
+    const data = { enabled: false, items: [{ other: { amount: 10 }, details: { amount: 20 } }] };
+    const actual = await jsonata(source).evaluate(data);
+    expect(projection.includes("[") ? Array.from(actual) : actual)
+      .toEqual(projection.includes("[") ? [10, 20] : 20);
+    for (const path of ["items.other.amount", "items.details.amount"]) {
+      expect(accesses(source)).toContainEqual(subtree(path));
+    }
+  });
+
+  it.each([
     '(items.{"out":{"copy":other}}).{"wrapper":$}.wrapper.out.copy.amount',
     '((items.{"out":{"copy":other}})).{"wrapper":$}.wrapper.out.copy.amount',
     '($v:=items.{"out":{"copy":other}};$v.{"wrapper":$}.wrapper.out.copy.amount)',
