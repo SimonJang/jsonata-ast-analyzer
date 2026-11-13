@@ -163,6 +163,10 @@ export function createResultOperations(
     if (funcName === "eval") {
       return runtime.functions.getStaticEvalResultObjectAlias(args, argScope);
     }
+    if (funcName === "match") {
+      return runtime.aliases.mergeObjectAliases(runtime.functions.getMatchResultNodes(args, argScope)
+        .map((result) => runtime.aliases.groupResultObjectAliasForNode(result, argScope)));
+    }
   
     if (funcName === "map" || funcName === "each") {
       return getCallbackResultObjectAlias(funcName, args, argScope);
@@ -1060,6 +1064,10 @@ export function createResultOperations(
   
     if (funcName === "eval") {
       return runtime.functions.getStaticEvalResultBasePaths(args, argScope);
+    }
+    if (funcName === "match") {
+      return runtime.functions.getMatchResultNodes(args, argScope)
+        .flatMap((result) => selection.getSelectedResultPaths(result, argScope));
     }
   
     if (funcName === "map" || funcName === "each") {

@@ -52,4 +52,33 @@ describe("custom matcher continuations", () => {
       path: "config.stop", confidence: "static", coverage: "exact",
     });
   });
+
+  it.each([
+    "$match(text,$matcher).groups.label",
+    "($matches := $match(text,$matcher); $matches.groups.label)",
+    "($find := $match; $find(text,$matcher).groups.label)",
+    "($find := $match(?, $matcher); $find(text).groups.label)",
+    '$lookup($match(text,$matcher),"groups").label',
+  ])("traces fields selected from custom match groups through %s", async (selection) => {
+    const expression = `($matcher := function($text){{"match":"x","start":0,"end":1,"groups":config.groups,"next":function(){$nothing}}}; ${selection})`;
+    const reads: string[] = [];
+    expect(await jsonata(expression).evaluate({
+      text: "x", config: { groups: [{ get label() { reads.push("config.groups.label"); return "chosen"; } }] },
+    })).toBe("chosen");
+    expect(reads).toEqual(["config.groups.label"]);
+    expect(analyzeExpression(expression).accesses).toContainEqual({
+      path: "config.groups.label", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("selects complete groups in the returned match object", async () => {
+    const expression = '($matcher := function($text){{"match":"x","start":0,"end":1,"groups":config.groups,"next":function(){$nothing}}}; $match(text,$matcher))';
+    const groups = [{ label: "chosen" }];
+    expect(await jsonata(expression).evaluate({ text: "x", config: { groups } })).toEqual({
+      match: "x", index: 0, groups,
+    });
+    expect(analyzeExpression(expression).accesses).toContainEqual({
+      path: "config.groups", confidence: "static", coverage: "subtree",
+    });
+  });
 });

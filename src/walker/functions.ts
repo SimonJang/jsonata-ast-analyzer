@@ -932,7 +932,11 @@ export function createFunctionOperations(
   }
 
   function walkMatcherContinuations(initialCall: FunctionNode, scope: ScopeTracker): string[] {
-    const paths: string[] = [];
+    return matcherCalls(initialCall, scope).slice(1).flatMap((call) => walkFunction(call, scope));
+  }
+
+  function matcherCalls(initialCall: FunctionNode, scope: ScopeTracker): FunctionNode[] {
+    const calls = [initialCall];
     const visited = new Set<AstNode>();
     let call = initialCall;
     while (true) {
@@ -951,10 +955,25 @@ export function createFunctionOperations(
       // Recursive continuations must be analyzed once, without unrolling forever.
       if (!nodes.some((node) => !visited.has(node))) break;
       nodes.forEach((node) => visited.add(node));
-      paths.push(...walkFunction(nextCall, scope));
+      calls.push(nextCall);
       call = nextCall;
     }
-    return paths;
+    return calls;
+  }
+
+  function getMatchResultNodes(args: AstNode[], scope: ScopeTracker): AstNode[] {
+    if (!args[0] || !args[1] || !runtime.callables.isFunctionProcedureNode(args[1])) return [];
+    const initialCall: FunctionNode = {
+      type: "function", value: "(", position: 0,
+      procedure: args[1], arguments: [args[0]],
+    };
+    return matcherCalls(initialCall, scope).map((call): ObjectNode => ({
+      type: "object", position: call.position,
+      entries: [["match", "match"], ["index", "start"], ["groups", "groups"]].map(([key, source]) => [
+        { type: "string", value: key, position: call.position },
+        { type: "path", steps: [call, { type: "name", value: source, position: call.position }] },
+      ]),
+    }));
   }
 
   function walkStaticEval(args: AstNode[], scope: ScopeTracker): string[] {
@@ -1291,6 +1310,7 @@ export function createFunctionOperations(
     walkCallableSelection,
     conditionalProcedureCalls,
     walkFunction,
+    getMatchResultNodes,
     getStaticEvalResultBasePaths,
     getStaticEvalResultSuffixBasePaths,
     getStaticEvalExpression,
