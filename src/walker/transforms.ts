@@ -559,38 +559,48 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
       return value ? staticTransformPatternAlternatives(value.node, value.scope, active) : [];
     }
     if (node.type === "function") {
-      const call = node as FunctionNode;
-      const names = runtime.callables.resolveBuiltinCallableNames(call.procedure, scope);
-      const custom = runtime.callables.resolveCallableValues(call.procedure, scope).flatMap((callable) => {
-        if (callable.kind !== "lambda" || active.has(callable.binding.lambda)) return [];
-        const { lambda } = callable.binding;
-        return runtime.higherOrder.lambdaContextDefaultArgumentVariants(lambda, call.arguments).flatMap((args) => {
-          let lambdaScope = runtime.callables.lambdaCallScope(callable.binding, args, scope);
-          for (const [index, parameter] of lambda.arguments.entries()) {
-            if (args[index]) lambdaScope = bindValue(lambdaScope, parameter.value, args[index], scope);
-          }
-          return staticTransformPatternAlternatives(lambda.body, lambdaScope, new Set([...active, lambda]));
+      const original = node as FunctionNode;
+      const targets = [{
+        callables: runtime.callables.resolveCallableValues(original.procedure, scope),
+        builtins: runtime.callables.resolveBuiltinCallableNames(original.procedure, scope),
+        arguments: original.arguments,
+        scope,
+      }, ...runtime.callables.partialResultTargets(original, scope, true)];
+      return targets.flatMap((target) => {
+        const call = target.arguments === original.arguments ? original : { ...original, arguments: target.arguments };
+        const scope = target.scope;
+        const names = target.builtins;
+        const custom = target.callables.flatMap((callable) => {
+          if (callable.kind !== "lambda" || active.has(callable.binding.lambda)) return [];
+          const { lambda } = callable.binding;
+          return runtime.higherOrder.lambdaContextDefaultArgumentVariants(lambda, call.arguments).flatMap((args) => {
+            let lambdaScope = runtime.callables.lambdaCallScope(callable.binding, args, scope);
+            for (const [index, parameter] of lambda.arguments.entries()) {
+              if (args[index]) lambdaScope = bindValue(lambdaScope, parameter.value, args[index], scope);
+            }
+            return staticTransformPatternAlternatives(lambda.body, lambdaScope, new Set([...active, lambda]));
+          });
         });
+        if (names.includes("map") && call.arguments[0] && call.arguments[1]) {
+          const callback: FunctionNode = {
+            type: "function", value: "(", position: call.position,
+            procedure: call.arguments[1] as FunctionNode["procedure"],
+            arguments: [call.arguments[0], { type: "variable", value: "\0transform-index", position: 0 }, call.arguments[0]],
+          };
+          return [...custom, ...staticTransformPatternAlternatives(callback, scope, active)];
+        }
+        if (names.includes("append")) {
+          return [...custom, ...call.arguments.flatMap((argument) => staticTransformPatternAlternatives(argument, scope, active))];
+        }
+        if (names.some((name) => ["filter", "single", "sort", "reverse", "shuffle", "distinct"].includes(name))) {
+          return [...custom, ...(call.arguments[0] ? staticTransformPatternAlternatives(call.arguments[0], scope, active) : [])];
+        }
+        if (!names.includes("lookup")) return custom;
+        const args = runtime.functions.withImplicitRootFunctionArgument("lookup", call.arguments, call.position, scope);
+        if (!args[0] || !args[1]) return custom;
+        const key = runtime.aliases.staticObjectKey(args[1]) ?? "*";
+        return [...custom, ...staticTransformPatternAlternatives(args[0], scope, active).map((prefix) => [...prefix, key])];
       });
-      if (names.includes("map") && call.arguments[0] && call.arguments[1]) {
-        const callback: FunctionNode = {
-          type: "function", value: "(", position: call.position,
-          procedure: call.arguments[1] as FunctionNode["procedure"],
-          arguments: [call.arguments[0], { type: "variable", value: "\0transform-index", position: 0 }, call.arguments[0]],
-        };
-        return [...custom, ...staticTransformPatternAlternatives(callback, scope, active)];
-      }
-      if (names.includes("append")) {
-        return [...custom, ...call.arguments.flatMap((argument) => staticTransformPatternAlternatives(argument, scope, active))];
-      }
-      if (names.some((name) => ["filter", "single", "sort", "reverse", "shuffle", "distinct"].includes(name))) {
-        return [...custom, ...(call.arguments[0] ? staticTransformPatternAlternatives(call.arguments[0], scope, active) : [])];
-      }
-      if (!names.includes("lookup")) return custom;
-      const args = runtime.functions.withImplicitRootFunctionArgument("lookup", call.arguments, call.position, scope);
-      if (!args[0] || !args[1]) return custom;
-      const key = runtime.aliases.staticObjectKey(args[1]) ?? "*";
-      return [...custom, ...staticTransformPatternAlternatives(args[0], scope, active).map((prefix) => [...prefix, key])];
     }
 
     if (node.type === "array") {

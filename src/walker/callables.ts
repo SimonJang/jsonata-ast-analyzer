@@ -519,6 +519,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
   function partialResultTargets(
     node: FunctionNode,
     scope: ScopeTracker,
+    preserveValues = false,
   ): Array<{ callables: ResolvedCallable[]; builtins: string[]; arguments: AstNode[]; scope: ScopeTracker }> {
     const expand = (
       binding: PartialBinding,
@@ -532,7 +533,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
       const argumentScopes = runtime.higherOrder.applyPartialArgumentScopes(
         binding.partial, callArgs, binding.scope, callScope,
       );
-      const scoped = runtime.higherOrder.scopePartialArguments(args, argumentScopes, callScope);
+      const scoped = runtime.higherOrder.scopePartialArguments(args, argumentScopes, callScope, preserveValues);
       const scopedArgs = scoped.arguments;
       const callables = resolveCallableValues(binding.partial.procedure, binding.scope);
       return [
@@ -1794,6 +1795,7 @@ export function createCallableOperations(runtime: WalkerRuntime): CallableOperat
     compositionLambda,
     customFunctionResultCallableValues,
     customFunctionResultBodies,
+    partialResultTargets,
     customFunctionResultBuiltinCallableNames,
     higherOrderResultCallableValues,
     higherOrderResultBuiltinCallableNames,

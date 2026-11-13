@@ -1,6 +1,6 @@
 import type { ArrayNode, AstNode, ApplyNode, BindNode, BlockNode, ConditionNode, FilterStage, FunctionNode, LambdaNode, NameNode, ObjectNode, PartialNode, PathNode, VariableNode, WildcardNode } from "../types.js";
 import { buildPathString } from "../path-builder.js";
-import { type ScopeTracker, childScope, bindVariable, bindLambdaReference, bindPartial, resolveLambda, resolvePartial, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
+import { type ScopeTracker, childScope, bindVariable, bindValue, bindLambdaReference, bindPartial, resolveLambda, resolvePartial, resolveValue, resolveVariable, resolveSuffixBasePaths, resolveObjectAlias, resolveDynamicObjectAlias, type DynamicObjectAlias, type LambdaBinding, type ObjectAlias } from "../scope.js";
 import { HIGHER_ORDER_SEMANTICS } from "../builtins.js";
 import { ROOT_PATH } from "./constants.js";
 import { prefixProjectionPaths, appendPath, resolveParentPathSegments, isRootReference, markAbsolute, parentPath, isParentRelativePath, stripParentRelativePath, filterToBasePaths, hasPendingFocusReset } from "./path-utils.js";
@@ -1672,6 +1672,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
     args: AstNode[],
     argumentScopes: ScopeTracker[],
     callScope: ScopeTracker,
+    preserveValues = false,
   ): { arguments: AstNode[]; scope: ScopeTracker } {
     let scopedCallScope = childScope(callScope);
     const scopedArguments = args.map((arg, index) => {
@@ -1694,6 +1695,7 @@ export function createHigherOrderOperations(runtime: WalkerRuntime): HigherOrder
         arg,
         argumentScope,
       );
+      if (preserveValues) scopedCallScope = bindValue(scopedCallScope, variable.value, arg, argumentScope);
       return variable;
     });
     return { arguments: scopedArguments, scope: scopedCallScope };

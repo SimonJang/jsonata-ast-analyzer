@@ -122,6 +122,7 @@ export interface CallableOperations {
   compositionLambda(node: ApplyNode, scope: ScopeTracker): LambdaNode | null;
   customFunctionResultCallableValues(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): ResolvedCallable[];
   customFunctionResultBodies(node: FunctionNode, scope: ScopeTracker): Array<{ node: AstNode; scope: ScopeTracker }>;
+  partialResultTargets(node: FunctionNode, scope: ScopeTracker, preserveValues?: boolean): Array<{ callables: ResolvedCallable[]; builtins: string[]; arguments: AstNode[]; scope: ScopeTracker }>;
   customFunctionResultBuiltinCallableNames(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): string[];
   higherOrderResultCallableValues(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): ResolvedCallable[];
   higherOrderResultBuiltinCallableNames(node: FunctionNode, scope: ScopeTracker, suffixSteps?: AstNode[]): string[];
@@ -205,7 +206,7 @@ export interface HigherOrderOperations {
   bindArgumentParameter(scope: ScopeTracker, param: VariableNode, argPaths: readonly string[], arg: AstNode, argScope: ScopeTracker): ScopeTracker;
   applyPartialArguments(partial: PartialNode, callArgs: AstNode[]): AstNode[];
   applyPartialArgumentScopes(partial: PartialNode, callArgs: AstNode[], bindingScope: ScopeTracker, callScope: ScopeTracker): ScopeTracker[];
-  scopePartialArguments(args: AstNode[], argumentScopes: ScopeTracker[], callScope: ScopeTracker): {
+  scopePartialArguments(args: AstNode[], argumentScopes: ScopeTracker[], callScope: ScopeTracker, preserveValues?: boolean): {
       arguments: AstNode[];
       scope: ScopeTracker;
   };
