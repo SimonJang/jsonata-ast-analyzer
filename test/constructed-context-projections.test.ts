@@ -18,6 +18,21 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
 
 describe("data projections from constructed contexts", () => {
   it.each([
+    '{"out":{($$.enabled?"copy":"copy"):other}}',
+    '{"fixed":details,"out":{($$.enabled?"copy":"copy"):other}}',
+  ])("tracks all dynamic projection fields consumed by cloning: %s", async (projection) => {
+    const source = `$count($clone(items.${projection}))`;
+    let activeReads = 0;
+    const data = { enabled: true, items: [{
+      other: { amount: 10, get active() { activeReads++; return true; } },
+      details: { amount: 20 },
+    }] };
+    expect(await jsonata(source).evaluate(data)).toBe(1);
+    expect(activeReads).toBeGreaterThan(0);
+    expect(accesses(source)).toContainEqual(exact("items.other.**"));
+  });
+
+  it.each([
     '$sum((items.{"out":$$.items{"copy":other}}).out.copy.amount)',
     '$sum($map((items.{"out":$$.items{"copy":other}}).out,function($v){$sum($v.copy.amount)}))',
   ])("preserves grouped results used as projected field values: %s", async (source) => {

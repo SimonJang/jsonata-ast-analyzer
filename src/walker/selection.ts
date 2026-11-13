@@ -187,8 +187,13 @@ export function createSelectionOperations(
           ];
         }
         const objectAlias = runtime.aliases.objectAliasForNode(path, scope);
-        if (objectAlias) {
-          return [...objectAlias.values()].flatMap((paths) => [...paths]);
+        const dynamicAlias = runtime.aliases.dynamicObjectAliasForNode(path, scope);
+        if (objectAlias || dynamicAlias) {
+          const paths = [
+            ...(objectAlias ? [...objectAlias.values()].flatMap((paths) => [...paths]) : []),
+            ...(dynamicAlias ? runtime.aliases.selectLookupDynamicObjectAliasPaths(dynamicAlias, []) : []),
+          ];
+          if (paths.length) return paths;
         }
         const hasContext = resolveVariable(scope, "") !== null;
         const contextAlias = hasContext ? resolveObjectAlias(scope, "") : null;
