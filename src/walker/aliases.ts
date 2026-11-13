@@ -2481,8 +2481,12 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         suffix ? paths.map((path) => appendPath(path, suffix)) : paths,
       );
   
-    const objectAlias = objectAliasForNode(resultAliasStep, resultScope);
-    const dynamicObjectAlias = dynamicObjectAliasForNode(resultAliasStep, resultScope);
+    const objectProjection: PathNode | null = resultAliasStep.type === "object" && resultAliasStepIndex > 0
+      ? { type: "path", steps: node.steps.slice(0, resultAliasStepIndex + 1) } : null;
+    const objectAlias = objectProjection ? objectAliasFromPathProjection(objectProjection, scope)
+      : objectAliasForNode(resultAliasStep, resultScope);
+    const dynamicObjectAlias = objectProjection ? dynamicObjectAliasForNode(objectProjection, scope)
+      : dynamicObjectAliasForNode(resultAliasStep, resultScope);
     if (suffixSteps.length > 0 && (objectAlias || dynamicObjectAlias)) {
       const aliasPaths = selectAliasSuffixContextPaths(
         suffixSteps,
@@ -2491,7 +2495,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         bindStepFocusScope(resultAliasStep, resultScope),
         runtime.results.getResultSuffixBasePaths(resultAliasStep, resultScope),
       );
-      if (aliasPaths.length > 0) return prefixProjectionPaths(contextPrefix, aliasPaths);
+      if (aliasPaths.length > 0) return objectProjection ? aliasPaths : prefixProjectionPaths(contextPrefix, aliasPaths);
     }
   
     if (resultAliasStep.type === "array") {
