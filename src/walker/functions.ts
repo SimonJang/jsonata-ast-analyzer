@@ -987,9 +987,30 @@ export function createFunctionOperations(
     if (node.type === "lambda" && (node as LambdaNode).thunk) {
       return isUnknownHostProcedure((node as LambdaNode).body, scope, nextVisited, selectors);
     }
+    const group = (node as FunctionNode).group;
+    if (group && selectors.length > 0) {
+      const [first, ...suffix] = selectors;
+      const key = first.type === "name" ? String(first.value) : null;
+      const groupScope = runtime.aliases.groupResultScope(node, scope);
+      return group.entries.some(([entryKey, value]) =>
+        (key === null || runtime.aliases.staticObjectKey(entryKey) === null || runtime.aliases.staticObjectKey(entryKey) === key) &&
+        isUnknownHostProcedure(value, groupScope, nextVisited, suffix));
+    }
     if (node.type === "path") {
-      const [first, ...suffix] = (node as PathNode).steps;
+      const steps = (node as PathNode).steps;
+      let projection = -1;
+      for (let index = 1; index < steps.length; index++) {
+        if (["object", "array", "block", "lambda"].includes(steps[index].type)) projection = index;
+      }
+      if (projection > 0) {
+        return isUnknownHostProcedure(steps[projection], scope, nextVisited, [...steps.slice(projection + 1), ...selectors]);
+      }
+      const [first, ...suffix] = steps;
       return Boolean(first && isUnknownHostProcedure(first, scope, nextVisited, [...suffix, ...selectors]));
+    }
+    if (["name", "wildcard", "descendant", "parent"].includes(node.type)) {
+      const context = resolveValue(scope, "");
+      return context ? isUnknownHostProcedure(context.node, context.scope, nextVisited, [node, ...selectors]) : true;
     }
     if (node.type === "function") {
       const procedure = (node as FunctionNode).procedure;

@@ -241,4 +241,20 @@ describe("registered host function dependencies", () => {
       path: "record.**", confidence: "static", coverage: "exact",
     });
   });
+
+  it.each([
+    "($f := handler; $f(record))",
+    "($f := handlers.run; $f(record))",
+    '($f := $lookup(handlers,"run"); $f(record))',
+    "($f := handler; $map([record],$f))",
+  ])("covers nested argument reads through an input-supplied callable alias: %s", async (source) => {
+    const handler = (record: { details: { amount: number } }) => record.details.amount;
+    expect(await jsonata(source).evaluate({
+      handler, handlers: { run: handler },
+      record: { details: { amount: 10 } },
+    })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "record.**", confidence: "static", coverage: "exact",
+    });
+  });
 });
