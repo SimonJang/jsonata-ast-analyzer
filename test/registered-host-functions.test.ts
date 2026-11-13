@@ -4,6 +4,29 @@ import { analyzeExpression, extractPaths } from "../src/index.js";
 
 describe("registered host function dependencies", () => {
   it.each([
+    { method: 'function(){$$.other.details.amount}', call: "()" },
+    { method: '$eval', call: '("$$.other.details.amount")' },
+  ])("retains captured reads from $method inserted at an opaque target", async ({ method, call }) => {
+    const source = `($t:=|$pick($)|{"run":${method}}|;$v:=$t(record);$v.a.run${call})`;
+    const expression = jsonata(source);
+    expression.registerFunction("pick", (record: { a: object }) => record.a, "<o:o>");
+    expect(await expression.evaluate({ record: { a: {} }, other: { details: { amount: 10 } } })).toBe(10);
+    expect(analyzeExpression(source).accesses).toContainEqual({
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
+    });
+  });
+
+  it("does not invoke inserted methods when only counting an opaque transform result", async () => {
+    const source = '($t:=|$pick($)|{"run":function(){$$.other.amount}}|;$count($t(record)))';
+    const expression = jsonata(source);
+    expression.registerFunction("pick", (record: { a: object }) => record.a, "<o:o>");
+    let reads = 0;
+    expect(await expression.evaluate({ record: { a: {} }, other: { get amount() { reads++; return 10; } } })).toBe(1);
+    expect(reads).toBe(0);
+    expect(analyzeExpression(source).accesses.some(({ path }) => path.startsWith("other"))).toBe(false);
+  });
+
+  it.each([
     '$pick($)',
     '$ ~> $pick()',
     '$pick(?)($)',
@@ -32,7 +55,7 @@ describe("registered host function dependencies", () => {
     expression.registerFunction("pick", (record: { a: object }) => record.a, "<o:o>");
     expect(await expression.evaluate({ record: { a: {} }, other: { details: { amount: 10 } } })).toBe(10);
     expect(analyzeExpression(source).accesses).toContainEqual({
-      path: "other.**", confidence: "static", coverage: "exact",
+      path: "other.details.amount", confidence: "static", coverage: "subtree",
     });
   });
 

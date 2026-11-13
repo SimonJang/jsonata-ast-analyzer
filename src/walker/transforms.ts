@@ -524,8 +524,7 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   
     // Walk update and prefix results with pattern path
     if (node.update) {
-      let unresolved = false;
-      staticTransformPatternAlternatives(node.pattern, scope, new Set(), () => { unresolved = true; });
+      const { unresolved } = transformPatternInfo(node.pattern, scope);
       // Unknown placement can expose any inserted descendants to later selections.
       const update: AstNode = unresolved ? {
         type: "function", value: "(", position: node.position ?? 0,
@@ -704,6 +703,12 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
     return [];
   }
 
+  function transformPatternInfo(node: AstNode, scope: ScopeTracker) {
+    let unresolved = false;
+    const patterns = staticTransformPatternAlternatives(node, scope, new Set(), () => { unresolved = true; });
+    return { patterns, unresolved };
+  }
+
   function transformUpdateMatches(
     pattern: AstNode,
     suffixSteps: AstNode[],
@@ -751,7 +756,8 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
       type: "path", steps: [
         ...(input.type === "path" && !(input as PathNode).group ? (input as PathNode).steps : [input]),
         ...pattern.map((value): AstNode => value === "*"
-          ? { type: "wildcard", position: 0 } : { type: "name", value, position: 0 }),
+          ? { type: "wildcard", position: 0 } : value === "**"
+          ? { type: "descendant", value: "**", position: 0 } : { type: "name", value, position: 0 }),
       ],
     } as PathNode : input;
     let result = bindVariable(scope, "", runtime.aliases.bindingAliasPaths(selected, callScope));
@@ -771,9 +777,12 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   ): ResolvedCallable[] {
     return runtime.callables.resolveCallableValues(node.procedure, scope).flatMap((callable) => {
       if (callable.kind !== "transform") return [];
-      const matches = suffixSteps.length
+      const inferred = transformPatternInfo(callable.binding.transform.pattern, transformInvocationScope(callable.binding, scope));
+      const matches = inferred.unresolved
+        ? [{ locationNames: ["**"], updateSuffix: [] as AstNode[] }]
+        : suffixSteps.length
         ? transformUpdateMatches(callable.binding.transform.pattern, suffixSteps, transformInvocationScope(callable.binding, scope))
-        : staticTransformPatternAlternatives(callable.binding.transform.pattern, transformInvocationScope(callable.binding, scope)).map((locationNames) => ({
+        : inferred.patterns.map((locationNames) => ({
             locationNames, updateSuffix: [] as AstNode[],
           }));
       return matches.flatMap(({ locationNames, updateSuffix }) => {
@@ -812,9 +821,12 @@ export function createTransformOperations(runtime: WalkerRuntime): TransformOper
   ): string[] {
     return runtime.callables.resolveCallableValues(node.procedure, scope).flatMap((callable) => {
       if (callable.kind !== "transform") return [];
-      const matches = suffixSteps.length
+      const inferred = transformPatternInfo(callable.binding.transform.pattern, transformInvocationScope(callable.binding, scope));
+      const matches = inferred.unresolved
+        ? [{ locationNames: ["**"], updateSuffix: [] as AstNode[] }]
+        : suffixSteps.length
         ? transformUpdateMatches(callable.binding.transform.pattern, suffixSteps, transformInvocationScope(callable.binding, scope))
-        : staticTransformPatternAlternatives(callable.binding.transform.pattern, transformInvocationScope(callable.binding, scope)).map((locationNames) => ({
+        : inferred.patterns.map((locationNames) => ({
             locationNames, updateSuffix: [] as AstNode[],
           }));
       return matches.flatMap(({ locationNames, updateSuffix }) => {
