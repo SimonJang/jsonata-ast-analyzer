@@ -18,6 +18,15 @@ const accesses = (expression: string) => analyzeExpression(expression).accesses
 
 describe("data projections from constructed contexts", () => {
   it.each([
+    '$sum((items.{"out":$$.items{"copy":other}}).out.copy.amount)',
+    '$sum($map((items.{"out":$$.items{"copy":other}}).out,function($v){$sum($v.copy.amount)}))',
+  ])("preserves grouped results used as projected field values: %s", async (source) => {
+    const data = { items: [{ other: { amount: 10 } }, { other: { amount: 20 } }] };
+    expect(await jsonata(source).evaluate(data)).toBe(60);
+    expect(accesses(source)).toContainEqual(exact("items.other.amount"));
+  });
+
+  it.each([
     '{"outer":items{"group":details}}.outer.group.amount',
     '($v:={"outer":items{"group":details}};$v.outer.group.amount)',
   ])("preserves grouped fields stored inside a constructor: %s", async (source) => {

@@ -196,7 +196,7 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         for (const entry of (value as ArrayNode).expressions) addValue(key, entry);
         return;
       }
-      if (value.type === "condition") {
+      if (value.type === "condition" && !(value as AstNode & { group?: GroupByNode }).group) {
         const condition = value as ConditionNode;
         addValue(key, condition.then);
         if (condition.else) addValue(key, condition.else);
@@ -207,7 +207,8 @@ export function createAliasOperations(runtime: WalkerRuntime): AliasOperations {
         addValue(key, (value as BlockNode).expressions[0]);
         return;
       }
-      if (value.type === "block" || value.type === "function" || value.type === "apply") {
+      if ((value as AstNode & { group?: GroupByNode }).group ||
+          value.type === "block" || value.type === "function" || value.type === "apply") {
         projectionScope ??= groupResultScope({ type: "path", steps: prefixSteps } as PathNode, scope);
         const nested = groupResultObjectAliasForNode(value, projectionScope);
         if (nested) {
